@@ -66,15 +66,10 @@ HTTP : "https://api.com/data" (timeout=30s) {   # 全套
 
 在 INPUT 语境中，装饰器的执行顺序是：
 
-```
-源协议 (HTTP/FILES/WEBS/MEMS...)  →  装饰器加工  →  产出变量
-     │                                    │              │
-     │  原始数据（字节流/文本/结构）        │              │
-     │                                    │              │
-     │                          [gzip] [decrypt] ...     │
-     │                           加工后数据               │
-     │                                                   │
-     │                                             => RAW : bytes
+```mermaid
+flowchart LR
+    A["源协议<br/>HTTP / FILES / WEBS / MEMS ..."] -->|"原始数据<br/>(字节流/文本/结构)"| B["装饰器加工<br/>[gzip] [decrypt] ..."]
+    B -->|"加工后数据"| C["产出变量<br/>=> RAW : bytes"]
 ```
 
 ```

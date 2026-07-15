@@ -599,22 +599,354 @@ def chart_merge_comparison(data):
 
 
 # ═══════════════════════════════════════════════════════════════
+# 图9: 指令编码位域图（5 种模板）
+# ═══════════════════════════════════════════════════════════════
+
+def chart_instruction_encodings(data=None):
+    """绘制 32 位指令的 5 种编码模板位域图"""
+    encodings = [
+        ("32 位指令总格式", [
+            ("操作数域 (Operand Field)", 24, "#3498db"),
+            ("Opcode", 8, "#e74c3c"),
+        ]),
+        ("R3 模板 (三寄存器 + funct)", [
+            ("rd [4]", 4, "#2ecc71"),
+            ("rs1 [4]", 4, "#27ae60"),
+            ("rs2 [4]", 4, "#1abc9c"),
+            ("funct [12]", 12, "#f39c12"),
+            ("Opcode [8]", 8, "#e74c3c"),
+        ]),
+        ("R2I 模板 (双寄存器 + 立即数)", [
+            ("rd [4]", 4, "#2ecc71"),
+            ("rs1 [4]", 4, "#27ae60"),
+            ("imm [16]", 16, "#9b59b6"),
+            ("Opcode [8]", 8, "#e74c3c"),
+        ]),
+        ("R1I 模板 (单寄存器 + 立即数)", [
+            ("rd [4]", 4, "#2ecc71"),
+            ("imm [20]", 20, "#9b59b6"),
+            ("Opcode [8]", 8, "#e74c3c"),
+        ]),
+        ("JI 模板 (纯地址/立即数)", [
+            ("offset / imm [24]", 24, "#3498db"),
+            ("Opcode [8]", 8, "#e74c3c"),
+        ]),
+    ]
+
+    fig, axes = plt.subplots(len(encodings), 1, figsize=(18, 2.2 * len(encodings)))
+    if len(encodings) == 1:
+        axes = [axes]
+
+    for idx, (title, fields) in enumerate(encodings):
+        ax = axes[idx]
+        ax.set_xlim(0, 32)
+        ax.set_ylim(0, 1)
+
+        x_start = 0
+        for label, width, color in fields:
+            rect = plt.Rectangle((x_start, 0.15), width, 0.7, linewidth=1.5,
+                                edgecolor='white', facecolor=color, alpha=0.85)
+            ax.add_patch(rect)
+            # Label inside the block
+            short_label = label.split("[")[0].strip() if "[" in label else label
+            ax.text(x_start + width/2, 0.5, short_label, ha='center', va='center',
+                   fontsize=11, fontweight='bold', color='white')
+            # Bit range annotation above
+            bit_hi = 31 - x_start
+            bit_lo = 32 - x_start - width
+            ax.text(x_start + width/2, 0.95, f'[{bit_hi}:{bit_lo}]', ha='center', va='bottom',
+                   fontsize=8, color='#555555')
+            # Width annotation below
+            ax.text(x_start + width/2, 0.08, f'{width}b', ha='center', va='top',
+                   fontsize=8, color='#555555')
+            x_start += width
+
+        # Bit ruler at bottom
+        for b in range(0, 33, 4):
+            ax.axvline(x=b, color='#cccccc', linestyle=':', alpha=0.3)
+
+        ax.set_title(title, fontweight='bold', fontsize=13, loc='left')
+        ax.axis('off')
+
+    fig.suptitle("Atomix 指令编码模板 — 32 位定长指令", fontsize=17, fontweight='bold')
+    plt.tight_layout()
+    path = os.path.join(ASSETS_DIR, "instruction_encodings.png")
+    plt.savefig(path, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"  已保存: {path}")
+    return path
+
+
+# ═══════════════════════════════════════════════════════════════
+# 图10: 内存水位线示意
+# ═══════════════════════════════════════════════════════════════
+
+def chart_memory_watermark(data=None):
+    """绘制任务内存空间的水位线示意"""
+    fig, ax = plt.subplots(figsize=(8, 9))
+    ax.set_xlim(0, 4)
+    ax.set_ylim(0, 10)
+
+    # Background: full memory space
+    total = plt.Rectangle((1, 0), 2, 10, linewidth=2, edgecolor='#333333',
+                         facecolor='#ecf0f1', alpha=0.3)
+    ax.add_patch(total)
+
+    # Used region (top)
+    used = plt.Rectangle((1, 6.5), 2, 3.5, linewidth=0, facecolor='#e74c3c', alpha=0.6)
+    ax.add_patch(used)
+    ax.text(3.3, 8.25, "已使用区域\n(Used)", fontsize=12, fontweight='bold', color='#c0392b', va='center')
+
+    # Safe zone
+    safe = plt.Rectangle((1, 3.5), 2, 3.0, linewidth=0, facecolor='#2ecc71', alpha=0.4)
+    ax.add_patch(safe)
+    ax.text(3.3, 5.0, "安全区\n(Safe Zone)\n正常分配", fontsize=11, color='#27ae60', va='center')
+
+    # Reserved zone
+    reserved = plt.Rectangle((1, 0), 2, 3.5, linewidth=0, facecolor='#f39c12', alpha=0.3)
+    ax.add_patch(reserved)
+    ax.text(3.3, 2.0, "保留区\n(Reserved)\n不可分配\n供紧急操作使用", fontsize=10, color='#e67e22', va='center')
+
+    # Watermark line
+    ax.axhline(y=6.5, xmin=0.25, xmax=0.75, color='#e74c3c', linewidth=3, linestyle='-')
+    ax.axhline(y=6.5, xmin=0.1, xmax=0.9, color='#e74c3c', linewidth=1, linestyle='--', alpha=0.5)
+    ax.text(0.75, 6.5, "▲ 警戒线\n(Watermark)", fontsize=12, fontweight='bold', color='#c0392b',
+           va='center', ha='right')
+
+    # Boundary line between safe and reserved
+    ax.axhline(y=3.5, xmin=0.25, xmax=0.75, color='#f39c12', linewidth=1.5, linestyle='--')
+    ax.text(0.75, 3.5, "保留边界", fontsize=9, color='#e67e22', va='center', ha='right')
+
+    # Annotations
+    ax.text(2, -0.5, "每次 ECALL alloc / CALL / TASK_FORK 前检查水位",
+           ha='center', fontsize=10, color='#555555', style='italic')
+
+    ax.set_title("任务内存空间 — 水位线机制", fontsize=16, fontweight='bold')
+    ax.axis('off')
+    plt.tight_layout()
+    path = os.path.join(ASSETS_DIR, "memory_watermark.png")
+    plt.savefig(path, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"  已保存: {path}")
+    return path
+
+
+# ═══════════════════════════════════════════════════════════════
+# 图11: VM 运行时架构总览
+# ═══════════════════════════════════════════════════════════════
+
+def chart_vm_architecture(data=None):
+    """绘制 VM Runtime 核心组件架构图"""
+    fig, ax = plt.subplots(figsize=(18, 11))
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+
+    def draw_box(x, y, w, h, label, color, fontsize=10, edgecolor=None):
+        if edgecolor is None:
+            edgecolor = color
+        rect = plt.Rectangle((x, y), w, h, linewidth=2, edgecolor=edgecolor,
+                            facecolor=color, alpha=0.15)
+        ax.add_patch(rect)
+        ax.text(x + w/2, y + h/2, label, ha='center', va='center',
+               fontsize=fontsize, fontweight='bold', color=color, linespacing=1.3)
+
+    def draw_arrow(x1, y1, x2, y2, color='#555555', lw=1.5):
+        ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
+                   arrowprops=dict(arrowstyle='->', color=color, lw=lw,
+                                  connectionstyle='arc3,rad=0'))
+
+    # Title
+    ax.text(8, 9.5, "VM Runtime 核心组件", ha='center', fontsize=18, fontweight='bold', color='#2c3e50')
+
+    # Top row: Entry
+    draw_box(0.5, 7.8, 3, 1.3, "任务进入\n(Task Entry)", "#2c3e50", 11)
+
+    # Flow arrow down
+    ax.annotate('', xy=(2, 7.8), xytext=(2, 9.1),
+               arrowprops=dict(arrowstyle='->', color='#555555', lw=2))
+
+    # Second row: Task Pool
+    draw_box(0.5, 5.8, 3, 1.7, "任务池\n(Task Pool)\n[磁盘存储]", "#8e44ad", 11)
+
+    # Main horizontal: Task Pool → Batch Manager → Executor
+    draw_box(4.5, 5.8, 4, 1.7, "批次管理器\n(Batch Manager)\n硬上限 H + 软上限 S", "#2980b9", 11)
+    draw_box(9.5, 5.8, 3.5, 1.7, "执行引擎\n(Executor)\n实地址执行", "#c0392b", 11)
+
+    draw_arrow(3.5, 6.65, 4.5, 6.65, '#555555', 2)
+    draw_arrow(8.5, 6.65, 9.5, 6.65, '#555555', 2)
+
+    # Bottom row: Memory Manager, Risk Control
+    draw_box(4.5, 3.0, 4, 1.7, "内存管理器\n(Memory Manager)\n虚地址分配 · 扩容 · 回收", "#27ae60", 11)
+    draw_box(9.5, 3.0, 3.5, 1.7, "风险管控\n(Risk Control)\nOOM 反馈 · 计数", "#e67e22", 11)
+
+    draw_arrow(6.5, 5.8, 6.5, 4.7, '#555555', 1.5)
+    draw_arrow(11.25, 5.8, 11.25, 4.7, '#555555', 1.5)
+
+    # Feedback: Risk Control ← Memory Manager
+    ax.annotate('', xy=(9.5, 4.7), xytext=(8.5, 4.7),
+               arrowprops=dict(arrowstyle='->', color='#e67e22', lw=1.5, connectionstyle='arc3,rad=0.3'))
+
+    # Bottom sub-components
+    draw_box(0.5, 1.5, 3, 1.2, "取指 / 解码\n(Fetch / Decode)", "#16a085", 9)
+    draw_box(4.5, 1.5, 3, 1.2, "沙箱隔离\n(Sandbox)", "#2c3e50", 9)
+    draw_box(8.5, 1.5, 3.5, 1.2, "Syscall Gateway\n(系统调用网关)", "#8e44ad", 9)
+
+    # Return arrow: Task completion → Task Pool
+    ax.annotate('', xy=(2, 5.8), xytext=(11.25, 5.8),
+               arrowprops=dict(arrowstyle='->', color='#95a5a6', lw=1.5, linestyle='--',
+                              connectionstyle='arc3,rad=0.5'))
+    ax.text(6.7, 7.9, "任务完成回收", fontsize=9, color='#95a5a6', ha='center')
+
+    # Outer border
+    border = plt.Rectangle((0, 1), 14, 8.5, linewidth=2.5, edgecolor='#2c3e50',
+                          facecolor='none', linestyle='-')
+    ax.add_patch(border)
+
+    plt.tight_layout()
+    path = os.path.join(ASSETS_DIR, "vm_architecture.png")
+    plt.savefig(path, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"  已保存: {path}")
+    return path
+
+
+# ═══════════════════════════════════════════════════════════════
+# 图12: 配置方案对比
+# ═══════════════════════════════════════════════════════════════
+
+def chart_config_comparison(data=None):
+    """绘制三种配置方案（克制/卑微/大方）对比"""
+    fig, axes = plt.subplots(1, 3, figsize=(20, 7))
+
+    configs = [
+        {
+            "title": "配置 A：克制型（默认推荐）",
+            "subtitle": "cpu=75%, memory=50%",
+            "color": "#27ae60",
+            "params": {
+                "cpu_limit": ("1.5 核", "2 × 0.75"),
+                "mem_limit": ("700 MB", "1400 × 0.50"),
+                "C": ("4", "1.5×0.75/0.25"),
+                "M": ("21", "700×0.50/16"),
+                "H": ("4", "min(4, 21, ...)"),
+                "N_batch": "4",
+                "每任务": "~175 MB",
+            }
+        },
+        {
+            "title": "配置 B：卑微型",
+            "subtitle": "cpu=25%, memory=128MB",
+            "color": "#e74c3c",
+            "params": {
+                "cpu_limit": ("0.5 核", "2 × 0.25"),
+                "mem_limit": ("128 MB", "绝对值"),
+                "C": ("1", "0.5×0.75/0.25"),
+                "M": ("4", "128×0.50/16"),
+                "H": ("1", "min(1, 4, ...)"),
+                "N_batch": "1",
+                "每任务": "~128 MB",
+            }
+        },
+        {
+            "title": "配置 C：大方型（独占整机）",
+            "subtitle": "cpu=100%, memory=80%",
+            "color": "#2980b9",
+            "params": {
+                "cpu_limit": ("2.0 核", "2 × 1.00"),
+                "mem_limit": ("1120 MB", "1400 × 0.80"),
+                "C": ("6", "2.0×0.75/0.25"),
+                "M": ("35", "1120×0.50/16"),
+                "H": ("6", "min(6, 35, ...)"),
+                "N_batch": "6",
+                "每任务": "~186 MB",
+            }
+        },
+    ]
+
+    for idx, cfg in enumerate(configs):
+        ax = axes[idx]
+        ax.set_xlim(0, 3)
+        ax.set_ylim(0, 8)
+
+        # Title
+        ax.text(1.5, 7.6, cfg["title"], ha='center', fontsize=12, fontweight='bold', color=cfg["color"])
+        ax.text(1.5, 7.1, cfg["subtitle"], ha='center', fontsize=9, color='#666666', style='italic')
+
+        # Draw parameter rows
+        y_positions = [6.3, 5.5, 4.7, 3.9, 3.1, 2.3, 1.5]
+        param_keys = ["cpu_limit", "mem_limit", "C", "M", "H", "N_batch", "每任务"]
+        labels = ["cpu_limit", "mem_limit", "C = CPU 上限", "M = MEM 上限",
+                  "H = 硬上限", "N_batch", "每任务内存"]
+
+        for i, (key, label) in enumerate(zip(param_keys, labels)):
+            y = y_positions[i]
+            val = cfg["params"][key]
+            if isinstance(val, tuple):
+                display_val, formula = val
+                ax.text(1.5, y, f'{label}:  {display_val}', ha='center', fontsize=10,
+                       fontweight='bold', color='#333333')
+                ax.text(1.5, y - 0.25, f'({formula})', ha='center', fontsize=8, color='#888888')
+            else:
+                ax.text(1.5, y, f'{label}:  {val}', ha='center', fontsize=10,
+                       fontweight='bold', color='#333333')
+
+        # Highlight bar for N_batch
+        n_batch_val = cfg["params"]["N_batch"]
+        nb_y = 2.3
+        bar_w = float(n_batch_val) * 0.25
+        rect = plt.Rectangle((1.5 - bar_w/2, nb_y - 0.35), bar_w, 0.5, linewidth=0,
+                            facecolor=cfg["color"], alpha=0.2)
+        ax.add_patch(rect)
+
+        ax.axis('off')
+
+    fig.suptitle("同一台 2C2G 服务器，不同配置的并发效果\n（越克制 → 越卑微 → N_batch 越小）",
+                fontsize=15, fontweight='bold')
+    plt.tight_layout()
+    path = os.path.join(ASSETS_DIR, "config_comparison.png")
+    plt.savefig(path, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"  已保存: {path}")
+    return path
+
+
+# ═══════════════════════════════════════════════════════════════
 
 def main():
     print(f"使用字体: {_CN_FONT}")
     print("正在生成全中文科学图表...\n")
-    data = load_all_data()
 
-    chart_heatmap(data)
-    chart_pareto(data)
-    chart_oom_comparison(data)
-    chart_improvement_radar(data)
+    # 尝试加载仿真数据（如果存在）
+    data = None
+    master_path = os.path.join(REPORTS_DIR, "master_summary.json")
+    if os.path.exists(master_path):
+        data = load_all_data()
+        print("已加载仿真数据，将生成数据驱动图表\n")
+    else:
+        print("未找到仿真数据，跳过数据驱动图表\n")
+
+    # ── 数据驱动图表（需要仿真数据）──
+    if data is not None:
+        chart_heatmap(data)
+        chart_pareto(data)
+        chart_oom_comparison(data)
+        chart_improvement_radar(data)
+
+    # ── 分析型图表（使用合成数据，不需要仿真）──
     chart_factor_behavior(data)
     chart_oom_feedback_comparison(data)
     chart_slipway_viz(data)
     chart_merge_comparison(data)
 
-    print(f"\n全部 8 张图表已保存至 {ASSETS_DIR}/")
+    # ── 文档插图（纯示意，不需要仿真数据）──
+    chart_instruction_encodings()
+    chart_memory_watermark()
+    chart_vm_architecture()
+    chart_config_comparison()
+
+    total = 8 + 4  # 原有 8 张 + 新增 4 张（指令编码是 1 张合图）
+    print(f"\n全部 {total} 张图表已保存至 {ASSETS_DIR}/")
 
 
 if __name__ == "__main__":

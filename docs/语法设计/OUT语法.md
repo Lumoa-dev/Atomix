@@ -59,9 +59,16 @@ OUT :
 
 ### 3.1 与 INPUT 的对称关系
 
-```
-INPUT :  HTTP : "url" => RAW : bytes      # 源 → 变量
-OUT   :  RAW => HTTP : "url"              # 变量 → 目标
+```mermaid
+flowchart LR
+    subgraph INPUT["INPUT（数据流入）"]
+        direction LR
+        A1["HTTP：'url'"] -->|"=>"| B1["RAW：bytes"]
+    end
+    subgraph OUT["OUT（数据流出）"]
+        direction LR
+        A2["RAW"] -->|"=>"| B2["HTTP：'url'"]
+    end
 ```
 
 INPUT 是**数据流入**，关键词在前、赋值箭头指向变量。
@@ -83,12 +90,10 @@ OUT 是**数据流出**，变量在前、赋值箭头指向关键词。
 
 与 INPUT 对称但方向相反：
 
-```
-数据源变量  →  装饰器加工  →  目标协议 (HTTP/FILES/TCP...)
-    │              │                │
-    │  [encrypt] [gzip] ...         │
-    │              │                │
-    └── RAW ───────┘                └── HTTP : "url"
+```mermaid
+flowchart LR
+    A["数据源变量<br/>RAW"] -->|"[encrypt] [gzip] ..."| B["装饰器加工"]
+    B -->|"加工后数据"| C["目标协议<br/>HTTP : 'url'"]
 ```
 
 ```
