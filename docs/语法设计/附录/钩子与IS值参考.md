@@ -1,8 +1,21 @@
 # 附录 C：钩子与 IS\* 值参考
 
-> 配套文档: [WORKS语法.md](../WORKS语法.md)、[通用语法.md](../通用语法.md)
+> 配套文档: 详见 WORKS语法.md、通用语法.md
 
 ---
+
+## 实现层级说明
+
+钩子系统按实现层级分为三类，不同层级对应不同的实现复杂度和 VM 侵入性：
+
+| 层级 | 说明 | 实现方式 | 数量 |
+|------|------|----------|------|
+| **P0（核心钩子）** | 生命周期关键节点，VM 原生支持 | VM 内联指令序列，固定触发点 | ~15 |
+| **P1（常用钩子）** | 常用场景，编译器生成支持 | 编译器在 IR 中插入条件跳转链 | ~25 |
+| **P2（扩展钩子）** | 高级/特殊场景，库层实现 | 由标准库或用户自定义逻辑触发 | ~13 |
+| **IS\* 值** | 上下文只读变量 | 编译器映射到寄存器或栈偏移，零运行时开销 | 72 |
+
+P1/P2 钩子不增加 VM 核心复杂度——它们在编译期展开为条件判断 + 跳转指令序列，VM 执行时不感知"钩子"概念。轻量原则约束的是 VM 二进制体积和运行时内存占用，非语法层功能数量。
 
 ## 一、生命周期钩子
 
@@ -10,109 +23,109 @@
 
 ### 阶段 1：实例创建/初始化
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `DEFINE` | WORKS 模板被编译器加载时（类级） | — |
-| `INHERIT` | 从父 WORKS 继承时 | `ISPARENT` |
-| `NEW` | 实例创建、内存分配完成时 | `ISTASKID` |
-| `INIT` | 属性初始化完毕时 | `ISTASKID` |
-| `CONSTRUCT` | 整个构造完成、可被引用时 | `ISTASKID` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `DEFINE` | P2 | WORKS 模板被编译器加载时（类级） | — |
+| `INHERIT` | P2 | 从父 WORKS 继承时 | `ISPARENT` |
+| `NEW` | P1 | 实例创建、内存分配完成时 | `ISTASKID` |
+| `INIT` | P0 | 属性初始化完毕时 | `ISTASKID` |
+| `CONSTRUCT` | P1 | 整个构造完成、可被引用时 | `ISTASKID` |
 
 ### 阶段 2：执行准备
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `LOAD` | 调度器取出准备执行时 | `ISTASKID`、`ISWAITTIME` |
-| `PREPARE` | 执行资源分配完成时 | `ISTASKID` |
-| `READY` | 完全就绪、代码体即将执行前 | `ISTASKID`、`ISSTEPNAME` |
-| `START` | 实例开始执行主代码体时 | `ISTASKID`、`ISSTARTTIME` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `LOAD` | P1 | 调度器取出准备执行时 | `ISTASKID`、`ISWAITTIME` |
+| `PREPARE` | P1 | 执行资源分配完成时 | `ISTASKID` |
+| `READY` | P1 | 完全就绪、代码体即将执行前 | `ISTASKID`、`ISSTEPNAME` |
+| `START` | P0 | 实例开始执行主代码体时 | `ISTASKID`、`ISSTARTTIME` |
 
 ### 阶段 3：运行
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `RUN` | 每轮主语句前 | `ISSTEPNAME`、`ISLINE` |
-| `STEP` | 每个 CALL 形成的 Step 前 | `ISSTEPNAME`、`ISARGS`、`ISSTEPINDEX` |
-| `STEP_AFTER` | 每个 Step 执行完毕后 | `ISSTEPNAME`、`ISRETURN`、`ISELAPSED` |
-| `STEP_ERROR` | 某个 Step 抛出异常时 | `ISSTEPNAME`、`ISERROR` |
-| `SUSPEND` | 实例被调度器挂起时 | `ISSUSPENDREASON`、`ISELAPSED` |
-| `RESUME` | 实例从挂起恢复时 | `ISELAPSED` |
-| `INTERRUPT` | 执行被外部中断时 | `ISINTERRUPTCODE`、`ISLINE` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `RUN` | P1 | 每轮主语句前 | `ISSTEPNAME`、`ISLINE` |
+| `STEP` | P0 | 每个 CALL 形成的 Step 前 | `ISSTEPNAME`、`ISARGS`、`ISSTEPINDEX` |
+| `STEP_AFTER` | P0 | 每个 Step 执行完毕后 | `ISSTEPNAME`、`ISRETURN`、`ISELAPSED` |
+| `STEP_ERROR` | P1 | 某个 Step 抛出异常时 | `ISSTEPNAME`、`ISERROR` |
+| `SUSPEND` | P2 | 实例被调度器挂起时 | `ISSUSPENDREASON`、`ISELAPSED` |
+| `RESUME` | P2 | 实例从挂起恢复时 | `ISELAPSED` |
+| `INTERRUPT` | P2 | 执行被外部中断时 | `ISINTERRUPTCODE`、`ISLINE` |
 
 ### 阶段 4：方法调用
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `CALL` | 方法被调用时（调用前） | `ISMETHOD`、`ISARGS`、`ISCALLER` |
-| `CALL_AFTER` | 方法调用成功返回后 | `ISMETHOD`、`ISRETURN`、`ISELAPSED` |
-| `CALL_ERROR` | 方法调用抛出异常时 | `ISMETHOD`、`ISARGS`、`ISERROR` |
-| `CALL_RETURN` | return 语句执行时 | `ISMETHOD`、`ISRETURN` |
-| `PUB_CALL` | 公开方法被外部调用时 | `ISMETHOD`、`ISARGS`、`ISCALLER` |
-| `PRIV_CALL` | 私有方法被内部调用时 | `ISMETHOD`、`ISARGS` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `CALL` | P0 | 方法被调用时（调用前） | `ISMETHOD`、`ISARGS`、`ISCALLER` |
+| `CALL_AFTER` | P1 | 方法调用成功返回后 | `ISMETHOD`、`ISRETURN`、`ISELAPSED` |
+| `CALL_ERROR` | P1 | 方法调用抛出异常时 | `ISMETHOD`、`ISARGS`、`ISERROR` |
+| `CALL_RETURN` | P1 | return 语句执行时 | `ISMETHOD`、`ISRETURN` |
+| `PUB_CALL` | P1 | 公开方法被外部调用时 | `ISMETHOD`、`ISARGS`、`ISCALLER` |
+| `PRIV_CALL` | P2 | 私有方法被内部调用时 | `ISMETHOD`、`ISARGS` |
 
 ### 阶段 5：属性访问
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `GET` | 属性被读取前 | `ISPROPERTY`、`ISPROPTYPE` |
-| `GET_AFTER` | 属性读取完成后 | `ISPROPERTY`、`ISPROPVALUE` |
-| `GET_ERROR` | 属性读取出错时 | `ISPROPERTY`、`ISERROR` |
-| `SET` | 属性被写入前 | `ISPROPERTY`、`ISPROPVALUE` |
-| `SET_AFTER` | 属性写入完成后 | `ISPROPERTY` |
-| `SET_ERROR` | 属性写入失败时 | `ISPROPERTY`、`ISERROR` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `GET` | P0 | 属性被读取前 | `ISPROPERTY`、`ISPROPTYPE` |
+| `GET_AFTER` | P2 | 属性读取完成后 | `ISPROPERTY`、`ISPROPVALUE` |
+| `GET_ERROR` | P2 | 属性读取出错时 | `ISPROPERTY`、`ISERROR` |
+| `SET` | P0 | 属性被写入前 | `ISPROPERTY`、`ISPROPVALUE` |
+| `SET_AFTER` | P2 | 属性写入完成后 | `ISPROPERTY` |
+| `SET_ERROR` | P2 | 属性写入失败时 | `ISPROPERTY`、`ISERROR` |
 
 ### 阶段 6：子任务管理
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `FORK` | 派生子任务时 | `ISCHILDID`、`ISCHILDCOUNT` |
-| `JOIN` | 等待子任务返回时 | `ISCHILDID`、`ISCHILDCOUNT` |
-| `JOIN_AFTER` | 子任务完成、取回结果后 | `ISCHILDID`、`ISRETURN` |
-| `CHILD_START` | 任意直接子任务开始执行时 | `ISCHILDID`、`ISCHILDNAME` |
-| `CHILD_DONE` | 任意直接子任务完成时 | `ISCHILDID`、`ISCHILDRETURN` |
-| `CHILD_ERROR` | 任意直接子任务出错时 | `ISCHILDID`、`ISERROR` |
-| `CHILD_FORK` | 子任务又派生孙任务时 | `ISCHILDID`、`ISDEPTH` |
-| `JOIN_ALL` | 等待所有子任务完成时 | `ISCHILDREN`、`ISCHILDCOUNT` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `FORK` | P0 | 派生子任务时 | `ISCHILDID`、`ISCHILDCOUNT` |
+| `JOIN` | P0 | 等待子任务返回时 | `ISCHILDID`、`ISCHILDCOUNT` |
+| `JOIN_AFTER` | P1 | 子任务完成、取回结果后 | `ISCHILDID`、`ISRETURN` |
+| `CHILD_START` | P2 | 任意直接子任务开始执行时 | `ISCHILDID`、`ISCHILDNAME` |
+| `CHILD_DONE` | P2 | 任意直接子任务完成时 | `ISCHILDID`、`ISCHILDRETURN` |
+| `CHILD_ERROR` | P2 | 任意直接子任务出错时 | `ISCHILDID`、`ISERROR` |
+| `CHILD_FORK` | P2 | 子任务又派生孙任务时 | `ISCHILDID`、`ISDEPTH` |
+| `JOIN_ALL` | P1 | 等待所有子任务完成时 | `ISCHILDREN`、`ISCHILDCOUNT` |
 
 ### 阶段 7：管道/装饰器
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `PIPE_BEFORE` | 管道操作 `$` 数据流转前 | `ISPROPVALUE`、`ISPIPEINDEX` |
-| `PIPE_AFTER` | 管道操作 `$` 数据流转后 | `ISPROPVALUE`、`ISPIPECOUNT` |
-| `PIPE_ERROR` | 管道处理出错时 | `ISERROR`、`ISPIPEINDEX` |
-| `PIPE_DONE` | 整条管道链完成时 | `ISPIPECOUNT`、`ISELAPSED` |
-| `DECORATOR_BEFORE` | 装饰器处理数据前 | `ISDECORATORNAME`、`ISPROPVALUE` |
-| `DECORATOR_AFTER` | 装饰器处理完成后 | `ISDECORATORNAME`、`ISELAPSED` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `PIPE_BEFORE` | P2 | 管道操作 `$` 数据流转前 | `ISPROPVALUE`、`ISPIPEINDEX` |
+| `PIPE_AFTER` | P2 | 管道操作 `$` 数据流转后 | `ISPROPVALUE`、`ISPIPECOUNT` |
+| `PIPE_ERROR` | P2 | 管道处理出错时 | `ISERROR`、`ISPIPEINDEX` |
+| `PIPE_DONE` | P2 | 整条管道链完成时 | `ISPIPECOUNT`、`ISELAPSED` |
+| `DECORATOR_BEFORE` | P2 | 装饰器处理数据前 | `ISDECORATORNAME`、`ISPROPVALUE` |
+| `DECORATOR_AFTER` | P2 | 装饰器处理完成后 | `ISDECORATORNAME`、`ISELAPSED` |
 
 ### 阶段 8：完成
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `DONE` | 主代码体正常执行完成时 | `ISELAPSED`、`ISRETURN` |
-| `ERROR` | 未捕获异常时 | `ISERROR`、`ISERRORTYPE`、`ISERRORSTACK` |
-| `FINALLY` | 无论成功失败，DONE/ERROR 后触发 | `ISSTATUS`、`ISELAPSED` |
-| `TIMEOUT` | 超过预设超时时 | `ISTIMEOUT`、`ISELAPSED` |
-| `CANCEL` | 执行被外部取消时 | `ISCANCELREASON`、`ISELAPSED` |
-| `HALT` | 遇到 TRAP 0 指令时 | `ISLINE` |
-| `RETURN` | 通过 TASK_RET 返回结果时 | `ISRETURN`、`ISELAPSED` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `DONE` | P0 | 主代码体正常执行完成时 | `ISELAPSED`、`ISRETURN` |
+| `ERROR` | P0 | 未捕获异常时 | `ISERROR`、`ISERRORTYPE`、`ISERRORSTACK` |
+| `FINALLY` | P0 | 无论成功失败，DONE/ERROR 后触发 | `ISSTATUS`、`ISELAPSED` |
+| `TIMEOUT` | P1 | 超过预设超时时 | `ISTIMEOUT`、`ISELAPSED` |
+| `CANCEL` | P1 | 执行被外部取消时 | `ISCANCELREASON`、`ISELAPSED` |
+| `HALT` | P1 | 遇到 TRAP 0 指令时 | `ISLINE` |
+| `RETURN` | P1 | 通过 TASK_RET 返回结果时 | `ISRETURN`、`ISELAPSED` |
 
 ### 阶段 9：销毁/清理
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `DEL` | 实例即将销毁时 | `ISELAPSED` |
-| `CLEANUP` | 资源释放过程中 | `ISCLEANUPTARGET` |
-| `DISPOSE` | 内存即将回收时 | `ISELAPSED` |
-| `UNLOAD` | 类定义被虚拟机卸载时（类级） | — |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `DEL` | P0 | 实例即将销毁时 | `ISELAPSED` |
+| `CLEANUP` | P1 | 资源释放过程中 | `ISCLEANUPTARGET` |
+| `DISPOSE` | P2 | 内存即将回收时 | `ISELAPSED` |
+| `UNLOAD` | P2 | 类定义被虚拟机卸载时（类级） | — |
 
 ### 特殊场景
 
-| 钩子 | 触发时机 | 可用 IS\* |
-|------|----------|-----------|
-| `CONFIG` | WAIT 参数覆盖发生时 | `ISPROPERTY`、`ISPROPVALUE`、`ISDEFAULT` |
-| `RETRY` | 失败重试逻辑触发时 | `ISRETRYCOUNT`、`ISRETRYLIMIT`、`ISERROR` |
-| `VALIDATE` | 数据经过装饰器 `[validate]` 时 | `ISPROPVALUE`、`ISWARNING` |
+| 钩子 | 层级 | 触发时机 | 可用 IS\* |
+|------|------|----------|-----------|
+| `CONFIG` | P1 | WAIT 参数覆盖发生时 | `ISPROPERTY`、`ISPROPVALUE`、`ISDEFAULT` |
+| `RETRY` | P1 | 失败重试逻辑触发时 | `ISRETRYCOUNT`、`ISRETRYLIMIT`、`ISERROR` |
+| `VALIDATE` | P1 | 数据经过装饰器 `[validate]` 时 | `ISPROPVALUE`、`ISWARNING` |
 
 ### 空钩子
 
