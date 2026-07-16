@@ -27,7 +27,7 @@ OUT 可以引用的变量分为两类：
 
 ```
 TASK :
-    CALL : compute() => GOOUT result : i32
+    CALL : compute() => GOOUT result : int
     # result 不是常量——它等 OUT 发出去后自动释放
 
 OUT :

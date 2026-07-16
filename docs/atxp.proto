@@ -1,0 +1,978 @@
+// ATXP Protocol Buffers Schema
+// Version: 0.4 (extended — submission/output protocol)
+// Usage: protoc --proto_path=. --rust_out=crates/atxp/src/ atxp.proto
+//   Or via prost-build in build.rs
+
+syntax = "proto3";
+package atxp;
+
+// ==================================================================
+// Enums
+// ==================================================================
+
+enum Mode {
+    LOCAL  = 0;
+    REMOTE = 1;
+}
+
+enum Operation {
+    GET         = 0;
+    SET         = 1;
+    SUBSCRIBE   = 2;
+    UNSUBSCRIBE = 3;
+    EVAL        = 4;
+}
+
+enum EventType {
+    // 基础事件
+    BREAKPOINT_HIT  = 0;
+    STATE_CHANGE    = 1;
+    OOM_WARNING     = 2;
+    TASK_COMPLETE   = 3;
+    TASK_ERROR      = 4;
+    STEP_COMPLETE   = 5;
+    RUNNER_STOPPED  = 6;
+    TASK_CREATED    = 7;
+    TASK_SUSPENDED  = 8;
+
+    // 钩子生命周期事件
+    HOOK_STEP       = 10;
+    HOOK_CALL       = 11;
+    HOOK_RETURN     = 12;
+    HOOK_ERROR      = 13;
+    HOOK_PROP_GET   = 14;
+    HOOK_PROP_SET   = 15;
+    HOOK_FORK       = 16;
+    HOOK_JOIN       = 17;
+    HOOK_INIT       = 18;
+    HOOK_START      = 19;
+    HOOK_DONE       = 20;
+    HOOK_DEL        = 21;
+    HOOK_FINALLY    = 22;
+
+    // 数据事件
+    WATCHPOINT_HIT  = 30;
+    VARIABLE_CHANGE = 31;
+    PROPERTY_ACCESS = 32;
+    DATA_DELIVERED  = 33;
+    DECORATOR_CHAIN = 34;
+}
+
+enum StreamType {
+    TRACE       = 0;
+    MEMORY_SLOT = 1;
+    LOG         = 2;
+}
+
+enum CompressionAlgo {
+    NONE = 0;
+    ZSTD = 1;
+    GZIP = 2;
+}
+
+enum DisconnectReason {
+    NORMAL           = 0;
+    VERSION_MISMATCH = 1;
+    DENIED           = 2;
+    TIMEOUT          = 3;
+    PROTOCOL_ERROR   = 4;
+}
+
+enum SubmitMode {
+    SUBMIT_SOURCE = 0;
+    SUBMIT_BINARY = 1;
+}
+
+enum OutputMode {
+    OUTPUT_POLL     = 0;
+    OUTPUT_CALLBACK = 1;
+    OUTPUT_STREAM   = 2;
+}
+
+enum SubmitStatus {
+    STATUS_ACCEPTED      = 0;
+    STATUS_REJECTED      = 1;
+    STATUS_COMPILE_ERROR = 2;
+}
+
+enum RunnerState {
+    INIT     = 0;
+    RUNNING  = 1;
+    STOPPING = 2;
+    STOPPED  = 3;
+    ERROR    = 4;
+}
+
+enum TraceLevel {
+    TRACE_OFF      = 0;
+    TRACE_FUNCTION = 1;
+    TRACE_SPARSE   = 2;
+    TRACE_BRANCH   = 3;
+    TRACE_FULL     = 4;
+}
+
+enum LogLevel {
+    LOG_OFF   = 0;
+    LOG_ERROR = 1;
+    LOG_WARN  = 2;
+    LOG_INFO  = 3;
+    LOG_DEBUG = 4;
+    LOG_TRACE = 5;
+}
+
+enum SlotStatus {
+    SLOT_FREE     = 0;
+    SLOT_SAFE     = 1;
+    SLOT_WARNING  = 2;
+    SLOT_RESERVED = 3;
+}
+
+enum SlotZone {
+    ZONE_NORMAL  = 0;
+    ZONE_SLIPWAY = 1;
+    ZONE_DEAD    = 2;
+}
+
+enum TimelineCategory {
+    TC_MEM_READ   = 0;
+    TC_MEM_WRITE  = 1;
+    TC_CALL       = 2;
+    TC_RET        = 3;
+    TC_ECALL      = 4;
+    TC_FORK       = 5;
+    TC_JOIN       = 6;
+    TC_OOM        = 7;
+    TC_BREAKPOINT = 8;
+    TC_HOOK       = 9;
+    TC_WATCHPOINT = 10;
+    TC_EXCEPTION  = 11;
+    TC_ZONE_CHANGE = 12;
+    TC_STEP_START = 13;
+    TC_STEP_END   = 14;
+}
+
+enum RecordingAction {
+    REC_START  = 0;
+    REC_STOP   = 1;
+    REC_PAUSE  = 2;
+    REC_RESUME = 3;
+}
+
+enum SnapshotStrategy {
+    SNAP_NONE            = 0;
+    SNAP_BREAKPOINT_ONLY = 1;
+    SNAP_OOM_ONLY        = 2;
+    SNAP_FULL            = 3;
+}
+
+enum ReplayAction {
+    REPLAY_LOAD  = 0;
+    REPLAY_PLAY  = 1;
+    REPLAY_PAUSE = 2;
+    REPLAY_STOP  = 3;
+    REPLAY_SEEK  = 4;
+    REPLAY_STEP  = 5;
+}
+
+enum ReplayDirection {
+    FORWARD  = 0;
+    BACKWARD = 1;
+}
+
+enum BreakpointType {
+    BP_PC         = 0;
+    BP_MEM_READ   = 1;
+    BP_MEM_WRITE  = 2;
+    BP_MEM_ACCESS = 3;
+}
+
+enum SymbolKind {
+    SYM_FUNCTION  = 0;
+    SYM_VARIABLE  = 1;
+    SYM_PARAMETER = 2;
+    SYM_CONSTANT  = 3;
+    SYM_LABEL     = 4;
+    SYM_TYPE      = 5;
+}
+
+enum VariableLoc {
+    VAR_REGISTER = 0;
+    VAR_STACK    = 1;
+    VAR_GLOBAL   = 2;
+}
+
+enum DebugEntryKind {
+    DEBUG_FUNC_START = 0;
+    DEBUG_FUNC_END   = 1;
+    DEBUG_VAR_DECL   = 2;
+    DEBUG_VAR_END    = 3;
+    DEBUG_LINE       = 4;
+    DEBUG_AST_NODE   = 5;
+}
+
+enum ZoneLifecycle {
+    ZONE_PERSISTENT  = 0;
+    ZONE_EXEC_UNLOAD = 1;
+    ZONE_LAZY        = 2;
+    ZONE_PRUNE       = 3;
+}
+
+enum StepStatusEnum {
+    STEP_PENDING = 0;
+    STEP_RUNNING = 1;
+    STEP_DONE    = 2;
+    STEP_ERROR   = 3;
+    STEP_SKIPPED = 4;
+}
+
+// ==================================================================
+// Core Protocol Messages
+// ==================================================================
+
+message Capabilities {
+    Mode mode                = 1;
+    uint32 protocol_version  = 2;
+    uint64 features          = 3;
+    repeated string deny_commands = 4;
+}
+
+message Ack {
+    uint32 status = 1;
+    string message = 2;
+}
+
+message Error {
+    uint32 code    = 1;
+    string message = 2;
+    string endpoint = 3;
+}
+
+message Command {
+    string endpoint     = 1;
+    Operation operation = 2;
+    bytes data          = 3;
+}
+
+message Query {
+    string endpoint     = 1;
+    Operation operation = 2;
+    bytes params        = 3;
+}
+
+message QueryResult {
+    string endpoint = 1;
+    bytes data      = 2;
+}
+
+message Event {
+    string endpoint  = 1;
+    EventType type   = 2;
+    bytes data       = 3;
+    uint64 timestamp = 4;
+}
+
+message Stream {
+    StreamType type  = 1;
+    uint64 seq       = 2;
+    bool last        = 3;
+    uint64 timestamp = 4;
+    bytes data       = 5;
+}
+
+message Inject {
+    string task_name          = 1;
+    bytes atxe_binary         = 2;
+    CompressionAlgo compression = 3;
+    bool compressed           = 4;
+}
+
+message InjectResult {
+    uint32 status  = 1;
+    string task_id = 2;
+    string message = 3;
+}
+
+message Heartbeat {
+    uint64 client_time = 1;
+}
+
+message Disconnect {
+    DisconnectReason reason = 1;
+    string message          = 2;
+}
+
+// ==================================================================
+// Submission Protocol Messages (§5.3)
+// ==================================================================
+
+message CompileOptions {
+    uint32 opt_level          = 1;
+    bool debug_info           = 2;
+    repeated string defines   = 3;
+}
+
+message Submit {
+    SubmitMode mode           = 1;
+    string source             = 2;
+    bytes binary              = 3;
+    string task_name          = 4;
+    OutputMode output_mode    = 5;
+    string callback_url       = 6;
+    map<string,string> callback_headers = 7;
+    string auth_token         = 8;
+    string tenant_id          = 9;
+    uint32 priority           = 10;
+    uint64 timeout_ms         = 11;
+    map<string,string> metadata = 12;
+    CompileOptions compile_opts = 13;
+}
+
+message CompileError {
+    uint32 line               = 1;
+    uint32 col                = 2;
+    string message            = 3;
+    string source_line        = 4;
+}
+
+message SubmitResult {
+    SubmitStatus status       = 1;
+    string task_id            = 2;
+    string message            = 3;
+    repeated CompileError compile_errors = 4;
+}
+
+message OutputFile {
+    string name               = 1;
+    string path               = 2;
+    uint64 size               = 3;
+    string mime_type          = 4;
+    bytes content             = 5;
+}
+
+message TaskOutput {
+    string task_id            = 1;
+    SubmitStatus status       = 2;
+    bytes output              = 3;
+    string error              = 4;
+    TaskStats stats           = 5;
+    repeated OutputFile files = 6;
+    uint64 started_at         = 7;
+    uint64 completed_at       = 8;
+    map<string,string> metadata = 9;
+}
+
+message OutputRequest {
+    string task_id            = 1;
+    uint32 wait_ms            = 2;
+}
+
+message CallbackInfo {
+    string callback_url       = 1;
+    map<string,string> callback_headers = 2;
+    uint64 last_fired_at      = 3;
+    uint32 retry_count        = 4;
+    uint32 max_retries        = 5;
+}
+
+message CallbackConfig {
+    string callback_url       = 1;
+    map<string,string> callback_headers = 2;
+    uint32 max_retries        = 3;
+    uint32 retry_delay_ms     = 4;
+}
+
+// ==================================================================
+// Basic Endpoint Data Structures (unchanged from v0.2)
+// ==================================================================
+
+message RunnerStatus {
+    RunnerState state   = 1;
+    Mode mode           = 2;
+    uint64 uptime_ms    = 3;
+    string version      = 4;
+    uint32 task_count   = 5;
+    uint32 running_count = 6;
+    uint32 mem_used_mb  = 7;
+    uint32 mem_limit_mb = 8;
+    float cpu_usage_pct = 9;
+}
+
+message RunnerConfig {
+    string listen_addr     = 1;
+    string task_dir        = 2;
+    string state_dir       = 3;
+    uint32 max_tasks       = 4;
+    uint32 max_concurrent  = 5;
+    uint32 quantum         = 6;
+    uint32 stream_buf_mb   = 7;
+    repeated string deny_commands = 8;
+    bool tls_enabled       = 9;
+    uint32 heartbeat_ms    = 10;
+    TraceLevel trace_level = 11;
+    uint32 trace_sparse_n  = 12;
+}
+
+message TaskInfo {
+    string task_id   = 1;
+    string name      = 2;
+    uint32 state     = 3;
+    uint64 disk_addr = 4;
+    uint64 mem_addr  = 5;
+    uint64 created_at = 6;
+    uint64 started_at = 7;
+    uint64 cycles    = 8;
+    uint32 memory_mb = 9;
+}
+
+message TaskList {
+    repeated TaskInfo tasks = 1;
+}
+
+message TaskStatus {
+    string task_id       = 1;
+    uint32 state         = 2;
+    string current_step  = 3;
+    uint32 current_pc    = 4;
+    uint64 total_cycles  = 5;
+    uint64 memory_used   = 6;
+    uint64 started_at    = 7;
+    string error_message = 8;
+}
+
+message TaskConfig {
+    uint32 quantum_override = 1;
+    uint32 max_steps        = 2;
+    uint64 timeout_ms       = 3;
+    LogLevel log_level      = 4;
+}
+
+message RegAnnotation {
+    uint32 reg_id       = 1;
+    string var_name     = 2;
+    string type         = 3;
+    string value_display = 4;
+}
+
+message RegisterSnapshot {
+    repeated uint64 regs = 1;  // 16 elements: R0-R15
+    uint32 pc            = 2;
+    repeated RegAnnotation annotations = 3;  // 类型标注 (debug 模式)
+}
+
+message MemQueryParams {
+    uint64 base_addr = 1;
+    uint32 size      = 2;
+}
+
+message MemoryRegion {
+    uint64 base_addr = 1;
+    uint32 size      = 2;
+    bytes data       = 3;
+    bool readable    = 4;
+    bool writable    = 5;
+    bool exec        = 6;
+}
+
+message StackFrame {
+    string func_name = 1;
+    uint32 pc        = 2;
+    uint64 fp        = 3;
+    uint64 sp        = 4;
+    string task_id   = 5;
+    string step_name = 6;
+}
+
+message CallStack {
+    repeated StackFrame frames = 1;
+}
+
+message Breakpoint {
+    uint32 id            = 1;
+    BreakpointType type  = 2;
+    uint32 pc            = 3;
+    uint64 mem_addr      = 4;
+    uint32 mem_size      = 5;
+    bool enabled         = 6;
+    uint64 hit_count     = 7;
+    string condition     = 8;
+    bool one_shot        = 9;
+}
+
+message BreakpointList {
+    repeated Breakpoint breakpoints = 1;
+}
+
+message BreakpointEvent {
+    uint32 bp_id            = 1;
+    uint32 pc               = 2;
+    string task_id          = 3;
+    string step_id          = 4;
+    RegisterSnapshot regs   = 5;
+}
+
+message WatchpointEvent {
+    uint32 bp_id         = 1;
+    uint32 pc            = 2;
+    string task_id       = 3;
+    string step_id       = 4;
+    enum AccessType {
+        READ  = 0;
+        WRITE = 1;
+    }
+    AccessType access_type = 5;
+    uint64 mem_addr       = 6;
+    uint32 mem_size       = 7;
+    uint64 mem_value      = 8;
+    RegisterSnapshot regs = 9;
+}
+
+message DataFlowNode {
+    string id    = 1;
+    string label = 2;
+    enum Type {
+        SOURCE    = 0;
+        TRANSFORM = 1;
+        SINK      = 2;
+    }
+    Type type = 3;
+}
+
+message DataFlowEdge {
+    string from_node = 1;
+    string to_node   = 2;
+    string data_tag  = 3;
+    uint64 bytes     = 4;
+}
+
+message DataFlowGraph {
+    repeated DataFlowNode nodes = 1;
+    repeated DataFlowEdge edges = 2;
+}
+
+message TimelineEvent {
+    uint64 timestamp_ns   = 1;
+    uint32 pc             = 2;
+    uint32 opcode         = 3;
+    TimelineCategory category = 4;
+    string detail         = 5;
+}
+
+message Timeline {
+    repeated TimelineEvent events = 1;
+}
+
+message TimelineParams {
+    uint64 start_ns   = 1;
+    uint64 end_ns     = 2;
+    uint32 max_events = 3;
+}
+
+message SlotInfo {
+    uint32 slot_id   = 1;
+    string task_id   = 2;
+    uint64 base_addr = 3;
+    uint64 size      = 4;
+    uint64 used      = 5;
+    uint64 watermark = 6;
+    SlotStatus status = 7;
+    SlotZone zone    = 8;
+}
+
+message SlotLayout {
+    repeated SlotInfo slots = 1;
+}
+
+message LogEntry {
+    uint64 timestamp_ns = 1;
+    LogLevel level      = 2;
+    string source       = 3;
+    string message      = 4;
+}
+
+// ==================================================================
+// Recording & Replay
+// ==================================================================
+
+message RecordingCommand {
+    RecordingAction action      = 1;
+    string output_path          = 2;
+    TraceLevel level            = 3;
+    SnapshotStrategy snapshots  = 4;
+}
+
+message ReplayCommand {
+    ReplayAction action       = 1;
+    string file_path          = 2;
+    uint64 seek_ns            = 3;
+    float speed               = 4;
+    ReplayDirection direction = 5;
+}
+
+// ==================================================================
+// Debug Extension: Controller State (§3.4.2a)
+// ==================================================================
+
+message ControllerState {
+    uint32 n_batch           = 1;
+    uint32 hard_ceiling      = 2;
+    uint32 soft_ceiling      = 3;
+    uint32 backlog_depth     = 4;
+    bool high_backlog_mode   = 5;
+    bool cold_start_phase    = 6;
+
+    double beta              = 7;
+    double lambda_speed      = 8;
+    double sigma_volume      = 9;
+    double gamma_variance    = 10;
+    double merged_factor     = 11;
+
+    double alpha_mem_current = 12;
+    uint32 oom_count         = 13;
+    string oom_state         = 14;
+
+    uint32 total_slots       = 15;
+    uint32 used_slots        = 16;
+    uint32 slipway_slots     = 17;
+    uint32 dead_slots        = 18;
+    double slot_size_mb      = 19;
+    double slipway_multiplier = 20;
+}
+
+// ==================================================================
+// Debug Extension: Task Context (72 IS* variables) (§3.4.2a)
+// ==================================================================
+
+message TaskContext {
+    // ── 异常相关 ──
+    bool is_error          = 1;
+    string is_error_type   = 2;
+    string is_error_message = 3;
+    string is_error_stack  = 4;
+    uint32 is_error_line   = 5;
+    int32 is_error_code    = 6;
+    bool is_child_error    = 7;
+
+    // ── 时间相关 ──
+    bool is_timeout        = 8;
+    uint64 is_elapsed      = 9;
+    uint64 is_start_time   = 10;
+    uint64 is_remaining    = 11;
+    uint64 is_wait_time    = 12;
+    uint64 is_queue_time   = 13;
+    uint64 is_suspend_time = 14;
+    uint64 is_duration     = 15;
+    uint64 is_current_time = 16;
+
+    // ── 计数相关 ──
+    uint32 is_call_count   = 17;
+    uint32 is_retry_count  = 18;
+    uint32 is_retry_limit  = 19;
+    uint32 is_depth        = 20;
+    uint32 is_child_count  = 21;
+    uint32 is_pipe_count   = 22;
+    uint32 is_pipe_index   = 23;
+    uint32 is_step_index   = 24;
+    uint32 is_total_steps  = 25;
+    uint32 is_iteration    = 26;
+
+    // ── 调用上下文 ──
+    string is_method       = 27;
+    string is_args         = 28;
+    string is_params       = 29;
+    string is_return       = 30;
+    string is_caller       = 31;
+    string is_step_name    = 32;
+    string is_work_name    = 33;
+    string is_self         = 34;
+
+    // ── 属性上下文 ──
+    string is_property     = 35;
+    string is_prop_value   = 36;
+    string is_prop_type    = 37;
+    string is_prop_access  = 38;
+    string is_default      = 39;
+
+    // ── 任务上下文 ──
+    string is_task_id      = 40;
+    string is_phase        = 41;
+    string is_status       = 42;
+    string is_parent       = 43;
+    string is_child_id     = 44;
+    repeated string is_children = 45;
+    string is_child_name   = 46;
+    string is_child_return = 47;
+    string is_grandchild_id = 48;
+    string is_task_tree    = 49;
+
+    // ── 数据相关 ──
+    bool is_big_size       = 50;
+    bool is_warning        = 51;
+    uint64 is_data_size    = 52;
+    string is_data_type    = 53;
+    string is_data_state   = 54;
+    string is_data_checksum = 55;
+
+    // ── 系统/环境 ──
+    uint32 is_line         = 56;
+    string is_file         = 57;
+    string is_mode         = 58;
+    bool is_debug          = 59;
+    string is_env          = 60;
+    string is_version      = 61;
+    string is_cancel_reason = 62;
+    uint32 is_interrupt_code = 63;
+    string is_suspend_reason = 64;
+    string is_cleanup_target = 65;
+    string is_decorator_name = 66;
+    uint32 is_concurrency_id = 67;
+    uint32 is_quota        = 68;
+}
+
+// ==================================================================
+// Debug Extension: Type Info (§3.4.2a)
+// ==================================================================
+
+message VariableInfo {
+    string name          = 1;
+    string type          = 2;
+    VariableLoc loc      = 3;
+    uint32 index         = 4;
+    uint64 value_raw     = 5;
+    string value_display = 6;
+    string scope         = 7;
+}
+
+message FunctionInfo {
+    string name       = 1;
+    string signature  = 2;
+    uint32 pc         = 3;
+    bool is_available = 4;
+    bool is_generic   = 5;
+}
+
+message TypeInfo {
+    repeated VariableInfo variables  = 1;
+    repeated FunctionInfo functions  = 2;
+}
+
+// ==================================================================
+// Debug Extension: Symbol Table (§3.4.2a)
+// ==================================================================
+
+message Symbol {
+    string name        = 1;
+    SymbolKind kind    = 2;
+    string type        = 3;
+    uint64 address     = 4;
+    uint32 size        = 5;
+    uint32 source_line = 6;
+    string scope       = 7;
+}
+
+message SymbolTable {
+    repeated Symbol symbols = 1;
+}
+
+// ==================================================================
+// Debug Extension: Source Map (§3.4.2a)
+// ==================================================================
+
+message SourceMapEntry {
+    uint32 pc_start    = 1;
+    uint32 pc_end      = 2;
+    uint32 source_line = 3;
+    uint32 source_col  = 4;
+    string source_text = 5;
+    string step_name   = 6;
+    string zone_name   = 7;
+    string func_name   = 8;
+    string ast_node    = 9;
+}
+
+message SourceMap {
+    string source_file          = 1;
+    repeated SourceMapEntry entries = 2;
+}
+
+// ==================================================================
+// Debug Extension: Segment Content (§3.4.2a)
+// ==================================================================
+
+message DebugEntry {
+    uint32 pc          = 1;
+    uint32 source_line = 2;
+    uint32 source_col  = 3;
+    string func_name   = 4;
+    string var_name    = 5;
+    string type_name   = 6;
+    DebugEntryKind kind = 7;
+}
+
+message DebugSegment {
+    repeated DebugEntry entries = 1;
+}
+
+message TaskDef {
+    string name         = 1;
+    uint32 entry_pc     = 2;
+    repeated string dependencies = 3;
+    repeated string steps = 4;
+}
+
+message TaskSegment {
+    repeated TaskDef tasks = 1;
+}
+
+message ExceptionHandler {
+    uint32 start_pc      = 1;
+    uint32 end_pc        = 2;
+    uint32 handler_pc    = 3;
+    string exception_type = 4;
+}
+
+message ExnSegment {
+    repeated ExceptionHandler handlers = 1;
+}
+
+message ZoneDef {
+    string name      = 1;
+    uint32 start_pc  = 2;
+    uint32 end_pc    = 3;
+    ZoneLifecycle lifecycle = 4;
+}
+
+message ZonesSegment {
+    repeated ZoneDef zones = 1;
+}
+
+message SegmentData {
+    string name         = 1;
+    uint32 section_type = 2;
+    uint32 size         = 3;
+    bytes raw_data      = 4;
+    oneof parsed {
+        DebugSegment debug_info = 5;
+        TaskSegment task_defs   = 6;
+        ExnSegment exn_table    = 7;
+        ZonesSegment zones_def  = 8;
+    }
+}
+
+// ==================================================================
+// Debug Extension: Expression Evaluation (§3.4.2a)
+// ==================================================================
+
+message EvalRequest {
+    string expression = 1;
+    uint32 timeout_ms = 2;
+}
+
+message EvalResult {
+    string expression  = 1;
+    string type        = 2;
+    string value       = 3;
+    string error       = 4;
+    uint64 duration_ns = 5;
+}
+
+// ==================================================================
+// Debug Extension: Task Stats (§3.4.2a)
+// ==================================================================
+
+message TaskStats {
+    uint64 total_instrs      = 1;
+    uint64 ecall_count       = 2;
+    uint64 blocking_count    = 3;
+    uint64 oom_count         = 4;
+    uint64 quantum_count     = 5;
+    uint32 context_switches  = 6;
+    uint32 exception_count   = 7;
+    uint64 wall_time_ns      = 8;
+    uint64 cpu_time_ns       = 9;
+    uint64 peak_mem          = 10;
+    uint64 current_mem       = 11;
+    uint64 io_read_bytes     = 12;
+    uint64 io_write_bytes    = 13;
+    uint64 net_rx_bytes      = 14;
+    uint64 net_tx_bytes      = 15;
+}
+
+// ==================================================================
+// Debug Extension: Step List (§3.4.2a)
+// ==================================================================
+
+message StepInfo {
+    string step_id      = 1;
+    string name         = 2;
+    uint32 index        = 3;
+    StepStatusEnum status = 4;
+    uint64 started_at   = 5;
+    uint64 completed_at = 6;
+    uint64 cycle_count  = 7;
+    bool has_trace      = 8;
+    string error_msg    = 9;
+}
+
+message StepList {
+    uint32 total            = 1;
+    uint32 current          = 2;
+    repeated StepInfo steps = 3;
+}
+
+// ==================================================================
+// Debug Extension: Zone State (§3.4.2a)
+// ==================================================================
+
+message ZoneInfo {
+    string name        = 1;
+    ZoneLifecycle lifecycle = 2;
+    bool loaded        = 3;
+    uint32 start_pc    = 4;
+    uint32 end_pc      = 5;
+    uint64 size_bytes  = 6;
+    uint32 symbols     = 7;
+}
+
+message ZoneState {
+    repeated ZoneInfo zones = 1;
+}
+
+// ==================================================================
+// Hook Event Data (§3.4.2a)
+// ==================================================================
+
+message HookEvent {
+    string hook_name     = 1;
+    string work_name     = 2;
+    string phase         = 3;        // creation/preparation/running/etc.
+    bool condition_result = 4;       // hook condition evaluated to true/false
+    string call_target   = 5;        // which method was called (for CALL hooks)
+    string property_name = 6;        // which property (for GET/SET hooks)
+    string child_task    = 7;        // child task ID (for FORK/JOIN hooks)
+    uint32 hook_depth    = 8;        // nesting depth
+    uint64 duration_ns   = 9;        // hook execution time
+    string step_name     = 10;       // current step context
+    string error_info    = 11;       // error details (for ERROR hooks)
+}
+
+// ==================================================================
+// Frame Header Layout (not a protobuf message, documented here for
+// reference — implemented as hand-rolled binary in Rust)
+// ==================================================================
+//
+// Byte 0-1:   magic        u16 LE  0x4154 ("AT")
+// Byte 2:     version      u8      0x01
+// Byte 3:     msg_type     u8      message type (see enum values)
+// Byte 4-7:   seq_id       u32 LE  sequence number
+// Byte 8:     flags        u8      bitfield:
+//                                    bit 0: compressed
+//                                    bit 1: ack_requested
+//                                    bit 2: error
+//                                    bit 3: is_response (req_type valid)
+//                                    bit 4-7: reserved
+// Byte 9-12:  payload_len  u32 LE  payload length in bytes
+// Byte 13:    req_type     u8      echoed request msg_type (0 if not response)
+// Byte 14-15: checksum     u16 LE  CRC-16-CCITT over bytes 2-13 (12 bytes)
+//
+// Total header: 16 bytes
+// checksum: CRC-16-CCITT (poly=0x1021, init=0xFFFF), magic excluded, payload excluded

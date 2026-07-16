@@ -147,8 +147,8 @@ VOID_0(<NAME>)  ~  VOID_9(<NAME>)
 | `ISERRORTYPE` | 异常类型标识 | 类型标识 |
 | `ISERRORMESSAGE` | 异常消息 | str |
 | `ISERRORSTACK` | 调用堆栈 | str |
-| `ISERRORLINE` | 异常行号 | i32 |
-| `ISERRORCODE` | 错误码 | i32 |
+| `ISERRORLINE` | 异常行号 | int |
+| `ISERRORCODE` | 错误码 | int |
 | `ISCHILDERROR` | 子任务异常对象 | 错误类型 |
 
 ### 时间相关
@@ -169,16 +169,16 @@ VOID_0(<NAME>)  ~  VOID_9(<NAME>)
 
 | IS\* | 含义 | 类型 |
 |------|------|------|
-| `ISCALLCOUNT` | 方法调用累计次数 | i32 |
-| `ISRETRYCOUNT` | 已重试次数 | i32 |
-| `ISRETRYLIMIT` | 最大重试次数 | i32 |
-| `ISDEPTH` | 任务树嵌套深度 | i32 |
-| `ISCHILDCOUNT` | 子任务数 | i32 |
-| `ISPIPECOUNT` | 管道处理步数 | i32 |
-| `ISPIPEINDEX` | 管道当前步序号 | i32 |
-| `ISSTEPINDEX` | Step 序号 | i32 |
-| `ISTOTALSTEPS` | 总 Step 数 | i32 |
-| `ISITERATION` | FOR 循环迭代次数 | i32 |
+| `ISCALLCOUNT` | 方法调用累计次数 | int |
+| `ISRETRYCOUNT` | 已重试次数 | int |
+| `ISRETRYLIMIT` | 最大重试次数 | int |
+| `ISDEPTH` | 任务树嵌套深度 | int |
+| `ISCHILDCOUNT` | 子任务数 | int |
+| `ISPIPECOUNT` | 管道处理步数 | int |
+| `ISPIPEINDEX` | 管道当前步序号 | int |
+| `ISSTEPINDEX` | Step 序号 | int |
+| `ISTOTALSTEPS` | 总 Step 数 | int |
+| `ISITERATION` | FOR 循环迭代次数 | int |
 
 ### 调用上下文
 
@@ -223,24 +223,24 @@ VOID_0(<NAME>)  ~  VOID_9(<NAME>)
 | IS\* | 含义 | 类型 |
 |------|------|------|
 | `ISBIGSIZE` | 数据大小/尺寸 | 尺寸量 |
-| `ISWARNING` | 警告级别 | i32 |
-| `ISDATASIZE` | 数据实际字节数 | i64 |
+| `ISWARNING` | 警告级别 | int |
+| `ISDATASIZE` | 数据实际字节数 | int |
 | `ISDATATYPE` | 运行时类型 | 类型标识 |
 | `ISDATASTATE` | 处理状态 | str |
-| `ISDATACHECKSUM` | 校验和 | str/i64 |
+| `ISDATACHECKSUM` | 校验和 | str/int |
 
 ### 系统/环境
 
 | IS\* | 含义 | 类型 |
 |------|------|------|
-| `ISLINE` | 当前源码行号 | i32 |
+| `ISLINE` | 当前源码行号 | int |
 | `ISFILE` | 当前源文件路径 | str |
 | `ISMODE` | 运行模式（dev/prod） | str |
 | `ISDEBUG` | 调试模式是否启用 | bool |
 | `ISENV` | 宿主环境信息 | dict |
 | `ISVERSION` | 运行时版本 | str |
 | `ISCANCELREASON` | 取消原因 | str |
-| `ISINTERRUPTCODE` | 中断码 | i32 |
+| `ISINTERRUPTCODE` | 中断码 | int |
 | `ISSUSPENDREASON` | 挂起原因 | str |
 | `ISCLEANUPTARGET` | 清理资源名 | str |
 | `ISDECORATORNAME` | 装饰器名 | str |

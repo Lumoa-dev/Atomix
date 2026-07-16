@@ -270,7 +270,7 @@ TASK :
     }
     
     # 用 GOOUT 标注产出变量
-    CALL compute(INPUT : RAW) => GOOUT result : i32
+    CALL compute(INPUT : RAW) => GOOUT result : int
 ```
 
 ---
