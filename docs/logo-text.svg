@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280">
+  <defs>
+    <linearGradient id="primary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e85d3a"/>
+      <stop offset="100%" stop-color="#c9472a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e85d3a" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#e85d3a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Text gradient: brand gradient applied horizontally -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e85d3a"/>
+      <stop offset="60%" stop-color="#d94f2e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ===== Logo mark (reused from logo.svg, scaled & positioned) ===== -->
+  <g transform="translate(90, 135) scale(0.33) translate(-256, -256)">
+    <!-- Background glow -->
+    <circle cx="256" cy="256" r="160" fill="url(#glow)"/>
+
+    <!-- Outer hexagon — regular pointy-top hexagon (R=184, w/h = √3/2) -->
+    <polygon points="256,72 415.3,164 415.3,348 256,440 96.7,348 96.7,164"
+             fill="none" stroke="url(#primary)" stroke-width="18"
+             stroke-linejoin="round"/>
+
+    <!-- Inner hexagon — fine accent line (R=144) -->
+    <polygon points="256,112 380.7,184 380.7,328 256,400 131.3,328 131.3,184"
+             fill="none" stroke="url(#primary)" stroke-width="4"
+             stroke-linejoin="round" opacity="0.4"/>
+
+    <!-- Nucleus — 原子核 -->
+    <circle cx="256" cy="256" r="40" fill="url(#primary)"/>
+
+    <!-- Orbital path 1 — 任务执行 (Task execution) -->
+    <ellipse cx="256" cy="256" rx="104" ry="40"
+             fill="none" stroke="url(#primary)" stroke-width="5"
+             transform="rotate(-35 256 256)" opacity="0.7"/>
+
+    <!-- Orbital path 2 — 并发调度 (Concurrency) -->
+    <ellipse cx="256" cy="256" rx="104" ry="40"
+             fill="none" stroke="url(#primary)" stroke-width="5"
+             transform="rotate(35 256 256)" opacity="0.7"/>
+
+    <!-- Orbital path 3 — 数据回传 (Data flow) -->
+    <ellipse cx="256" cy="256" rx="104" ry="40"
+             fill="none" stroke="url(#primary)" stroke-width="5"
+             transform="rotate(90 256 256)" opacity="0.7" stroke-dasharray="12,8"/>
+  </g>
+
+  <!-- ===== Text ===== -->
+  <!-- ATOMIX -->
+  <text x="180" y="148" font-family="'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace"
+        font-size="82" font-weight="800" fill="url(#textGrad)" letter-spacing="5">
+    ATOMIX
+  </text>
+
+  <!-- Tagline -->
+  <text x="186" y="198" font-family="'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace"
+        font-size="16" fill="#b85a3a" letter-spacing="8" font-weight="500">
+    TASK EXECUTION DSL
+  </text>
+</svg>

@@ -1,0 +1,8 @@
+{
+  // 仅保留工作区基本设置，语法扩展由社区自行维护
+  "files.associations": {
+    "*.atx": "atx"
+  },
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true
+}

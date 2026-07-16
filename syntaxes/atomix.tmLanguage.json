@@ -1,0 +1,165 @@
+{
+  "name": "Atomix",
+  "scopeName": "source.atx",
+  "fileTypes": ["atx"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords-structural" },
+    { "include": "#keywords-functional" },
+    { "include": "#types" },
+    { "include": "#special-variables" },
+    { "include": "#decorators" },
+    { "include": "#cross-domain" },
+    { "include": "#numbers" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "begin": "#!",
+          "end": "!#",
+          "name": "comment.block.atx"
+        },
+        {
+          "match": "#.*$",
+          "name": "comment.line.atx"
+        }
+      ]
+    },
+
+    "strings": {
+      "patterns": [
+        {
+          "begin": "f\"",
+          "beginCaptures": {
+            "0": { "name": "string.quoted.double.atx" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "string.quoted.double.atx" }
+          },
+          "name": "string.quoted.double.atx",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.atx"
+            },
+            {
+              "begin": "\\{",
+              "beginCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.begin.atx" }
+              },
+              "end": "\\}",
+              "endCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.end.atx" }
+              },
+              "name": "meta.interpolation.atx",
+              "patterns": [
+                { "include": "#strings" },
+                { "include": "#keywords-structural" },
+                { "include": "#keywords-functional" },
+                { "include": "#types" },
+                { "include": "#special-variables" },
+                { "include": "#numbers" },
+                { "include": "#operators" }
+              ]
+            }
+          ]
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.atx",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.atx"
+            }
+          ]
+        }
+      ]
+    },
+
+    "keywords-structural": {
+      "match": "\\b(?i:USE|TOOLS|INPUT|TASK|WORKS|OUT|CALL|IF|ELIF|ELSE|FOR|BREAK|CONTINUE|GOOUT|ASSERT|RAISE|CONST|PUB|WAIT|JOIN|TRY|EXCEPTION|TEST|FROM|RETURN)\\b",
+      "name": "keyword.control.atx"
+    },
+
+    "keywords-functional": {
+      "match": "\\b(?i:and|or|not|true|false|fn|do|return|self)\\b",
+      "name": "keyword.control.atx"
+    },
+
+    "types": {
+      "match": "\\b(?i:int|str|bool|float|bytes|dict|list|tuple|any|never|duration)\\b",
+      "name": "storage.type.atx"
+    },
+
+    "special-variables": {
+      "match": "\\$",
+      "name": "variable.language.pipeline.atx"
+    },
+
+    "decorators": {
+      "match": "\\[[a-zA-Z_][a-zA-Z0-9_]*\\]",
+      "name": "meta.annotation.atx"
+    },
+
+    "cross-domain": {
+      "match": "\\b(?i:TOOLS|INPUT|TASK|WORKS|OUT)\\s*::",
+      "name": "support.other.namespace.atx"
+    },
+
+    "numbers": {
+      "patterns": [
+        {
+          "match": "\\b0[xX][0-9a-fA-F]+\\b",
+          "name": "constant.numeric.hex.atx"
+        },
+        {
+          "match": "\\b0[bB][01]+\\b",
+          "name": "constant.numeric.binary.atx"
+        },
+        {
+          "match": "\\b0[oO][0-7]+\\b",
+          "name": "constant.numeric.octal.atx"
+        },
+        {
+          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b",
+          "name": "constant.numeric.float.atx"
+        },
+        {
+          "match": "\\b[0-9]+[eE][+-]?[0-9]+\\b",
+          "name": "constant.numeric.float.atx"
+        },
+        {
+          "match": "\\b[0-9]+\\b",
+          "name": "constant.numeric.integer.atx"
+        }
+      ]
+    },
+
+    "operators": {
+      "patterns": [
+        {
+          "match": "=>|<=|==|!=|>=|<<|>>",
+          "name": "keyword.operator.assignment.atx"
+        },
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.atx"
+        },
+        {
+          "match": "::",
+          "name": "punctuation.separator.namespace.atx"
+        },
+        {
+          "match": "[+\\-*/%&|^~<>]",
+          "name": "keyword.operator.arithmetic.atx"
+        }
+      ]
+    }
+  }
+}
