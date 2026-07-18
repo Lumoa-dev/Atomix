@@ -52,6 +52,8 @@ pub struct SemanticAnalyzer {
     pub zones: Vec<ZoneInfo>,
     /// 当前所在的区域（用于跨域引用方向检查）
     current_zone: Option<ZoneKind>,
+    /// 泛型单态化映射：(func_name, type_params_str) → monomorphized_name
+    pub monomorphizations: std::collections::HashMap<(String, String), String>,
 }
 
 /// 分析后的区域元信息。
@@ -82,6 +84,7 @@ impl SemanticAnalyzer {
             errors: Vec::new(),
             zones: Vec::new(),
             current_zone: None,
+            monomorphizations: std::collections::HashMap::new(),
         }
     }
 
@@ -517,6 +520,54 @@ impl SemanticAnalyzer {
                 _ => {}
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════
+    //  泛型单态化 (IR-008)
+    // ═══════════════════════════════════════════════
+
+    /// 生成单态化函数名：`identity::int`。
+    pub fn monomorphize_name(func_name: &str, type_args: &[Type]) -> String {
+        if type_args.is_empty() {
+            return func_name.to_string();
+        }
+        let type_suffix: Vec<String> = type_args.iter().map(|t| format!("{:?}", t).to_lowercase()).collect();
+        format!("{}::{}", func_name, type_suffix.join("_"))
+    }
+
+    /// 注册单态化并生成新函数副本。
+    pub fn register_monomorphization(
+        &mut self,
+        func_name: &str,
+        type_args: &[Type],
+        original: &FuncDef,
+    ) -> String {
+        let key = type_args.iter().map(|t| format!("{:?}", t)).collect::<Vec<_>>().join(",");
+        let map_key = (func_name.to_string(), key.clone());
+
+        if let Some(existing) = self.monomorphizations.get(&map_key) {
+            return existing.clone();
+        }
+
+        let mono_name = Self::monomorphize_name(func_name, type_args);
+        self.monomorphizations.insert(map_key, mono_name.clone());
+
+        // 创建单态化后的函数副本，注册到符号表
+        let mut mono_func = original.clone();
+        mono_func.name = mono_name.clone();
+        // 替换泛型参数为具体类型（简化：只注册签名，类型检查在副本上执行）
+        let ret_type = mono_func.ret_type.as_ref().map(|t| resolve_type(t));
+        let mut sym = Symbol::new(mono_name.clone(), SymbolKind::Function)
+            .with_public(original.is_pub);
+        if let Some(rt) = ret_type {
+            sym = sym.with_type(rt);
+        } else {
+            sym = sym.with_type(Type::Void);
+        }
+        sym = sym.with_func(mono_func);
+        let _ = self.symbols.declare(sym);
+
+        mono_name
     }
 
     // ═══════════════════════════════════════════════
@@ -1004,5 +1055,20 @@ EXCEPTION B :: A";
 TASK : { CALL used() }";
         let (_, errors) = analyze(src);
         assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    // ── IR-008 泛型单态化 ─────────────────────────
+
+    #[test]
+    fn monomorphize_name_basic() {
+        let name = SemanticAnalyzer::monomorphize_name("identity", &[Type::Int]);
+        assert_eq!(name, "identity::int");
+    }
+
+    #[test]
+    fn monomorphize_name_multi_param() {
+        let name = SemanticAnalyzer::monomorphize_name("pair", &[Type::Int, Type::Str]);
+        assert!(name.contains("int"));
+        assert!(name.contains("str"));
     }
 }
