@@ -299,8 +299,83 @@ impl Optimizer {
 
     /// 窥孔优化：滑动窗口扫描指令序列，匹配→替换。
     fn peephole(&mut self, text: &[u32]) -> Vec<u32> {
-        // 当前简化实现，完整窥孔在提交 2 中
-        text.to_vec()
+        let mut result = Vec::with_capacity(text.len());
+        let mut i = 0;
+        while i < text.len() {
+            let instr = text[i];
+            let op = (instr >> 24) as u8;
+
+            // 模式 1: MOV rd, rs; ADD rd, R0, rs → 删除 MOV（等效 nop）
+            if op == opcode::MOV && i + 1 < text.len() {
+                let rd = ((instr >> 20) & 0x0F) as u8;
+                let rs = ((instr >> 16) & 0x0F) as u8;
+                let next = text[i + 1];
+                let next_op = (next >> 24) as u8;
+                let next_rd = ((next >> 20) & 0x0F) as u8;
+                let next_rs1 = ((next >> 16) & 0x0F) as u8;
+                let next_rs2 = ((next >> 12) & 0x0F) as u8;
+                // MOV rd, rs; ADD rd, R0, rs → 只保留 ADD
+                if next_op == opcode::ADD && next_rd == rd && next_rs1 == reg::ZERO as u8 && next_rs2 == rs {
+                    self.stats.peephole_applies += 1;
+                    i += 1; // 跳过 MOV
+                    continue;
+                }
+                // MOV rd, rs; ADD rd, rs, R0 → 只保留 ADD
+                if next_op == opcode::ADD && next_rd == rd && next_rs1 == rs && next_rs2 == reg::ZERO as u8 {
+                    self.stats.peephole_applies += 1;
+                    i += 1;
+                    continue;
+                }
+            }
+
+            // 模式 2: MOVI rd, 0 → 替代为使用 ZERO 寄存器（由寄存器分配器处理）
+            // 简化为：保留 MOVI，但后续指令可优化
+            if op == opcode::MOVI && (instr & 0xFFFF) == 0 {
+                let rd = ((instr >> 20) & 0x0F) as u8;
+                // 如果下一个指令是 ADD rd, rs, R0，转换为 MOV rd, rs
+                if i + 1 < text.len() {
+                    let next = text[i + 1];
+                    let next_op = (next >> 24) as u8;
+                    if next_op == opcode::ADD {
+                        let next_rd = ((next >> 20) & 0x0F) as u8;
+                        let next_rs1 = ((next >> 16) & 0x0F) as u8;
+                        let next_rs2 = ((next >> 12) & 0x0F) as u8;
+                        if next_rd == rd && next_rs2 == reg::ZERO as u8 {
+                            // ADD rd, rs, R0 → MOV rd, rs
+                            result.push(isa::encode_r3(opcode::MOV, rd, next_rs1, 0, 0));
+                            self.stats.peephole_applies += 1;
+                            i += 2;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // 模式 3: JMP .L → 保留，DCE 已处理不可达代码
+            // 窥孔不在此处处理 JMP 后的代码（由 DCE 负责）
+
+            // 模式 4: JZ Rt, .L; JMP .L2 → 反转: JNZ Rt, .L2; JMP .L
+            if op == opcode::JZ && i + 1 < text.len() {
+                let next = text[i + 1];
+                if (next >> 24) as u8 == opcode::JMP {
+                    // 交换：JNZ target_of_JMP; JMP target_of_JZ
+                    let jz_offset = instr & 0x000F_FFFF; // R1I 格式
+                    let jmp_offset = next & 0x00FF_FFFF; // JI 格式
+                    let jz_rd = ((instr >> 20) & 0x0F) as u8;
+                    // JNZ rd, jmp_offset
+                    result.push(isa::encode_r1i(opcode::JNZ, jz_rd, jmp_offset));
+                    // JMP jz_offset
+                    result.push(isa::encode_ji(opcode::JMP, jz_offset));
+                    self.stats.peephole_applies += 1;
+                    i += 2;
+                    continue;
+                }
+            }
+
+            result.push(instr);
+            i += 1;
+        }
+        result
     }
 }
 
@@ -405,5 +480,46 @@ mod tests {
         // 第二轮折叠: MOVI 10, 5; MOVI 11, 5; SEQ → MOVI 1
         // O1 只跑一轮，需要 O2 才能折叠第二次
         assert!(result.len() <= 5);
+    }
+
+    #[test]
+    fn peephole_mov_add_identity() {
+        // MOV t0, t1; ADD t0, R0, t1 → 删除 MOV（ADD 会覆盖结果）
+        let text = vec![
+            isa::encode_r3(opcode::MOV, 8, 9, 0, 0),  // MOV t0, t1
+            isa::encode_r3(opcode::ADD, 8, 0, 9, 0),   // ADD t0, R0, t1
+        ];
+        let mut opt = Optimizer::new(OptLevel::O1);
+        let result = opt.optimize(&text);
+        assert_eq!(result.len(), 1);
+        assert_eq!((result[0] >> 24) as u8, opcode::ADD);
+    }
+
+    #[test]
+    fn peephole_jz_jmp_reversal() {
+        // JZ t0, +4; JMP +8 → JNZ t0, +8; JMP +4
+        let text = vec![
+            isa::encode_r1i(opcode::JZ, 8, 4),    // JZ t0, +4
+            isa::encode_ji(opcode::JMP, 8),        // JMP +8
+        ];
+        let mut opt = Optimizer::new(OptLevel::O1);
+        let result = opt.optimize(&text);
+        assert_eq!(result.len(), 2);
+        assert_eq!((result[0] >> 24) as u8, opcode::JNZ);
+        assert_eq!((result[1] >> 24) as u8, opcode::JMP);
+    }
+
+    #[test]
+    fn peephole_jmp_kept_as_is() {
+        // JMP +1; NOP; MOVI → DCE 可消除 NOP，窥孔不处理
+        let text = vec![
+            isa::encode_ji(opcode::JMP, 2),     // JMP +2 → instr 2
+            make_movi(8, 42),                    // 不可达（DCE 消除）
+            make_movi(9, 99),                    // 目标（JMP 跳转到此）
+        ];
+        let mut opt = Optimizer::new(OptLevel::O1);
+        let result = opt.optimize(&text);
+        // DCE: JMP + MOVI target = 2 条指令
+        assert_eq!(result.len(), 2);
     }
 }
