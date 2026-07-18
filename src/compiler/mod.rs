@@ -10,3 +10,6 @@ pub mod token;
 pub mod lexer;
 pub mod ast;
 pub mod parser;
+pub mod symbol;
+pub mod type_checker;
+pub mod semantic;
