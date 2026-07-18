@@ -8,3 +8,4 @@ pub mod expr;
 pub mod stmt;
 pub mod reg_alloc;
 pub mod assembly;
+pub mod optimizer;

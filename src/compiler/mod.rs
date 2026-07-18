@@ -70,12 +70,17 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
 
     emit.resolve_all();
 
-    // 5. 寄存器分配
-    let mut reg_alloc = crate::compiler::codegen::reg_alloc::RegAllocator::new();
-    reg_alloc.allocate(&emit.text);
-    let text = reg_alloc.insert_spill_code(&emit.text);
+    // 5. 优化（O1 级别，含常量折叠 + 死代码消除）
+    let opt_level = crate::compiler::codegen::optimizer::OptLevel::O1;
+    let mut optimizer = crate::compiler::codegen::optimizer::Optimizer::new(opt_level);
+    let optimized_text = optimizer.optimize(&emit.text);
 
-    // 6. 汇编为 .atxe
+    // 6. 寄存器分配
+    let mut reg_alloc = crate::compiler::codegen::reg_alloc::RegAllocator::new();
+    reg_alloc.allocate(&optimized_text);
+    let text = reg_alloc.insert_spill_code(&optimized_text);
+
+    // 7. 汇编为 .atxe
     let zones_meta: Vec<(ZoneKind, String)> = analyzer.zones.iter()
         .map(|z| (z.kind, z.name.clone().unwrap_or_default()))
         .collect();
