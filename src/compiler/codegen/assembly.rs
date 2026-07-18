@@ -59,7 +59,7 @@ pub struct ExnEntry {
 }
 
 /// 构建 .exn 段（每条目 12 字节）。
-fn build_exn_section(entries: &[ExnEntry]) -> Vec<u8> {
+pub fn build_exn_section(entries: &[ExnEntry]) -> Vec<u8> {
     let mut data = Vec::with_capacity(entries.len() * 12);
     for entry in entries {
         data.extend_from_slice(&entry.start_pc.to_le_bytes());    // 4B
@@ -72,7 +72,7 @@ fn build_exn_section(entries: &[ExnEntry]) -> Vec<u8> {
 }
 
 /// 构建 .task 段。
-fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
+pub fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
     let mut data = Vec::new();
     for (i, (kind, name)) in zones.iter().enumerate() {
         if *kind == ZoneKind::Task {
@@ -88,7 +88,7 @@ fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
 }
 
 /// 构建 .zones 段（每条目 16 字节）。
-fn build_zones_section(zones: &[(ZoneKind, String)], emit: &InstrEmitter) -> Vec<u8> {
+pub fn build_zones_section(zones: &[(ZoneKind, String)], emit: &InstrEmitter) -> Vec<u8> {
     let mut data = Vec::new();
     let total_instrs = emit.text.len();
 

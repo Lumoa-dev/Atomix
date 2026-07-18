@@ -14,6 +14,7 @@ pub mod symbol;
 pub mod type_checker;
 pub mod semantic;
 pub mod codegen;
+pub mod linker;
 
 use crate::compiler::ast::*;
 use crate::compiler::codegen::assembly;
