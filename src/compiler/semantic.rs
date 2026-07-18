@@ -188,7 +188,7 @@ impl SemanticAnalyzer {
     // ═══════════════════════════════════════════════
 
     fn register_file_level(&mut self, file: &FileAst) {
-        // EXCEPTION
+        // 第一遍：注册 EXCEPTION
         for exc in &file.exception_defs {
             if let Err(e) = self.symbols.declare(
                 Symbol::new(exc.name.clone(), SymbolKind::Exception),
@@ -196,6 +196,9 @@ impl SemanticAnalyzer {
                 self.errors.push(SemanticError::new(e));
             }
         }
+
+        // 第二遍：验证 EXCEPTION 层级合法性
+        self.validate_exception_hierarchy(&file.exception_defs);
 
         // enum
         for enm in &file.enum_defs {
@@ -246,6 +249,45 @@ impl SemanticAnalyzer {
         for stmt in &zone.body {
             if let Stmt::FnDef(func) = stmt {
                 self.check_function_body(func);
+            }
+        }
+    }
+
+    /// 验证 EXCEPTION 层级合法性。
+    /// - 父异常必须已定义
+    /// - 无循环继承（A::B 且 B::A）
+    fn validate_exception_hierarchy(&mut self, defs: &[ExceptionDef]) {
+        // 建父子映射
+        let mut parents: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for exc in defs {
+            if let Some(parent) = &exc.parent {
+                parents.insert(&exc.name, parent);
+            }
+        }
+
+        for exc in defs {
+            // 父异常存在性检查
+            if let Some(parent) = &exc.parent {
+                if !self.symbols.contains(parent) {
+                    self.errors.push(SemanticError::new(
+                        format!("EXCEPTION `{}` 的父异常 `{parent}` 未定义", exc.name),
+                    ));
+                }
+            }
+
+            // 循环继承检测（沿父链向上走，看是否能回到自己）
+            let mut visited = std::collections::HashSet::new();
+            let mut current = exc.name.as_str();
+            visited.insert(current);
+            while let Some(parent) = parents.get(current) {
+                if visited.contains(parent) {
+                    self.errors.push(SemanticError::new(
+                        format!("EXCEPTION 循环继承: `{}` 和 `{parent}`", exc.name),
+                    ));
+                    break;
+                }
+                visited.insert(parent);
+                current = parent;
             }
         }
     }
@@ -422,6 +464,29 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// 验证 TRY handler 中的异常类型引用。
+    fn validate_try_handler(&mut self, handler: &Option<TryHandler>) {
+        if let Some(h) = handler {
+            match &h.filter {
+                TryFilter::IsError(err_type) => {
+                    if !self.symbols.contains(err_type) {
+                        self.errors.push(SemanticError::new(
+                            format!("TRY 引用的异常类型 `{err_type}` 未定义"),
+                        ));
+                    }
+                }
+                TryFilter::IsTimeout(_) => {
+                    // ISTIMEOUT 不需要额外验证
+                }
+                TryFilter::All => {}
+            }
+            // 检查 handler 体中的语句
+            self.symbols.push_scope();
+            self.check_stmts(&h.body);
+            self.symbols.pop_scope();
+        }
+    }
+
     /// 检查 CALL/WAIT 目标名中的跨域引用方向。
     fn check_call_target_ref(&mut self, target: &str) {
         if let Some(pos) = target.find("::") {
@@ -518,8 +583,7 @@ impl SemanticAnalyzer {
                 }
             }
 
-            Stmt::Call { func_name, args, .. } => {
-                // 检查跨域引用方向（CALL TOOLS::func() 等）
+            Stmt::Call { func_name, args, try_handler, .. } => {
                 self.check_call_target_ref(func_name);
                 if !self.symbols.contains(func_name) {
                     self.errors.push(SemanticError::new(
@@ -527,10 +591,11 @@ impl SemanticAnalyzer {
                     ));
                 }
                 let _arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                // 验证 TRY handler
+                self.validate_try_handler(try_handler);
             }
 
-            Stmt::Wait { template, overrides, .. } => {
-                // 检查跨域引用方向（WAIT WORKS::template() 等）
+            Stmt::Wait { template, overrides, try_handler, .. } => {
                 self.check_call_target_ref(template);
                 if !self.symbols.contains(template) {
                     self.errors.push(SemanticError::new(
@@ -541,6 +606,7 @@ impl SemanticAnalyzer {
                     let _val_type = self.infer_expr_type(val);
                     let _ = name;
                 }
+                self.validate_try_handler(try_handler);
             }
 
             Stmt::If { cond, body, elifs, else_body } => {
@@ -838,5 +904,30 @@ OUT : { CALL x() }";
 OUT : { CALL result() }";
         let (_, errors) = analyze(src);
         assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    // ── SEM-012 异常层级与 TRY 校验 ─────────────────
+
+    #[test]
+    fn exception_defined() {
+        let src = "EXCEPTION IOError
+TASK : { x : int = 1 }";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn exception_parent_undefined_error() {
+        let src = "EXCEPTION IOError :: NetworkError";
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should report undefined parent");
+    }
+
+    #[test]
+    fn exception_circular_inheritance_error() {
+        let src = "EXCEPTION A :: B
+EXCEPTION B :: A";
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should report circular inheritance");
     }
 }
