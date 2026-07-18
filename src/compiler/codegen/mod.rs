@@ -6,3 +6,4 @@
 pub mod instr;
 pub mod expr;
 pub mod stmt;
+pub mod reg_alloc;
