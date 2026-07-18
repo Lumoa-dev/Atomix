@@ -352,7 +352,18 @@ impl SemanticAnalyzer {
 
         self.check_stmts(&zone.body);
 
-        self.symbols.pop_scope();
+        // 收集当前作用域中的 GOOUT 变量
+        let goouts: Vec<Symbol> = self.symbols.current_scope()
+            .filter(|(_, s)| s.is_goout)
+            .map(|(_, s)| s.clone())
+            .collect();
+
+        self.symbols.pop_scope(); // 先弹出 TASK 作用域
+
+        // 再将 GOOUT 变量注册到全局作用域（Level 0）
+        for sym in goouts {
+            let _ = self.symbols.declare(sym);
+        }
     }
 
     // ═══════════════════════════════════════════════
@@ -364,17 +375,29 @@ impl SemanticAnalyzer {
         self.symbols.push_scope(); // Level 1: OUT
 
         for stmt in &zone.body {
-            // OUT 区只允许交付声明
             match stmt {
                 Stmt::Call { func_name, .. } => {
-                    // CALL 在 OUT 区中应引用 GOOUT 变量
-                    if !self.symbols.contains(func_name) {
-                        let _ = func_name;
+                    // 验证引用的变量是 GOOUT 声明的
+                    match self.symbols.lookup(func_name) {
+                        Some(sym) if !sym.is_goout => {
+                            self.errors.push(SemanticError::new(
+                                format!("OUT 区引用的 `{func_name}` 不是 GOOUT 变量"),
+                            ));
+                        }
+                        None => {
+                            self.errors.push(SemanticError::new(
+                                format!("OUT 区引用的 `{func_name}` 未定义"),
+                            ));
+                        }
+                        _ => {} // GOOUT 变量，通过
                     }
+                }
+                Stmt::Let { name, .. } => {
+                    // OUT 区允许 Let 声明（临时变量）
                 }
                 _ => {
                     self.errors.push(SemanticError::new(
-                        format!("OUT 区内此语句类型不允许"),
+                        "OUT 区内此语句类型不允许",
                     ));
                 }
             }
@@ -471,6 +494,12 @@ impl SemanticAnalyzer {
             }
 
             Stmt::Goout { name, type_ann, init } => {
+                // GOOUT 只能在 TASK 区使用
+                if self.current_zone != Some(ZoneKind::Task) {
+                    self.errors.push(SemanticError::new(
+                        format!("GOOUT 只能在 TASK 区使用"),
+                    ));
+                }
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
                 self.type_checker.check_annotation(&ann_type, &val_type, name);
@@ -754,5 +783,30 @@ TASK : {
 TASK : { y : int = 1 }";
         let (_, errors) = analyze(src);
         assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    // ── ZON-003 GOOUT 语义 ──────────────────────────
+
+    #[test]
+    fn goout_in_task_valid() {
+        let src = "TASK : { GOOUT result : int = 42 }";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn goout_out_zone_verify() {
+        let src = "TASK : { GOOUT result : int = 42 }
+OUT : { CALL result() }";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn goout_out_zone_not_goout_error() {
+        let src = "TASK : { x : int = 42 }
+OUT : { CALL x() }";
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should report not GOOUT error");
     }
 }

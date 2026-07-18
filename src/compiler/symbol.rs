@@ -185,6 +185,11 @@ impl SymbolTable {
         self.lookup(name).is_some()
     }
 
+    /// 获取当前作用域中所有符号的迭代器（用于遍历局部符号）。
+    pub fn current_scope(&self) -> impl Iterator<Item = (&String, &Symbol)> {
+        self.scopes.last().unwrap().iter()
+    }
+
     /// 获取所有函数定义（用于 CALL 解析）。
     pub fn functions(&self) -> Vec<&Symbol> {
         let mut fns = Vec::new();
