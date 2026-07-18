@@ -1245,6 +1245,30 @@ impl Parser {
                 }
                 Expr::List(exprs)
             }
+            // 字典字面量 {key: val, ...}
+            Some(TokenKind::LBrace) => {
+                self.advance();
+                let mut entries = Vec::new();
+                loop {
+                    match self.peek_kind() {
+                        Some(TokenKind::RBrace) => {
+                            self.advance();
+                            break;
+                        }
+                        Some(TokenKind::Eof) => break,
+                        _ => {
+                            let key = self.parse_expr();
+                            self.expect(&TokenKind::Colon);
+                            let val = self.parse_expr();
+                            entries.push((key, val));
+                            if self.peek_kind() == Some(&TokenKind::Comma) {
+                                self.advance();
+                            }
+                        }
+                    }
+                }
+                Expr::Dict(entries)
+            }
             Some(TokenKind::Do) => {
                 self.advance();
                 self.expect(&TokenKind::LParen);
@@ -1549,7 +1573,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "WIP: TOOLS zone function body parsing"]
     fn variable_declaration() {
         let src = "TOOLS : { fn foo() { x : int = 42 } }";
         let (ast, errors) = parse(src);
@@ -1651,7 +1674,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "WIP: TOOLS zone function body parsing"]
     fn function_definition() {
         let src = r#"TOOLS : {
             fn add(x : int, y : int) : int {
@@ -1686,7 +1708,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "WIP: TOOLS zone function body parsing"]
     fn type_annotations() {
         let src = r#"TOOLS : {
             fn foo() {
