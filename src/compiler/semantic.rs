@@ -324,8 +324,11 @@ impl SemanticAnalyzer {
         self.current_zone = Some(ZoneKind::Input);
         for stmt in &zone.body {
             match stmt {
-                Stmt::Let { name, type_ann, init: _ } => {
+                Stmt::Let { name, type_ann, init } => {
                     let t = resolve_type(type_ann);
+                    // 验证初始值类型匹配标注
+                    let val_type = self.infer_expr_type(init);
+                    self.type_checker.check_annotation(&t, &val_type, name);
                     // INPUT 常量全局可见（Level 0）
                     if let Err(e) = self.symbols.declare(
                         Symbol::new(name.clone(), SymbolKind::Const).with_type(t),
@@ -333,10 +336,13 @@ impl SemanticAnalyzer {
                         self.errors.push(SemanticError::new(e));
                     }
                 }
-                _ => {
+                Stmt::Call { .. } | Stmt::Wait { .. } | Stmt::If { .. } | Stmt::For { .. } => {
                     self.errors.push(SemanticError::new(
-                        "INPUT 区内不允许此语句类型",
+                        format!("INPUT 区不允许控制流或调用语句"),
                     ));
+                }
+                _ => {
+                    // 其他语句类型不报错（允许基础声明）
                 }
             }
         }
@@ -808,5 +814,29 @@ OUT : { CALL result() }";
 OUT : { CALL x() }";
         let (_, errors) = analyze(src);
         assert!(!errors.is_empty(), "should report not GOOUT error");
+    }
+
+    // ── SEM-009 INPUT/OUT 约束 ─────────────────────
+
+    #[test]
+    fn input_zone_constant_decl() {
+        let src = "INPUT : { data : int = 42 }";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn input_zone_invalid_stmt_error() {
+        let src = "INPUT : { CALL foo() }";
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should reject control flow in INPUT");
+    }
+
+    #[test]
+    fn out_zone_goout_reference_valid() {
+        let src = "TASK : { GOOUT result : int = 42 }
+OUT : { CALL result() }";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
     }
 }
