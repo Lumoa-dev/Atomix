@@ -87,7 +87,8 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
 
     let mut final_emit = emit.clone();
     final_emit.text = text;
-    let result = assembly::assemble(&final_emit, &pool.data, 0, &zones_meta);
+    let exn_entries: Vec<assembly::ExnEntry> = Vec::new(); // 由 TRY 语句填充
+    let result = assembly::assemble(&final_emit, &pool.data, 0, &zones_meta, &exn_entries);
 
     (result, errors)
 }

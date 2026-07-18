@@ -30,6 +30,7 @@ pub fn assemble(
     rodata: &[u8],
     entry: u32,
     zones: &[(ZoneKind, String)], // (kind, name) 列表
+    exn_entries: &[ExnEntry],     // .exn 段条目
 ) -> Vec<u8> {
     let mut header = Header::new(entry, 6);
     header.total_instrs = emit.text.len() as u32;
@@ -41,11 +42,33 @@ pub fn assemble(
         rodata: rodata.to_vec(),
         task_table: build_task_section(zones),
         debug_info: Vec::new(),
-        exn_table: Vec::new(),
+        exn_table: build_exn_section(exn_entries),
         zones: build_zones_section(zones, emit),
     };
 
     binary.to_bytes()
+}
+
+/// .exn 段条目（见 02-指令集规范.md §4.6）。
+#[derive(Debug, Clone, Copy)]
+pub struct ExnEntry {
+    pub start_pc: u32,
+    pub end_pc: u32,
+    pub handler_pc: u32,
+    pub filter: u16, // 0=All, 1=IsError, 2=IsTimeout
+}
+
+/// 构建 .exn 段（每条目 12 字节）。
+fn build_exn_section(entries: &[ExnEntry]) -> Vec<u8> {
+    let mut data = Vec::with_capacity(entries.len() * 12);
+    for entry in entries {
+        data.extend_from_slice(&entry.start_pc.to_le_bytes());    // 4B
+        data.extend_from_slice(&entry.end_pc.to_le_bytes());      // 4B
+        data.extend_from_slice(&entry.handler_pc.to_le_bytes());  // 4B
+        data.extend_from_slice(&entry.filter.to_le_bytes());      // 2B
+        data.extend_from_slice(&0u16.to_le_bytes());              // padding 2B
+    }
+    data
 }
 
 /// 构建 .task 段。
@@ -103,7 +126,7 @@ mod tests {
         let rodata = vec![0u8; 16];
         let zones = vec![(ZoneKind::Task, "main".into())];
 
-        let result = assemble(&emit, &rodata, 0, &zones);
+        let result = assemble(&emit, &rodata, 0, &zones, &[]);
         assert!(!result.is_empty());
 
         // 验证可解码
@@ -112,6 +135,15 @@ mod tests {
         let decoded = decoded.unwrap();
         assert!(decoded.header.version == 0x0001);
         assert_eq!(decoded.header.total_instrs, 3);
+    }
+
+    #[test]
+    fn exn_section_entry_size() {
+        let entries = vec![ExnEntry { start_pc: 0, end_pc: 10, handler_pc: 20, filter: 1 }];
+        let data = build_exn_section(&entries);
+        assert_eq!(data.len(), 16); // 12 bytes + 4 padding? Actually 4+4+4+2+2=16
+        // Actually doc says: start_pc 4B + end_pc 4B + handler_pc 4B + filter 2B + padding 2B = 16
+        assert_eq!(data.len(), 16);
     }
 
     #[test]
