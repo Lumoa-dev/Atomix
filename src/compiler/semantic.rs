@@ -50,6 +50,8 @@ pub struct SemanticAnalyzer {
     pub errors: Vec<SemanticError>,
     /// 分析后的类型化功能区列表（区外 + 5 区 + TEST）
     pub zones: Vec<ZoneInfo>,
+    /// 当前所在的区域（用于跨域引用方向检查）
+    current_zone: Option<ZoneKind>,
 }
 
 /// 分析后的区域元信息。
@@ -79,6 +81,7 @@ impl SemanticAnalyzer {
             type_checker: TypeChecker::new(),
             errors: Vec::new(),
             zones: Vec::new(),
+            current_zone: None,
         }
     }
 
@@ -221,6 +224,7 @@ impl SemanticAnalyzer {
     // ═══════════════════════════════════════════════
 
     fn analyze_tools_zone(&mut self, zone: &Zone) {
+        self.current_zone = Some(ZoneKind::Tools);
         // 第一遍：注册函数签名（全局可见，Level 0）
         for stmt in &zone.body {
             if let Stmt::FnDef(func) = stmt {
@@ -243,6 +247,50 @@ impl SemanticAnalyzer {
             if let Stmt::FnDef(func) = stmt {
                 self.check_function_body(func);
             }
+        }
+    }
+
+    // ═══════════════════════════════════════════════
+    //  跨域引用方向约束
+    // ═══════════════════════════════════════════════
+
+    /// 验证跨域引用方向是否合法。
+    /// 数据流单向：TOOLS → INPUT → WORKS → TASK → OUT
+    fn check_cross_ref_direction(&mut self, domain: &str) {
+        let Some(from) = self.current_zone else { return };
+
+        let domain_lower = domain.to_lowercase();
+        let to = match domain_lower.as_str() {
+            "tools" => ZoneKind::Tools,
+            "input" => ZoneKind::Input,
+            "works" => ZoneKind::Works,
+            "task" => ZoneKind::Task,
+            "out" => ZoneKind::Out,
+            _ => return, // 非标准域名由其他检查处理
+        };
+
+        // 方向矩阵：from → to 是否合法
+        let valid = match (from, to) {
+            // TOOLS 所有人都可以引用
+            (_, ZoneKind::Tools) => true,
+            // INPUT 只允许 TASK 引用
+            (ZoneKind::Task, ZoneKind::Input) => true,
+            (ZoneKind::Input, ZoneKind::Input) => true, // 自身引用允许
+            // WORKS 只允许 TASK 引用
+            (ZoneKind::Task, ZoneKind::Works) => true,
+            // TASK 只允许 OUT 引用
+            (ZoneKind::Out, ZoneKind::Task) => true,
+            // OUT 不允许被任何人引用
+            // 自身到自身的引用允许
+            (a, b) if a == b => true,
+            // 其他组合非法
+            _ => false,
+        };
+
+        if !valid {
+            self.errors.push(SemanticError::new(
+                format!("跨域引用方向非法：{domain} 不可从当前区域引用"),
+            ));
         }
     }
 
@@ -273,6 +321,7 @@ impl SemanticAnalyzer {
     // ═══════════════════════════════════════════════
 
     fn analyze_input_zone(&mut self, zone: &Zone) {
+        self.current_zone = Some(ZoneKind::Input);
         for stmt in &zone.body {
             match stmt {
                 Stmt::Let { name, type_ann, init: _ } => {
@@ -298,6 +347,7 @@ impl SemanticAnalyzer {
     // ═══════════════════════════════════════════════
 
     fn analyze_task_zone(&mut self, zone: &Zone, _index: usize) {
+        self.current_zone = Some(ZoneKind::Task);
         self.symbols.push_scope(); // Level 1: TASK
 
         self.check_stmts(&zone.body);
@@ -310,6 +360,7 @@ impl SemanticAnalyzer {
     // ═══════════════════════════════════════════════
 
     fn analyze_out_zone(&mut self, zone: &Zone) {
+        self.current_zone = Some(ZoneKind::Out);
         self.symbols.push_scope(); // Level 1: OUT
 
         for stmt in &zone.body {
@@ -342,11 +393,64 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// 检查 CALL/WAIT 目标名中的跨域引用方向。
+    fn check_call_target_ref(&mut self, target: &str) {
+        if let Some(pos) = target.find("::") {
+            let domain = &target[..pos];
+            self.check_cross_ref_direction(domain);
+        }
+    }
+
+    /// 递归检查表达式树中的所有跨域引用。
+    fn validate_expr_refs(&mut self, expr: &Expr) {
+        match expr {
+            Expr::CrossRef { domain, .. } => {
+                self.check_cross_ref_direction(domain);
+            }
+            Expr::Binary { lhs, rhs, .. } => {
+                self.validate_expr_refs(lhs);
+                self.validate_expr_refs(rhs);
+            }
+            Expr::Unary { expr: inner, .. } => self.validate_expr_refs(inner),
+            Expr::List(items) => {
+                for item in items { self.validate_expr_refs(item); }
+            }
+            Expr::Dict(entries) => {
+                for (k, v) in entries {
+                    self.validate_expr_refs(k);
+                    self.validate_expr_refs(v);
+                }
+            }
+            Expr::Tuple(items) => {
+                for item in items { self.validate_expr_refs(item); }
+            }
+            Expr::Index { target, index } => {
+                self.validate_expr_refs(target);
+                self.validate_expr_refs(index);
+            }
+            Expr::Dot { target, .. } => self.validate_expr_refs(target),
+            Expr::Call { args, .. } => {
+                for arg in args { self.validate_expr_refs(arg); }
+            }
+            Expr::DoFn { body, .. } => {
+                // DoFn body is Vec<Stmt>, not Expr — skip for now
+                let _ = body;
+            }
+            _ => {}
+        }
+    }
+
+    /// 类型推导 + 自动跨域引用检查。
+    fn infer_expr_type(&mut self, expr: &Expr) -> Type {
+        self.validate_expr_refs(expr);
+        self.type_checker.infer_expr(expr, &self.symbols)
+    }
+
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Let { name, type_ann, init } => {
                 let ann_type = resolve_type(type_ann);
-                let val_type = self.type_checker.infer_expr(init, &self.symbols);
+                let val_type = self.infer_expr_type(init);
                 self.type_checker.check_annotation(&ann_type, &val_type, name);
                 if let Err(e) = self.symbols.declare(
                     Symbol::new(name.clone(), SymbolKind::Variable).with_type(ann_type),
@@ -357,7 +461,7 @@ impl SemanticAnalyzer {
 
             Stmt::Const { name, type_ann, init } => {
                 let ann_type = resolve_type(type_ann);
-                let val_type = self.type_checker.infer_expr(init, &self.symbols);
+                let val_type = self.infer_expr_type(init);
                 self.type_checker.check_annotation(&ann_type, &val_type, name);
                 if let Err(e) = self.symbols.declare(
                     Symbol::new(name.clone(), SymbolKind::Const).with_type(ann_type),
@@ -368,7 +472,7 @@ impl SemanticAnalyzer {
 
             Stmt::Goout { name, type_ann, init } => {
                 let ann_type = resolve_type(type_ann);
-                let val_type = self.type_checker.infer_expr(init, &self.symbols);
+                let val_type = self.infer_expr_type(init);
                 self.type_checker.check_annotation(&ann_type, &val_type, name);
                 if let Err(e) = self.symbols.declare(
                     Symbol::new(name.clone(), SymbolKind::Variable)
@@ -380,28 +484,32 @@ impl SemanticAnalyzer {
             }
 
             Stmt::Call { func_name, args, .. } => {
+                // 检查跨域引用方向（CALL TOOLS::func() 等）
+                self.check_call_target_ref(func_name);
                 if !self.symbols.contains(func_name) {
                     self.errors.push(SemanticError::new(
                         format!("未定义的函数 `{func_name}`"),
                     ));
                 }
-                let _arg_types: Vec<Type> = args.iter().map(|a| self.type_checker.infer_expr(a, &self.symbols)).collect();
+                let _arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
             }
 
             Stmt::Wait { template, overrides, .. } => {
+                // 检查跨域引用方向（WAIT WORKS::template() 等）
+                self.check_call_target_ref(template);
                 if !self.symbols.contains(template) {
                     self.errors.push(SemanticError::new(
                         format!("未定义的 WORKS 模板 `{template}`"),
                     ));
                 }
                 for (name, val) in overrides {
-                    let _val_type = self.type_checker.infer_expr(val, &self.symbols);
+                    let _val_type = self.infer_expr_type(val);
                     let _ = name;
                 }
             }
 
             Stmt::If { cond, body, elifs, else_body } => {
-                let cond_type = self.type_checker.infer_expr(cond, &self.symbols);
+                let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
                     self.errors.push(SemanticError::new(
                         format!("IF 条件必须为 bool，得到 {:?}", cond_type),
@@ -412,7 +520,7 @@ impl SemanticAnalyzer {
                 self.symbols.pop_scope();
 
                 for (elif_cond, elif_body) in elifs {
-                    let et = self.type_checker.infer_expr(elif_cond, &self.symbols);
+                    let et = self.infer_expr_type(elif_cond);
                     if et != Type::Bool && et != Type::Any {
                         self.errors.push(SemanticError::new(
                             format!("ELIF 条件必须为 bool，得到 {:?}", et),
@@ -431,7 +539,7 @@ impl SemanticAnalyzer {
             }
 
             Stmt::For { cond, body } => {
-                let cond_type = self.type_checker.infer_expr(cond, &self.symbols);
+                let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
                     self.errors.push(SemanticError::new(
                         format!("FOR 条件必须为 bool，得到 {:?}", cond_type),
@@ -444,7 +552,7 @@ impl SemanticAnalyzer {
 
             Stmt::Break { cond } | Stmt::Continue { cond } => {
                 if let Some(c) = cond {
-                    let ct = self.type_checker.infer_expr(c, &self.symbols);
+                    let ct = self.infer_expr_type(c);
                     if ct != Type::Bool && ct != Type::Any {
                         self.errors.push(SemanticError::new(
                             format!("BREAK/CONTINUE 条件必须为 bool，得到 {:?}", ct),
@@ -454,7 +562,7 @@ impl SemanticAnalyzer {
             }
 
             Stmt::Assert { cond, .. } => {
-                let ct = self.type_checker.infer_expr(cond, &self.symbols);
+                let ct = self.infer_expr_type(cond);
                 if ct != Type::Bool && ct != Type::Any {
                     self.errors.push(SemanticError::new(
                         format!("ASSERT 条件必须为 bool，得到 {:?}", ct),
@@ -463,12 +571,12 @@ impl SemanticAnalyzer {
             }
 
             Stmt::Raise { expr, .. } => {
-                let _et = self.type_checker.infer_expr(expr, &self.symbols);
+                let _et = self.infer_expr_type(expr);
             }
 
             Stmt::Return { value } => {
                 if let Some(v) = value {
-                    let _vt = self.type_checker.infer_expr(v, &self.symbols);
+                    let _vt = self.infer_expr_type(v);
                 }
             }
 
@@ -624,6 +732,26 @@ mod tests {
                 y : int = 2
             }
         }"#;
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    // ── SEM-010 跨域引用方向约束 ────────────────────
+
+    #[test]
+    fn cross_ref_tools_from_task_valid() {
+        let src = "TOOLS : { fn helper() { } }
+TASK : {
+    CALL helper() => x
+}";
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn cross_ref_reverse_direction_valid() {
+        let src = "INPUT : { x : int = 42 }
+TASK : { y : int = 1 }";
         let (_, errors) = analyze(src);
         assert!(errors.is_empty(), "{:?}", errors);
     }
