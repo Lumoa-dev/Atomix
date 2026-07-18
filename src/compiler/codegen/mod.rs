@@ -4,3 +4,4 @@
 //! 详见 docs/04-编译管线.md §5、docs/02-指令集规范.md §4。
 
 pub mod instr;
+pub mod expr;
