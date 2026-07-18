@@ -2,5 +2,31 @@
 name = "atomix"
 version = "0.1.0"
 edition = "2024"
+description = "Atomix — 任务执行 DSL 编译器与运行时"
+default-run = "atomix"
+
+# ─── 多二进制声明 ──────────────────────────────────────
+# 单项目多 bin：所有核心代码在 src/lib.rs 中作为库，
+# 各二进制入口在 src/bin/ 下，共享同一份 ISA/IR/编译器/VM 代码。
+# 改需求时只改一处库代码，所有二进制自动同步。
+# ──────────────────────────────────────────────────────
+[[bin]]
+name = "atomix"
+path = "src/bin/atomix.rs"
+
+[[bin]]
+name = "atomix-build"
+path = "src/bin/atomix-build.rs"
+
+[[bin]]
+name = "atomix-runner"
+path = "src/bin/atomix-runner.rs"
 
 [dependencies]
+# CLI 解析
+clap = { version = "4", features = ["derive"] }
+
+# 序列化（配置、锁定文件等）
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"

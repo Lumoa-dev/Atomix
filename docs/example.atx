@@ -68,7 +68,7 @@ TASK : {
         BREAK total >= 2
     }
 
-    # 派发 WORKS 模板
+    # 调用 works
     CALL ReportBuilder(DATA = orders, DEST = "api") => result : dict
 
     # 标注最终产出
@@ -81,5 +81,5 @@ TASK : {
 
 # ── 产出交付 ─────────────────────────────────────
 OUT : {
-    summary => HTTP : "https://api.example.com/demo"
+    summary => HTTP : "https://api.example.com/demo" (post)
 }
