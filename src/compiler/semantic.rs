@@ -42,12 +42,27 @@ impl SemanticError {
     }
 }
 
+impl std::fmt::Display for SemanticError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.span {
+            Some(span) => write!(
+                f,
+                "语义错误: {} (位置: {}:{})",
+                self.message, span.start.line, span.start.col
+            ),
+            None => write!(f, "语义错误: {}", self.message),
+        }
+    }
+}
+
 // ─── 语义分析器 ────────────────────────────────────────
 
 pub struct SemanticAnalyzer {
     pub symbols: SymbolTable,
     pub type_checker: TypeChecker,
     pub errors: Vec<SemanticError>,
+    /// 分析警告（非阻断性）
+    pub warnings: Vec<String>,
     /// 分析后的类型化功能区列表（区外 + 5 区 + TEST）
     pub zones: Vec<ZoneInfo>,
     /// 当前所在的区域（用于跨域引用方向检查）
@@ -82,6 +97,7 @@ impl SemanticAnalyzer {
             symbols: SymbolTable::new(),
             type_checker: TypeChecker::new(),
             errors: Vec::new(),
+            warnings: Vec::new(),
             zones: Vec::new(),
             current_zone: None,
             monomorphizations: std::collections::HashMap::new(),
@@ -235,6 +251,40 @@ impl SemanticAnalyzer {
                 .declare(Symbol::new(alias.name.clone(), SymbolKind::Type).with_type(resolved))
             {
                 self.errors.push(SemanticError::new(e));
+            }
+        }
+
+        // 内置函数注册（全局可用，编译器内联展开为 IR）
+        for entry in crate::compiler::builtins::ALL_BUILTINS {
+            let sym = Symbol::new(entry.name.to_string(), SymbolKind::Builtin);
+            if let Err(e) = self.symbols.declare(sym) {
+                self.errors.push(SemanticError::new(e));
+            }
+        }
+
+        // WORKS 模板注册
+        for works in &file.works_defs {
+            // 注册模板名
+            if let Err(e) = self.symbols.declare(
+                Symbol::new(works.name.clone(), SymbolKind::Works)
+            ) {
+                self.errors.push(SemanticError::new(e));
+            }
+            // 注册模板方法
+            for method in &works.methods {
+                let mut sym = Symbol::new(
+                    format!("{}::{}", works.name, method.name),
+                    SymbolKind::Function,
+                ).with_public(method.is_pub);
+                if let Some(ret) = &method.ret_type {
+                    sym = sym.with_type(resolve_type(ret));
+                } else {
+                    sym = sym.with_type(Type::Void);
+                }
+                sym = sym.with_func(method.clone());
+                if let Err(e) = self.symbols.declare(sym) {
+                    self.errors.push(SemanticError::new(e));
+                }
             }
         }
     }
@@ -555,10 +605,15 @@ impl SemanticAnalyzer {
 
         // 为每个不可达的函数生成警告
         for sym in self.symbols.functions() {
-            if !reachable.contains(&sym.name) && !sym.name.is_empty() {
+            if !reachable.contains(&sym.name)
+                && !sym.name.is_empty()
+                && !sym.name.contains("::") // 单态化函数由编译器自动生成，不报可达性警告
+            {
                 // 不可达函数产生警告（非错误）
-                // 使用 errors 列表以在测试中可见
-                // TODO: Phase 2 中改为专用警告通道
+                self.warnings.push(format!(
+                    "警告：函数 `{}` 不可达（未被任何 CALL/WAIT 引用）",
+                    sym.name
+                ));
             }
         }
     }

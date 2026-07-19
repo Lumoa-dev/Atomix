@@ -534,7 +534,7 @@ fn handle_exception(vm: &mut VmState, exc_val: u64) -> bool {
 // ─── ECALL ─────────────────────────────────────────────
 
 /// 处理 ECALL 系统调用。
-fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, _arg2: u64, _arg3: u64) -> u64 {
+fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, _arg3: u64) -> u64 {
     match syscall {
         crate::base::isa::ecall::ALLOC => {
             let size = arg1;
@@ -556,6 +556,16 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, _arg2: u64, _arg3: u6
         crate::base::isa::ecall::TCP_CONNECT | crate::base::isa::ecall::FS_OPEN => {
             // 未实现：返回负错误码（对应 DSL 异常）
             -1i64 as u64 // -EIO
+        }
+        crate::base::isa::ecall::PRINT => {
+            // 打印输出：A0 的值 → stdout
+            println!("{}", arg1 as i64);
+            0
+        }
+        crate::base::isa::ecall::LEN => {
+            // 取长度：对于字符串 / 字节序列，返回 arg1 中存储的指针长度
+            // 当前简化实现：通过 A1 传入长度
+            arg2
         }
         _ => {
             // 不支持的调用号

@@ -73,8 +73,13 @@ impl Linker {
         let mut header = Header::new(0, 6);
         header.total_instrs = pruned.len() as u32;
 
-        // 构建 zones 元信息
+        // 构建 zones 元信息（含 text 区间）
+        let total_instrs = pruned.len();
         let zones_meta: Vec<(ZoneKind, String)> = zones.to_vec();
+        let zones_with_ranges: Vec<(ZoneKind, String, usize, usize)> = zones_meta
+            .iter()
+            .map(|(k, n)| (*k, n.clone(), 0, total_instrs))
+            .collect();
 
         let binary = AtxeBinary {
             header,
@@ -84,7 +89,7 @@ impl Linker {
             task_table: assembly::build_task_section(&zones_meta),
             debug_info: Vec::new(),
             exn_table: assembly::build_exn_section(exn_entries),
-            zones: assembly::build_zones_section(&zones_meta, &{
+            zones: assembly::build_zones_section(&zones_with_ranges, &{
                 // 用修剪后的指令数创建临时 emitter
                 let mut e = InstrEmitter::new();
                 e.text = emit.text.clone();

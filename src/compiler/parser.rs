@@ -25,6 +25,16 @@ impl ParseError {
     }
 }
 
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "语法错误: {} (位置: {}:{})",
+            self.message, self.span.start.line, self.span.start.col
+        )
+    }
+}
+
 // ─── Parser ─────────────────────────────────────────────
 
 pub struct Parser {
@@ -1702,12 +1712,15 @@ impl Parser {
             Some(kind)
                 if kind.is_zone_keyword()
                     || kind.is_source_target_keyword()
+                    || kind.is_type_keyword()
                     || matches!(
                         kind,
                         TokenKind::Exception | TokenKind::Enum | TokenKind::Type
                     ) =>
             {
                 let name = format!("{}", kind);
+                // Display 用反引号包裹（如 `` `TOOLS` ``），去掉以得到纯名称
+                let name = name.trim_matches('`').to_string();
                 self.advance();
                 self.parse_ident_or_cross_ref(name)
             }
@@ -1913,6 +1926,7 @@ impl Parser {
         let is_keyword_domain = |kind: &TokenKind| -> bool {
             kind.is_zone_keyword()
                 || kind.is_source_target_keyword()
+                || kind.is_type_keyword()
                 || matches!(
                     kind,
                     TokenKind::Exception | TokenKind::Enum | TokenKind::Type
@@ -1922,9 +1936,11 @@ impl Parser {
         let name = match self.peek_kind() {
             Some(TokenKind::Ident(_)) => self.parse_ident().unwrap_or_default(),
             Some(kind) if is_keyword_domain(kind) => {
-                let s = kind.to_string().to_lowercase();
+                let s = kind.to_string();
+                // Display 用反引号包裹，去掉以得到纯名称
+                let name = s.trim_matches('`').to_lowercase();
                 self.advance();
-                s
+                name
             }
             _ => {
                 self.errors.push(ParseError::new(

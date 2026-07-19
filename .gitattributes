@@ -1,2 +1,23 @@
 * text=auto eol=lf
+
+# Atomix 源码（文本，可 diff）
+*.atx text diff
+*.atxo text diff
+
+# Atomix 编译产物（二进制，不可 diff）
+*.atxe binary
+
+# Rust 源码
+*.rs text diff
+
+# 文档
+*.md text diff
+*.toml text diff
+*.json text diff
+*.yaml text diff
+*.yml text diff
+
+# 图片（LFS）
 *.png filter=lfs diff=lfs merge=lfs -text
+*.svg text diff
+*.ico binary

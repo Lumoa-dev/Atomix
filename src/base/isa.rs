@@ -268,6 +268,12 @@ pub mod ecall {
     pub const FS_CLOSE: u32 = 12;
     pub const FS_SEEK: u32 = 13;
     pub const FS_STAT: u32 = 14;
+
+    // ── 内置函数（编译器 IR 展开需要 VM 支持的部分） ──
+    /// 打印输出（print 内置函数）。
+    pub const PRINT: u32 = 15;
+    /// 取长度（len 内置函数）。
+    pub const LEN: u32 = 16;
 }
 
 #[cfg(test)]

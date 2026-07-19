@@ -29,19 +29,21 @@ pub fn assemble(
     emit: &InstrEmitter,
     rodata: &[u8],
     entry: u32,
-    zones: &[(ZoneKind, String)], // (kind, name) 列表
-    exn_entries: &[ExnEntry],     // .exn 段条目
+    zones: &[(ZoneKind, String, usize, usize)], // (kind, name, text_start, text_end)
+    exn_entries: &[ExnEntry],
 ) -> Vec<u8> {
     let mut header = Header::new(entry, 6);
     header.total_instrs = emit.text.len() as u32;
     header.compute_memory_profile(emit.text.len() * 4, rodata.len());
+
+    let zone_tuples: Vec<(ZoneKind, String)> = zones.iter().map(|(k, n, _, _)| (*k, n.clone())).collect();
 
     let binary = AtxeBinary {
         header,
         sections: Vec::new(),
         text: emit.text.clone(),
         rodata: rodata.to_vec(),
-        task_table: build_task_section(zones),
+        task_table: build_task_section(&zone_tuples),
         debug_info: Vec::new(),
         exn_table: build_exn_section(exn_entries),
         zones: build_zones_section(zones, emit),
@@ -88,23 +90,39 @@ pub fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
     data
 }
 
-/// 构建 .zones 段（每条目 16 字节）。
-pub fn build_zones_section(_zones: &[(ZoneKind, String)], emit: &InstrEmitter) -> Vec<u8> {
+/// 构建 .zones 段（每条目 12 字节：zone_id 2B + lifecycle 1B + flags 1B + text_start 4B + text_end 4B）。
+/// zones 参数为 (kind, name, text_start_instr, text_end_instr) 元组。
+pub fn build_zones_section(zones: &[(ZoneKind, String, usize, usize)], _emit: &InstrEmitter) -> Vec<u8> {
     let mut data = Vec::new();
-    let total_instrs = emit.text.len();
+    // 按 zone_id 固定编号映射：区外=0, TOOLS=1, INPUT=2, WORKS=3, TASK=4, OUT=5, TEST=6
+    let zone_id_map: &[(ZoneKind, u16)] = &[
+        (ZoneKind::Tools, 1),
+        (ZoneKind::Input, 2),
+        (ZoneKind::Works, 3),
+        (ZoneKind::Task, 4),
+        (ZoneKind::Out, 5),
+    ];
 
-    // 计算每个 zone 的 text 区间（简化：均分 .text）
-    // Phase 1 简单实现：整体作为一个 TASK zone
-    let zone_count = 7u16; // 区外 + TOOLS + INPUT + WORKS + TASK + OUT + TEST
-
-    for zone_id in 0..zone_count {
+    // 区外(0) 和 TEST(6) 没有 body → text_start=text_end=0
+    for zone_id in [0u16, 6u16] {
         let (lifecycle, flags) = zone_lifecycle(zone_id);
-        data.extend_from_slice(&zone_id.to_le_bytes()); // zone_id: 2B
-        data.push(lifecycle); // lifecycle: 1B
-        data.push(flags); // flags: 1B
-        // text_start / text_end: 简化为整个 .text
+        data.extend_from_slice(&zone_id.to_le_bytes());
+        data.push(lifecycle);
+        data.push(flags);
         data.extend_from_slice(&0u32.to_le_bytes()); // text_start
-        data.extend_from_slice(&(total_instrs as u32).to_le_bytes()); // text_end
+        data.extend_from_slice(&0u32.to_le_bytes()); // text_end
+    }
+
+    // 实际有 body 的 zone
+    for (kind, _name, text_start, text_end) in zones {
+        if let Some(&zone_id) = zone_id_map.iter().find(|(k, _)| k == kind).map(|(_, id)| id) {
+            let (lifecycle, flags) = zone_lifecycle(zone_id);
+            data.extend_from_slice(&zone_id.to_le_bytes());
+            data.push(lifecycle);
+            data.push(flags);
+            data.extend_from_slice(&(*text_start as u32).to_le_bytes());
+            data.extend_from_slice(&(*text_end as u32).to_le_bytes());
+        }
     }
 
     data
@@ -125,7 +143,7 @@ mod tests {
         emit.emit_r3(0x20, 10, 8, 9, 0); // ADD
 
         let rodata = vec![0u8; 16];
-        let zones = vec![(ZoneKind::Task, "main".into())];
+        let zones = vec![(ZoneKind::Task, "main".into(), 0, 3)];
 
         let result = assemble(&emit, &rodata, 0, &zones, &[]);
         assert!(!result.is_empty());
@@ -155,10 +173,10 @@ mod tests {
     #[test]
     fn zones_section_size() {
         let emit = InstrEmitter::new();
-        let zones = vec![(ZoneKind::Task, "main".into())];
+        let zones = vec![(ZoneKind::Task, "main".into(), 0, 10)];
         let zones_data = build_zones_section(&zones, &emit);
-        // 7 entries × 12 bytes each (zone_id 2B + lifecycle 1B + flags 1B + text_start 4B + text_end 4B)
-        assert_eq!(zones_data.len(), 7 * 12);
+        // 2 fixed zones (zone 0 and 6) + 1 actual zone = 3 entries
+        assert_eq!(zones_data.len(), 3 * 12);
     }
 
     #[test]

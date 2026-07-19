@@ -3,12 +3,18 @@
 //! 覆盖 04-编译管线.md §5.2 的语句到 IR 映射规则。
 
 use crate::base::isa::{opcode, reg};
-use crate::compiler::ast::Stmt;
+use crate::compiler::ast::{Stmt, TryFilter};
+use crate::compiler::codegen::assembly::ExnEntry;
 use crate::compiler::codegen::expr::{ConstPool, compile_expr};
-use crate::compiler::codegen::instr::{InstrEmitter, vreg_to_preg};
+use crate::compiler::codegen::instr::{InstrEmitter, VReg, vreg_to_preg};
 
 /// 编译语句列表。
-pub fn compile_stmts(emit: &mut InstrEmitter, pool: &mut ConstPool, stmts: &[Stmt]) {
+pub fn compile_stmts(
+    emit: &mut InstrEmitter,
+    pool: &mut ConstPool,
+    stmts: &[Stmt],
+    exn_entries: &mut Vec<ExnEntry>,
+) {
     // 收集所有函数定义的标签
     for stmt in stmts {
         if let Stmt::FnDef(f) = stmt {
@@ -17,12 +23,17 @@ pub fn compile_stmts(emit: &mut InstrEmitter, pool: &mut ConstPool, stmts: &[Stm
     }
 
     for stmt in stmts {
-        compile_stmt(emit, pool, stmt);
+        compile_stmt(emit, pool, stmt, exn_entries);
     }
 }
 
 /// 编译单条语句。
-pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) {
+pub fn compile_stmt(
+    emit: &mut InstrEmitter,
+    pool: &mut ConstPool,
+    stmt: &Stmt,
+    exn_entries: &mut Vec<ExnEntry>,
+) {
     match stmt {
         Stmt::Let { init, .. } | Stmt::Const { init, .. } | Stmt::Goout { init, .. } => {
             compile_expr(emit, pool, init);
@@ -33,8 +44,24 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             args,
             output,
             pipe,
+            try_handler,
             ..
         } => {
+            // 检查是否为内置函数（编译期 IR 展开）
+            if let Some(builtin) = crate::compiler::builtins::lookup(func_name) {
+                // 编译参数到虚拟寄存器
+                let arg_vregs: Vec<VReg> = args
+                    .iter()
+                    .map(|arg| compile_expr(emit, pool, arg))
+                    .collect();
+                // 展开为 IR 指令序列
+                (builtin.expand)(emit, &arg_vregs);
+                let _ = output;
+                let _ = pipe;
+                let _ = try_handler;
+                return;
+            }
+
             // 参数传入 R4-R7
             for (i, arg) in args.iter().enumerate() {
                 if i >= 4 {
@@ -52,7 +79,43 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             }
             // CALL 指令（偏移在链接阶段填充）
             emit.emit_label(&format!("call_{}", func_name));
+
+            // TRY 保护区域起点
+            let try_start = try_handler.as_ref().map(|_| emit.instr_count() as u32);
             emit.emit_ji(opcode::CALL, 0);
+
+            // 如果有 TRY handler，生成 .exn 条目和 handler 代码
+            if let Some(handler) = try_handler {
+                let end_pc = emit.instr_count() as u32; // CALL 之后
+                let handler_idx = emit.instr_count();
+
+                // 跳过 handler（正常路径）
+                let skip_label = format!(".L_skip_try_{}", handler_idx);
+                emit.emit_jmp_to(&skip_label);
+
+                // Handler 代码
+                let handler_label = format!(".L_try_handler_{}", handler_idx);
+                emit.emit_label(&handler_label);
+                compile_stmts(emit, pool, &handler.body, exn_entries);
+
+                // 正常路径汇合点
+                emit.emit_label(&skip_label);
+                emit.resolve_all();
+
+                let filter = match &handler.filter {
+                    TryFilter::All => 0u16,
+                    TryFilter::IsError(_) => 1u16,
+                    TryFilter::IsTimeout(_) => 2u16,
+                };
+
+                exn_entries.push(ExnEntry {
+                    start_pc: try_start.unwrap_or(0),
+                    end_pc,
+                    handler_pc: handler_idx as u32,
+                    filter,
+                });
+            }
+
             // 返回值从 R4 取出
             let result_reg = vreg_to_preg(4); // 用临时寄存器
             emit.emit_mov(result_reg, reg::A0 as u8);
@@ -63,6 +126,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
         Stmt::Wait {
             template,
             overrides,
+            try_handler,
             ..
         } => {
             // WAIT → TASK_FORK + TASK_JOIN
@@ -72,8 +136,40 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
                 let _ = name;
             }
             emit.emit_label(&format!("fork_{}", template));
+
+            // TRY 保护区域起点（覆盖 TASK_FORK + TASK_JOIN）
+            let try_start = try_handler.as_ref().map(|_| emit.instr_count() as u32);
             emit.emit_r1i(opcode::TASK_FORK, reg::T0 as u8, 0);
             emit.emit_r2i(opcode::TASK_JOIN, reg::T1 as u8, reg::T0 as u8, 0);
+
+            // 如果有 TRY handler，生成 .exn 条目和 handler 代码
+            if let Some(handler) = try_handler {
+                let end_pc = emit.instr_count() as u32;
+                let handler_idx = emit.instr_count();
+
+                let skip_label = format!(".L_skip_try_w_{}", handler_idx);
+                emit.emit_jmp_to(&skip_label);
+
+                let handler_label = format!(".L_try_handler_w_{}", handler_idx);
+                emit.emit_label(&handler_label);
+                compile_stmts(emit, pool, &handler.body, exn_entries);
+
+                emit.emit_label(&skip_label);
+                emit.resolve_all();
+
+                let filter = match &handler.filter {
+                    TryFilter::All => 0u16,
+                    TryFilter::IsError(_) => 1u16,
+                    TryFilter::IsTimeout(_) => 2u16,
+                };
+
+                exn_entries.push(ExnEntry {
+                    start_pc: try_start.unwrap_or(0),
+                    end_pc,
+                    handler_pc: handler_idx as u32,
+                    filter,
+                });
+            }
         }
 
         Stmt::If {
@@ -92,7 +188,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
                 format!(".L_else_{}", emit.instr_count())
             };
             emit.emit_jz_to(vreg_to_preg(cond_vreg), &else_label);
-            compile_stmts(emit, pool, body);
+            compile_stmts(emit, pool, body, exn_entries);
             emit.emit_jmp_to(&endif_label);
 
             // ELIF 分支
@@ -102,7 +198,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
                 let elif_vreg = compile_expr(emit, pool, elif_cond);
                 let next_label = format!(".L_next_{}", emit.instr_count());
                 emit.emit_jz_to(vreg_to_preg(elif_vreg), &next_label);
-                compile_stmts(emit, pool, elif_body);
+                compile_stmts(emit, pool, elif_body, exn_entries);
                 emit.emit_jmp_to(&endif_label);
                 current_else = next_label;
             }
@@ -110,7 +206,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             // ELSE 分支
             if let Some(eb) = else_body {
                 emit.emit_label(&current_else);
-                compile_stmts(emit, pool, eb);
+                compile_stmts(emit, pool, eb, exn_entries);
             }
 
             emit.emit_label(&endif_label);
@@ -125,7 +221,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             emit.emit_label(&loop_label);
             let cond_vreg = compile_expr(emit, pool, cond);
             emit.emit_jz_to(vreg_to_preg(cond_vreg), &exit_label);
-            compile_stmts(emit, pool, body);
+            compile_stmts(emit, pool, body, exn_entries);
             emit.emit_jmp_to(&loop_label);
             emit.emit_label(&exit_label);
             emit.resolve_all();
@@ -178,7 +274,7 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
         }
 
         Stmt::Block(stmts) => {
-            compile_stmts(emit, pool, stmts);
+            compile_stmts(emit, pool, stmts, exn_entries);
         }
 
         Stmt::FnDef(_) => {
@@ -199,7 +295,8 @@ mod tests {
         reset_vreg();
         let mut emit = InstrEmitter::new();
         let mut pool = ConstPool::new();
-        compile_stmt(&mut emit, &mut pool, &stmt);
+        let mut exn = Vec::new();
+        compile_stmt(&mut emit, &mut pool, &stmt, &mut exn);
         emit.resolve_all();
         (emit.text, pool)
     }
@@ -208,7 +305,8 @@ mod tests {
         reset_vreg();
         let mut emit = InstrEmitter::new();
         let mut pool = ConstPool::new();
-        compile_stmts(&mut emit, &mut pool, &stmts);
+        let mut exn = Vec::new();
+        compile_stmts(&mut emit, &mut pool, &stmts, &mut exn);
         emit.resolve_all();
         (emit.text, pool)
     }

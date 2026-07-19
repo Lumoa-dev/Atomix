@@ -18,6 +18,8 @@ pub enum SymbolKind {
     Variable,
     /// 函数
     Function,
+    /// 内置函数（编译期展开为 IR）
+    Builtin,
     /// 常量
     Const,
     /// 类型别名 / enum 名

@@ -40,6 +40,8 @@ pub struct ConstPool {
     str_offsets: std::collections::HashMap<String, usize>,
     /// 浮点值（按位表示）→ 偏移
     float_offsets: std::collections::HashMap<u64, usize>,
+    /// 大整数值 → 偏移（64 位）
+    big_int_offsets: std::collections::HashMap<i64, usize>,
 }
 
 impl ConstPool {
@@ -48,6 +50,7 @@ impl ConstPool {
             data: Vec::new(),
             str_offsets: std::collections::HashMap::new(),
             float_offsets: std::collections::HashMap::new(),
+            big_int_offsets: std::collections::HashMap::new(),
         }
     }
 
@@ -84,6 +87,18 @@ impl ConstPool {
         off
     }
 
+    /// 添加 64 位大整数常量（超出 MOVI/LCONST 范围），返回 .rodata 字节偏移。
+    pub fn add_big_int(&mut self, val: i64) -> usize {
+        if let Some(&off) = self.big_int_offsets.get(&val) {
+            return off;
+        }
+        self.align8();
+        let off = self.data.len();
+        self.data.extend_from_slice(&val.to_le_bytes());
+        self.big_int_offsets.insert(val, off);
+        off
+    }
+
     /// 当前 .rodata 大小（字节）。
     pub fn len(&self) -> usize {
         self.data.len()
@@ -106,7 +121,7 @@ impl Default for ConstPool {
 /// 编译表达式，返回结果所在的虚拟寄存器。
 pub fn compile_expr(emit: &mut InstrEmitter, pool: &mut ConstPool, expr: &Expr) -> VReg {
     match expr {
-        Expr::Int(n) => compile_int(emit, *n),
+        Expr::Int(n) => compile_int(emit, pool, *n),
         Expr::Float(n) => compile_float(emit, pool, *n),
         Expr::Str(s) => compile_str(emit, pool, s),
         Expr::Bool(b) => {
@@ -185,23 +200,19 @@ pub fn compile_expr(emit: &mut InstrEmitter, pool: &mut ConstPool, expr: &Expr) 
 // ─── 具体表达式编译 ────────────────────────────────────
 
 /// 编译整数字面量。
-fn compile_int(emit: &mut InstrEmitter, n: i64) -> VReg {
+fn compile_int(emit: &mut InstrEmitter, pool: &mut ConstPool, n: i64) -> VReg {
     let rd = alloc_vreg();
     let preg = vreg_to_preg(rd);
     if n >= 0 && n <= u16::MAX as i64 {
+        // 16 位无符号：单条 MOVI
         emit.emit_movi(preg, n as u16);
     } else if (-(1 << 19)..(1 << 19)).contains(&n) {
+        // 20 位有符号：单条 LCONST
         emit.emit_r1i(opcode::LCONST, preg, n as u32);
     } else {
-        // 大整数：通过 MOVI + SHL + MOVI 组合
-        let lo = (n as u64 & 0xFFFF) as u16;
-        let hi = ((n as u64 >> 16) & 0xFFFF) as u16;
-        emit.emit_movi(preg, lo);
-        if hi != 0 {
-            emit.emit_r2i(opcode::SHL, preg, preg, 16);
-            emit.emit_movi(vreg_to_preg(alloc_vreg()), hi);
-            emit.emit_r3(opcode::OR, preg, preg, vreg_to_preg(rd + 1), 0);
-        }
+        // 完整 64 位：存入 .rodata，通过 LOAD 加载
+        let off = pool.add_big_int(n);
+        emit.emit_r2i(opcode::LOAD, preg, reg::SP as u8, off as u16);
     }
     rd
 }
@@ -291,7 +302,16 @@ fn compile_unary(emit: &mut InstrEmitter, pool: &mut ConstPool, op: UnOp, expr: 
 }
 
 /// 编译函数调用表达式。
-fn compile_call(emit: &mut InstrEmitter, pool: &mut ConstPool, _name: &str, args: &[Expr]) -> VReg {
+fn compile_call(emit: &mut InstrEmitter, pool: &mut ConstPool, name: &str, args: &[Expr]) -> VReg {
+    // 检查是否为内置函数（编译期 IR 展开）
+    if let Some(builtin) = crate::compiler::builtins::lookup(name) {
+        let arg_vregs: Vec<VReg> = args
+            .iter()
+            .map(|arg| compile_expr(emit, pool, arg))
+            .collect();
+        return (builtin.expand)(emit, &arg_vregs);
+    }
+
     // 参数传入 R4-R7
     for (i, arg) in args.iter().enumerate() {
         if i >= 4 {
@@ -425,5 +445,34 @@ mod tests {
         pool.add_float(1.0);
         pool.add_str("test");
         assert!(pool.len() >= 13); // 8 (float) + 5 ("test\0")
+    }
+
+    #[test]
+    fn big_int_literal_in_rodata() {
+        // 超过 LCONST 范围（20 位有符号）→ 存入 .rodata
+        let val = 0x1_0000_0000u64 as i64; // 4GB+1, 超出 32 位
+        let (text, pool) = compile(Expr::Int(val));
+        assert_eq!(pool.len(), 8); // one i64 = 8 bytes
+        assert!(!text.is_empty());
+        // 应为 LOAD 指令
+        assert_eq!((text[0] >> 24) as u8, opcode::LOAD);
+    }
+
+    #[test]
+    fn big_int_negative_in_rodata() {
+        // 负数超出 LCONST 范围
+        let val = -100_000_000i64;
+        let (text, pool) = compile(Expr::Int(val));
+        assert_eq!(pool.len(), 8);
+        assert!(!text.is_empty());
+    }
+
+    #[test]
+    fn big_int_deduplication() {
+        let mut pool = ConstPool::new();
+        let off1 = pool.add_big_int(0x1_0000_0000i64);
+        let off2 = pool.add_big_int(0x1_0000_0000i64);
+        assert_eq!(off1, off2);
+        assert_eq!(pool.data.len(), 8); // single copy
     }
 }

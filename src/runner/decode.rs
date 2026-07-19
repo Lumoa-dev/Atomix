@@ -150,6 +150,7 @@ pub fn decode(instr: u32, enc: EncTemplate) -> Operands {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base::isa::opcode;
 
     fn get_table() -> Vec<OpcodeEntry> {
         dispatch_table()
