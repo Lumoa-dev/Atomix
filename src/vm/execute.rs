@@ -432,40 +432,35 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
 // ─── 内存辅助 ──────────────────────────────────────────
 
-/// 从内存或 .rodata 加载 64 位值。
+/// 沙箱中 .rodata 区域的终止地址（此地址以下为只读）。
+fn rodata_end(vm: &VmState) -> u64 {
+    vm.rodata.len() as u64
+}
+
+/// 从沙箱内存加载 64 位值（只读区域 + 堆 + 栈）。
 fn load_from_memory(vm: &VmState, addr: u64) -> Option<u64> {
-    if addr < vm.rodata.len() as u64 {
-        let start = addr as usize;
-        let end = start + 8;
-        if end <= vm.rodata.len() {
-            let bytes: [u8; 8] = vm.rodata[start..end].try_into().ok()?;
-            return Some(u64::from_le_bytes(bytes));
-        }
+    vm.memory.read_u64(addr)
+}
+
+/// 存储 64 位值到沙箱内存（拒绝写入 .rodata 只读区域）。
+fn store_to_memory(vm: &mut VmState, addr: u64, val: u64) -> bool {
+    if addr < rodata_end(vm) {
+        return false; // .rodata 只读
     }
-    None
+    vm.memory.write_u64(addr, val)
 }
 
-/// 存储 64 位值到内存。
-fn store_to_memory(_vm: &mut VmState, addr: u64, val: u64) -> bool {
-    let _ = addr;
-    let _ = val;
-    // Phase 2：真正的沙箱内存
-    false
-}
-
-/// 从内存加载单个字节。
+/// 从沙箱内存加载单个字节。
 fn load_byte_from_memory(vm: &VmState, addr: u64) -> Option<u8> {
-    if addr < vm.rodata.len() as u64 {
-        return Some(vm.rodata[addr as usize]);
-    }
-    None
+    vm.memory.read_u8(addr)
 }
 
-/// 存储单个字节到内存。
-fn store_byte_to_memory(_vm: &mut VmState, addr: u64, val: u8) -> bool {
-    let _ = addr;
-    let _ = val;
-    false
+/// 存储单个字节到沙箱内存（拒绝写入 .rodata 只读区域）。
+fn store_byte_to_memory(vm: &mut VmState, addr: u64, val: u8) -> bool {
+    if addr < rodata_end(vm) {
+        return false;
+    }
+    vm.memory.write_u8(addr, val)
 }
 
 // ─── 异常处理 ──────────────────────────────────────────
@@ -498,15 +493,11 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64)
         crate::base::isa::ecall::ALLOC => {
             let size = arg1;
             if size == 0 { return 0; }
-            // 简易 heap：直接在 .rodata 之后分配
-            let heap_addr = vm.rodata.len() as u64 + 8;
-            let _ = size;
-            let _ = arg2;
-            let _ = arg3;
-            heap_addr // 返回地址
+            vm.memory.alloc(size)
         }
         crate::base::isa::ecall::FREE => {
-            let _addr = arg1;
+            let addr = arg1;
+            vm.memory.free(addr);
             0
         }
         crate::base::isa::ecall::TCP_CONNECT
@@ -790,5 +781,96 @@ mod tests {
         }
         // 负值作为 u64（即 u64::MAX）
         assert_eq!(vm.regs[reg::A0] as i64, -1);
+    }
+
+    // ── 沙箱内存测试 ─────────────────────────────
+
+    fn make_vm_with_rodata(text: Vec<u32>, rodata: Vec<u8>) -> VmState {
+        use crate::base::ir::AtxeBinary;
+        let header = crate::base::ir::Header::new(0, 6);
+        let binary = AtxeBinary {
+            header,
+            sections: Vec::new(),
+            text,
+            rodata,
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
+        };
+        VmState::from_atxe(&binary).unwrap()
+    }
+
+    #[test]
+    fn load_from_rodata() {
+        // 在 .rodata 中放入 0xDEADBEEFCAFEBABE，用 LOAD 读出到 t0
+        let val: u64 = 0xDEAD_BEEF_CAFE_BABE;
+        let rodata = val.to_le_bytes().to_vec();
+        // MOVI a0, 0; LOAD t0, [a0 + 0]; TRAP
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0),   // a0 = 0 (.rodata base)
+            isa::encode_r2i(opcode::LOAD, reg::T0 as u8, reg::A0 as u8, 0), // t0 = [a0+0]
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm_with_rodata(text, rodata);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert_eq!(vm.regs[reg::T0], val);
+    }
+
+    #[test]
+    fn store_then_load() {
+        // 先用 ECALL alloc 分配 16 字节，然后 STORE 一个值，再 LOAD 回来验证
+        // MOVI a0, 16; ECALL alloc; MOV t0, a0 (保存地址到 t0)
+        // MOVI t1, 0x42; STORE [t0+0], t1; LOAD t2, [t0+0]; TRAP
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 16),  // a0 = 16 (size)
+            isa::encode_r1i(opcode::ECALL, 0, 0),                  // ECALL alloc → a0 = addr
+            isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0), // t0 = addr
+            isa::encode_r2i(opcode::MOVI, reg::T1 as u8, 0, 0x42), // t1 = 0x42
+            isa::encode_r2i(opcode::STORE, reg::T0 as u8, reg::T1 as u8, 0), // [t0] = t1
+            isa::encode_r2i(opcode::LOAD, reg::T2 as u8, reg::T0 as u8, 0),  // t2 = [t0]
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        // t2 应该等于 0x42
+        assert_eq!(vm.regs[reg::T2], 0x42);
+    }
+
+    #[test]
+    fn store_to_rodata_rejected() {
+        // 尝试写入地址 0（.rodata 区域），应触发错误
+        // MOVI a0, 0; MOVI t0, 42; STORE [a0+0], t0
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0),   // a0 = 0 (.rodata base)
+            isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 42),  // t0 = 42
+            isa::encode_r2i(opcode::STORE, reg::A0 as u8, reg::T0 as u8, 0), // [0] = 42 → 应拒绝
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert!(matches!(vm.state, crate::vm::VmStateKind::Error(_)));
+    }
+
+    #[test]
+    fn ecall_alloc_returns_heap_address() {
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 32), // size = 32
+            isa::encode_r1i(opcode::ECALL, 0, 0),                 // ECALL alloc
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        let addr = vm.regs[reg::A0];
+        assert_ne!(addr, u64::MAX, "alloc should succeed");
+        assert!(addr >= vm.memory.heap_base, "addr should be in heap");
+        assert!(addr < vm.memory.stack_base, "addr should be below stack");
     }
 }

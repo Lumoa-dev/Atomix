@@ -8,6 +8,7 @@ pub mod memory;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{reg, Profile};
+use crate::vm::memory::SandboxMemory;
 
 // ─── VM 状态 ───────────────────────────────────────────
 
@@ -24,6 +25,10 @@ pub struct VmState {
     pub rodata: Vec<u8>,
     /// .exn 段 — 异常表（原始字节）。
     pub exn_table: Vec<u8>,
+    /// 沙箱线性内存（含堆和栈）。
+    pub memory: SandboxMemory,
+    /// 总内存大小（字节）。
+    pub mem_size: u64,
     /// 运行状态。
     pub state: VmStateKind,
     /// 执行 profile。
@@ -61,17 +66,46 @@ impl VmState {
             ));
         }
 
-        Ok(Self {
+        // 初始化沙箱内存
+        let rodata_len = binary.rodata.len();
+        let heap_size = 65536u64;  // 64 KB 默认堆
+        let stack_size = 4096u64;  // 4 KB 栈
+        let total = (rodata_len as u64 + heap_size + stack_size).max(8192) as usize;
+
+        let mut memory = SandboxMemory::new(total);
+        // .rodata 映射到地址空间底部
+        if rodata_len > 0 {
+            memory.data[..rodata_len].copy_from_slice(&binary.rodata);
+        }
+        memory.text_start = 0;
+        memory.text_size = 0;
+        let stack_base = (total - stack_size as usize) as u64;
+        memory.stack_base = stack_base;
+        memory.stack_size = stack_size as u64;
+        if rodata_len > 0 {
+            memory.heap_base = rodata_len as u64;
+        }
+        memory.watermark_high = (total as u64) * 75 / 100;
+        memory.usage = 0;
+
+        let mut vm = Self {
             regs: [0u64; 16],
             pc: entry,
             text: binary.text.clone(),
             rodata: binary.rodata.clone(),
             exn_table: binary.exn_table.clone(),
+            memory,
+            mem_size: total as u64,
             state: VmStateKind::Running,
             profile,
             quantum: 0,
             task_id: 0,
-        })
+        };
+
+        // 初始化 SP（栈顶，向下增长）
+        vm.regs[reg::SP] = stack_base + stack_size as u64;
+
+        Ok(vm)
     }
 
     /// 从 .atxe 字节加载并创建 VM 状态。

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct SandboxMemory {
     /// 线性地址空间。
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     /// 可执行区域起始（.text 映射）。
     pub text_start: u64,
     /// 可执行区域大小。
@@ -17,25 +17,29 @@ pub struct SandboxMemory {
     pub stack_base: u64,
     /// 栈大小。
     pub stack_size: u64,
+    /// 堆区起始地址（紧接 .rodata 之后）。
+    pub heap_base: u64,
     /// 堆分配记录（地址 → 大小）。
     allocations: HashMap<u64, u64>,
     /// 水位线：触发 OOM 预警的阈值（字节）。
     pub watermark_high: u64,
-    /// 当前使用量。
+    /// 当前堆使用量（相对于 heap_base 的偏移）。
     pub usage: u64,
 }
 
 impl SandboxMemory {
-    /// 创建指定大小的沙箱内存。
+    /// 创建指定大小的沙箱内存，默认 heap_base = 64（跳过零地址防止混淆 OOM）。
     pub fn new(size: usize) -> Self {
         let effective = std::cmp::max(size, 8192);
         let stack = std::cmp::min(4096, effective / 4);
+        let stack_base = (effective as u64) - stack as u64;
         Self {
             data: vec![0u8; effective],
             text_start: 0,
             text_size: 0,
-            stack_base: (effective as u64) - stack as u64,
+            stack_base,
             stack_size: stack as u64,
+            heap_base: 64, // 跳过零地址
             allocations: HashMap::new(),
             watermark_high: (effective as u64) * 75 / 100,
             usage: 0,
@@ -110,16 +114,16 @@ impl SandboxMemory {
     }
 
     /// 分配堆内存（简易 bump allocator）。
+    /// 返回分配的地址，OOM 时返回 u64::MAX。
     pub fn alloc(&mut self, size: u64) -> u64 {
-        let heap_base = 8192u64; // 跳过代码段区域
-        let addr = heap_base + self.usage;
-        let end = addr + size;
+        let addr = self.heap_base + self.usage;
+        let end = addr.checked_add(size).unwrap_or(u64::MAX);
         let max_addr = self.stack_base;
         if end > max_addr {
-            return 0; // OOM
+            return u64::MAX; // OOM
         }
         self.allocations.insert(addr, size);
-        self.usage = end - heap_base;
+        self.usage = end - self.heap_base;
         addr
     }
 
@@ -167,9 +171,9 @@ mod tests {
     fn alloc_and_usage() {
         let mut mem = SandboxMemory::new(65536);
         let addr = mem.alloc(1024);
-        assert!(addr > 0);
+        assert_ne!(addr, u64::MAX, "allocation should succeed");
         assert!(mem.usage > 0);
-        // 释放后再分配
+        // 释放（bump allocator 不回收，但不崩溃）
         mem.free(addr);
     }
 
