@@ -1,0 +1,13 @@
+# 函数定义 + CALL 测试
+TOOLS : {
+    fn add(a : int, b : int) : int {
+        a + b
+    }
+    fn greet(name : str) {
+        CALL print(1)
+    }
+}
+TASK : {
+    CALL add(1, 2) => result
+    CALL greet("world")
+}

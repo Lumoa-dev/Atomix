@@ -1,0 +1,12 @@
+# 泛型单态化测试
+TOOLS : {
+    fn identity<T>(x : T) : T { return x }
+    fn pair<A, B>(a : A, b : B) : tuple(A, B) {
+        return (a, b)
+    }
+}
+TASK : {
+    CALL identity(42) => a
+    CALL identity("hello") => b
+    CALL pair(1, true) => c
+}

@@ -1,0 +1,12 @@
+# 控制流测试
+TASK : {
+    IF true {
+        CALL print(1)
+    } ELSE {
+        CALL print(2)
+    }
+
+    IF false {
+        CALL print(3)
+    }
+}

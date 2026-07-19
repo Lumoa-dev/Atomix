@@ -1,0 +1,11 @@
+# 表达式 + 优先级测试
+TASK : {
+    a : int = 2 + 3 * 4
+    b : int = (2 + 3) * 4
+    c : bool = 1 < 2 and true
+    d : bool = not true and false
+    e : int = 10 / 3
+    f : int = 10 % 3
+    CALL print(a)
+    CALL print(b)
+}

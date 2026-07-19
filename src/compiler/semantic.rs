@@ -1194,7 +1194,9 @@ impl SemanticAnalyzer {
                 ..
             } => {
                 self.check_call_target_ref(func_name);
-                if !self.symbols.contains(func_name) {
+                // 跨域引用（如 TOOLS :: helper）去掉域名后查表
+                let bare_name = func_name.split("::").last().unwrap_or(func_name);
+                if !self.symbols.contains(bare_name) {
                     self.errors
                         .push(SemanticError::new(format!("未定义的函数 `{func_name}`")));
                 }
@@ -1210,7 +1212,8 @@ impl SemanticAnalyzer {
                 ..
             } => {
                 self.check_call_target_ref(template);
-                if !self.symbols.contains(template) {
+                let bare_name = template.split("::").last().unwrap_or(template);
+                if !self.symbols.contains(bare_name) {
                     self.errors.push(SemanticError::new(format!(
                         "未定义的 WORKS 模板 `{template}`"
                     )));

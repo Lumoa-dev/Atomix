@@ -28,6 +28,16 @@ impl LexError {
     }
 }
 
+impl std::fmt::Display for LexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "词法错误: {} (位置: {}:{})",
+            self.message, self.span.start.line, self.span.start.col
+        )
+    }
+}
+
 // ─── Lexer ─────────────────────────────────────────────
 
 /// Atomix 源码的词法分析器。

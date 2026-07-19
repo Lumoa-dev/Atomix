@@ -1,0 +1,17 @@
+# 五区全结构测试
+TOOLS : {
+    fn process(data : bytes) : bytes { data }
+}
+
+INPUT : {
+    CONST LIMIT : int = 100
+}
+
+TASK : {
+    CALL process("hello") => result
+    GOOUT output : str = "done"
+}
+
+OUT : {
+    output => HTTP : "https://api.com/upload"
+}

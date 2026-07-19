@@ -1,0 +1,5 @@
+# Atomix 最小程序
+TASK : {
+    x : int = 42
+    CALL print(x)
+}

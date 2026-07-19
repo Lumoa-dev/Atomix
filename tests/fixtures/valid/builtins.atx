@@ -1,0 +1,10 @@
+# 内置函数测试
+TASK : {
+    CALL print(42)
+    CALL abs(-5)
+    CALL min(3, 7)
+    CALL max(10, 2)
+    CALL int(3)
+    CALL float(42)
+    CALL bool(1)
+}

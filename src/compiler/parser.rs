@@ -240,6 +240,8 @@ impl Parser {
                         format!("文件级别意外的 Token: {other}"),
                         span,
                     ));
+                    // 先消费当前 token 再 sync，避免无限循环
+                    self.advance();
                     self.sync();
                 }
             }

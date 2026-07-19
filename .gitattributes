@@ -16,6 +16,7 @@
 *.json text diff
 *.yaml text diff
 *.yml text diff
+*.csv text diff
 
 # 图片（LFS）
 *.png filter=lfs diff=lfs merge=lfs -text

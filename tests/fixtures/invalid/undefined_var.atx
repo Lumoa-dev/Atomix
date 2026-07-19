@@ -1,0 +1,4 @@
+# 期望未定义变量错误
+TASK : {
+    y : int = undefined_var
+}
