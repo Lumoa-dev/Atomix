@@ -9,6 +9,7 @@ pub mod task;
 pub mod pool;
 pub mod loader;
 pub mod sched;
+pub mod batch;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{reg, Profile};

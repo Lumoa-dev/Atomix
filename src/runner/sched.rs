@@ -5,6 +5,7 @@
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::reg;
+use crate::runner::batch::BatchManager;
 use crate::runner::execute;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
@@ -21,6 +22,8 @@ pub struct Scheduler {
     pub total_instrs: u64,
     /// 下一个可用的 task_id（TASK_FORK 分配用）。
     pub next_task_id: u16,
+    /// 批次管理器。
+    pub batch: BatchManager,
 }
 
 impl Scheduler {
@@ -46,6 +49,7 @@ impl Scheduler {
                 quantum: 1000,
                 total_instrs: 0,
                 next_task_id: 1,
+                batch: BatchManager::new(4.0, 1024.0),
             });
         }
 
@@ -80,6 +84,7 @@ impl Scheduler {
             quantum: 1000,
             total_instrs: 0,
             next_task_id: max_id + 1,
+            batch: BatchManager::new(4.0, 1024.0),
         })
     }
 
@@ -94,21 +99,26 @@ impl Scheduler {
             // 激活依赖已满足的 Init 任务
             self.pool.activate_ready_tasks();
 
+            // 更新积压深度并计算 N_batch
+            let n_ready = self.pool.ready_tasks().len() as f64;
+            self.batch.set_pool_depth(n_ready + self.pool.len() as f64 * 0.5);
+            let decision = self.batch.compute_decision();
+            let n_batch = decision.n_batch as usize;
+
             let ready = self.pool.ready_tasks();
             if ready.is_empty() {
                 if self.pool.all_done() {
                     break;
                 }
                 if !self.pool.has_suspended() {
-                    // 没有阻塞任务也不是全部完成 → 死锁或异常
                     break;
                 }
-                // 有 Suspended 任务在等 child 完成 → 继续循环（等下一轮唤醒）
                 continue;
             }
 
-            for task_id in ready {
-                self.execute_quantum(task_id);
+            // 同批次最多执行 N_batch 个任务
+            for task_id in ready.iter().take(n_batch) {
+                self.execute_quantum(*task_id);
             }
         }
 
@@ -175,9 +185,14 @@ impl Scheduler {
             (completed, ret, child)
         }; // task borrow dropped here
 
-        // 唤醒 joiners（此时无 task 借用，可安全借用 pool）
+        // 唤醒 joiners + 更新批次统计
         if let Some(done_id) = completed_id {
             self.pool.wake_joiners(done_id, retval);
+            // 更新运行时统计（估算 wall_time 和 peak_mem）
+            self.batch.update_stats(
+                self.quantum as f64 * 0.001, // 粗略估算：quantum × 1μs/指令
+                16.0,                          // 粗略估算：16MB 峰值内存
+            );
         }
 
         // 处理 pending_child（box deref）
