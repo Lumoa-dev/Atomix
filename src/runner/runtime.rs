@@ -9,7 +9,7 @@ use crate::runner::config::RunnerConfig;
 use crate::runner::event::{EventChannel, ExecutorEvent};
 use crate::runner::executor::{executor_main, Executor, ExecutorCommand};
 use crate::runner::hwinfo::{detect_hardware, HardwareInfo};
-use crate::runner::load_balancer::{build_executor_loads, LoadBalancer};
+use crate::runner::load_balancer::LoadBalancer;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
 use crate::runner::prefetch::Prefetcher;
@@ -19,7 +19,7 @@ use crate::runner::task::{Task, TaskId, TaskStatus};
 use crate::runner::VmState;
 use crate::runner::VmStateKind;
 use std::sync::mpsc::{self, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 // ─── 冷启动阶段 ─────────────────────────────────────
@@ -83,7 +83,9 @@ pub struct Runtime {
     // 多线程字段
     cmd_senders: Vec<Sender<ExecutorCommand>>,
     thread_handles: Vec<JoinHandle<()>>,
-    /// 是否使用多线程模式（单线程兼容模式用于测试）。
+    /// 共享任务池（多线程模式下使用）。
+    pool_arc: Option<Arc<Mutex<TaskPool>>>,
+    /// 是否使用多线程模式。
     use_thread_pool: bool,
     /// 心跳监控计数器。
     heartbeat_count: u64,
@@ -208,33 +210,46 @@ impl Runtime {
             state_dir,
             cmd_senders: Vec::new(),
             thread_handles: Vec::new(),
+            pool_arc: None,
             use_thread_pool: false,
             heartbeat_count: 0,
         })
     }
 
     /// 启动线程池（多线程模式）。
+    ///
+    /// 将 TaskPool 放入 Arc<Mutex<>> 共享给所有 Executor 线程。
+    /// 每个 Executor 线程通过 command channel 接收 Execute 命令，
+    /// 从共享 pool 取 VmState，执行，卸回，上报事件。
     pub fn start_threadpool(&mut self) {
         if self.use_thread_pool {
             return;
         }
         self.use_thread_pool = true;
 
+        // 把 pool 放入 Arc<Mutex>
+        let pool = std::mem::replace(
+            &mut self.pool,
+            TaskPool::new(Vec::new()),
+        );
+        let pool_arc = Arc::new(Mutex::new(pool));
+        self.pool = TaskPool::new(Vec::new()); // 多线程模式下 pool 只通过 pool_arc 访问
+        let event_channel = Arc::new(self.event_channel.clone());
         let n = self.executors.len();
+
         self.cmd_senders = Vec::with_capacity(n);
         self.thread_handles = Vec::with_capacity(n);
-        let event_channel = Arc::new(self.event_channel.clone());
 
-        // 逐个取出 Executor 并 spawn 线程
         let executors = std::mem::take(&mut self.executors);
         for exec in executors {
             let (tx, rx) = mpsc::channel();
             let ch = Arc::clone(&event_channel);
+            let pool_clone = Arc::clone(&pool_arc);
 
             let handle = std::thread::Builder::new()
                 .name(format!("executor-{}", exec.event_idx))
                 .spawn(move || {
-                    executor_main(exec, rx, &*ch);
+                    executor_main(exec, rx, &*ch, &*pool_clone);
                 })
                 .expect("无法创建 Executor 线程");
 
@@ -242,9 +257,10 @@ impl Runtime {
             self.thread_handles.push(handle);
         }
 
-        // 用新的空的 executor 占位（线程已拥有实际 executor）
-        self.executors = (0..n).map(|i| Executor::new(i)).collect();
-        self.event_channel = Arc::into_inner(event_channel).unwrap_or_else(|| EventChannel::new(n));
+        self.executors = (0..n).map(Executor::new).collect();
+        self.event_channel = Arc::into_inner(event_channel)
+            .unwrap_or_else(|| EventChannel::new(n));
+        self.pool_arc = Some(pool_arc);
     }
 
     /// 停止线程池。
@@ -311,68 +327,89 @@ impl Runtime {
     }
 
     /// 多线程事件驱动模式。
+    ///
+    /// Executor 线程从共享 TaskPool 取 VmState，执行，卸回，上报事件。
+    /// Runtime 主循环：分发任务 → 消费事件 → 处理完成。
     pub fn run_multithreaded(&mut self) -> Result<(), String> {
         if !self.use_thread_pool {
             self.start_threadpool();
         }
 
-        self.pool.activate_ready_tasks();
+        // 初始化：激活所有就绪任务
+        {
+            let mut guard = self.pool_arc.as_ref().unwrap().lock().unwrap();
+            guard.activate_ready_tasks();
+        }
+
+        // 跟踪每个 executor 的当前任务
+        let mut executor_task: Vec<Option<TaskId>> = vec![None; self.executors.len()];
 
         loop {
             // 1. 消费事件
             let events = self.event_channel.poll_all();
-            for (exec_idx, event) in events {
-                self.handle_event(exec_idx, event);
+            let mut all_idle = true;
+
+            for (exec_idx, event) in &events {
+                match event {
+                    ExecutorEvent::TaskDone { .. } => {
+                        executor_task[*exec_idx] = None;
+                        // pool 已在 executor_main 中更新
+                        self.completed_count += 1;
+                        self.advance_cold_start();
+                    }
+                    ExecutorEvent::TaskError { .. } => {
+                        executor_task[*exec_idx] = None;
+                        self.completed_count += 1;
+                    }
+                    ExecutorEvent::Yield { .. } => {
+                        executor_task[*exec_idx] = None;
+                    }
+                    ExecutorEvent::Oom { .. } => {
+                        executor_task[*exec_idx] = None;
+                    }
+                    ExecutorEvent::Heartbeat { .. } => {
+                        self.heartbeat_count += 1;
+                    }
+                    ExecutorEvent::None => {}
+                }
             }
 
-            if self.pool.all_done() {
+            // 2. 检查是否全部完成
+            let all_done = { self.pool_arc.as_ref().unwrap().lock().unwrap().all_done() };
+            if all_done {
                 break;
             }
 
-            // 2. 处理 OOM
+            // 3. 处理 OOM
             self.recover_oom_tasks();
 
-            // 3. 检查是否需要新任务
-            let ready = self.pool.ready_tasks();
+            // 4. 分发任务到空闲 executor
+            let ready = { self.pool_arc.as_ref().unwrap().lock().unwrap().ready_tasks() };
             if ready.is_empty() {
-                if self.pool.has_suspended() {
-                    continue;
+                if !all_idle {
+                    std::thread::sleep(std::time::Duration::from_micros(100));
                 }
-                break;
+                continue;
             }
 
-            // 4. 找空闲 executor
             let n_batch = self.current_n_batch() as usize;
-            let n_batch = n_batch.min(ready.len());
-
-            // 5. 分配任务到空闲 executor
-            let exec_loads = build_executor_loads(
-                &self.executors.iter().map(|e| e.stats.total_instrs).collect::<Vec<_>>(),
-                &self.executors.iter().map(|e| e.is_idle()).collect::<Vec<_>>(),
-            );
-
-            let assignment = self.load_balancer.assign(
-                &ready[..n_batch],
-                &exec_loads,
-                self.executors.len(),
-            );
-
-            for (task_id, exec_idx) in assignment {
-                if exec_idx >= self.cmd_senders.len() {
-                    continue;
-                }
-                // 加载任务到 executor
-                if let Some(task) = self.pool.get_mut(task_id) {
-                    if task.status == TaskStatus::Ready && exec_idx < self.executors.len() {
-                        self.executors[exec_idx].load(task);
-                        let _ = self.cmd_senders[exec_idx]
-                            .send(ExecutorCommand::RunQuantum { quantum: self.quantum });
-                    }
+            for &task_id in ready.iter().take(n_batch) {
+                // 找空闲 executor
+                if let Some(exec_idx) = executor_task.iter().position(|t| t.is_none()) {
+                    executor_task[exec_idx] = Some(task_id);
+                    let _ = self.cmd_senders[exec_idx]
+                        .send(ExecutorCommand::Execute {
+                            task_id,
+                            quantum: self.quantum,
+                        });
+                    all_idle = false;
+                } else {
+                    break;
                 }
             }
 
-            // 6. 空闲时短暂休眠，避免忙等
-            if ready.is_empty() || self.executors.iter().all(|e| !e.is_idle()) {
+            // 5. 全部忙等
+            if all_idle {
                 std::thread::sleep(std::time::Duration::from_micros(100));
             }
         }
@@ -387,43 +424,6 @@ impl Runtime {
             self.run_multithreaded()
         } else {
             self.run_singlethreaded()
-        }
-    }
-
-    // ─── 事件处理 ───────────────────────────────────
-
-    fn handle_event(&mut self, _exec_idx: usize, event: ExecutorEvent) {
-        match event {
-            ExecutorEvent::None => {}
-            ExecutorEvent::Yield { task_id } => {
-                // Quantum 耗尽，任务回到 Ready，等待下次调度
-                // executor 已通过 unload（在 executor_main 外由 Runtime 做）
-                // 这里 executor_main 不会 unload，需要 Runtime 处理
-                if let Some(task) = self.pool.get_mut(task_id) {
-                    task.status = TaskStatus::Ready;
-                }
-            }
-            ExecutorEvent::TaskDone { task_id, retval } => {
-                // 任务完成，唤醒 joiners
-                self.pool.wake_joiners(task_id, retval);
-                self.completed_count += 1;
-                self.advance_cold_start();
-                // 更新 prefetcher
-                self.prefetcher.set_avg_exec_time(self.batch.mu_t);
-            }
-            ExecutorEvent::TaskError { task_id, errcode: _ } => {
-                self.pool.wake_joiners(task_id, 0);
-                self.completed_count += 1;
-            }
-            ExecutorEvent::Oom { task_id, memory_usage: _ } => {
-                // OOM 由 recover_oom_tasks 处理
-                if let Some(task) = self.pool.get_mut(task_id) {
-                    task.status = TaskStatus::Suspended;
-                }
-            }
-            ExecutorEvent::Heartbeat { task_id: _, instrs } => {
-                self.heartbeat_count += instrs as u64;
-            }
         }
     }
 
