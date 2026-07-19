@@ -3,7 +3,7 @@
 //! 覆盖 04-编译管线.md §7 的链接规范。
 
 use std::collections::HashMap;
-use crate::base::ir::{AtxeBinary, Header, HEADER_SIZE, SECTION_ENTRY_SIZE};
+use crate::base::ir::{AtxeBinary, Header};
 use crate::base::isa::{self, opcode};
 use crate::compiler::ast::ZoneKind;
 use crate::compiler::codegen::assembly::{self, ExnEntry};
@@ -18,8 +18,6 @@ pub struct Linker {
     pub unresolved: Vec<String>,
     /// CALL 指令位置 → 目标函数名
     pub call_sites: Vec<(usize, String)>,
-    /// 指令是否可达
-    reachable: Vec<bool>,
 }
 
 impl Linker {
@@ -28,7 +26,6 @@ impl Linker {
             symbols: HashMap::new(),
             unresolved: Vec::new(),
             call_sites: Vec::new(),
-            reachable: Vec::new(),
         }
     }
 

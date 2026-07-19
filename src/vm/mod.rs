@@ -7,7 +7,7 @@ pub mod execute;
 pub mod memory;
 
 use crate::base::ir::AtxeBinary;
-use crate::base::isa::{self, reg, Profile};
+use crate::base::isa::{reg, Profile};
 
 // ─── VM 状态 ───────────────────────────────────────────
 
@@ -142,7 +142,7 @@ mod tests {
     #[test]
     fn load_valid_atxe() {
         let text = vec![
-            isa::encode_r2i(isa::opcode::MOVI, 8, 0, 42),
+            crate::base::isa::encode_r2i(crate::base::isa::opcode::MOVI, 8, 0, 42),
         ];
         let bytes = make_test_atxe(text);
         let vm = VmState::load_atxe(&bytes);

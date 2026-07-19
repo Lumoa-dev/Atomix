@@ -2,7 +2,7 @@
 //!
 //! 覆盖 02-指令集规范.md §4 和 04-编译管线.md §7。
 
-use crate::base::ir::{AtxeBinary, Header, SectionEntry, SectionType, HEADER_SIZE, SECTION_ENTRY_SIZE};
+use crate::base::ir::{AtxeBinary, Header};
 use crate::compiler::ast::ZoneKind;
 use crate::compiler::codegen::instr::InstrEmitter;
 
@@ -88,7 +88,7 @@ pub fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
 }
 
 /// 构建 .zones 段（每条目 16 字节）。
-pub fn build_zones_section(zones: &[(ZoneKind, String)], emit: &InstrEmitter) -> Vec<u8> {
+pub fn build_zones_section(_zones: &[(ZoneKind, String)], emit: &InstrEmitter) -> Vec<u8> {
     let mut data = Vec::new();
     let total_instrs = emit.text.len();
 

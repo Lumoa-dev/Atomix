@@ -125,7 +125,7 @@ impl TypeChecker {
                 }
             }
 
-            Expr::Dot { target, field } => {
+            Expr::Dot { target, field: _ } => {
                 let _target_type = self.infer_expr(target, st);
                 // 字段访问在 Phase 2 中实现（结构体/枚举字段）
                 // 当前返回 Any

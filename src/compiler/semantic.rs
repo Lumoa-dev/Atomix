@@ -446,7 +446,7 @@ impl SemanticAnalyzer {
                         _ => {} // GOOUT 变量，通过
                     }
                 }
-                Stmt::Let { name, .. } => {
+                Stmt::Let { name: _, .. } => {
                     // OUT 区允许 Let 声明（临时变量）
                 }
                 _ => {

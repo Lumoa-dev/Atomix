@@ -18,7 +18,7 @@ const PHYSICAL_REGS: &[u8] = &[
     reg::T5 as u8,  // 13
 ];
 
-const NUM_PHYSICAL_REGS: usize = PHYSICAL_REGS.len();
+const _NUM_PHYSICAL_REGS: usize = PHYSICAL_REGS.len();
 
 // ─── 活跃区间 ──────────────────────────────────────────
 
@@ -75,7 +75,7 @@ impl RegAllocator {
             // 4a. 过期处理：释放已经结束的寄存器
             while let Some(front) = active.front() {
                 if front.2 <= iv.start {
-                    let (_, preg, _) = active.pop_front().unwrap();
+                    let (_, _preg, _) = active.pop_front().unwrap();
                     // 归还物理寄存器（由空闲列表管理）
                 } else {
                     break;
@@ -116,7 +116,7 @@ impl RegAllocator {
         let mut loaded: HashMap<(usize, usize), bool> = HashMap::new();
 
         for (i, &instr) in text.iter().enumerate() {
-            let op = (instr >> 24) as u8;
+            let _op = (instr >> 24) as u8;
 
             // 对于使用溢出寄存器的指令，在之前插入 LOAD
             let rd = ((instr >> 20) & 0x0F) as usize;

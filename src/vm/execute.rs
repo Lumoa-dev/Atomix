@@ -446,7 +446,7 @@ fn load_from_memory(vm: &VmState, addr: u64) -> Option<u64> {
 }
 
 /// 存储 64 位值到内存。
-fn store_to_memory(vm: &mut VmState, addr: u64, val: u64) -> bool {
+fn store_to_memory(_vm: &mut VmState, addr: u64, val: u64) -> bool {
     let _ = addr;
     let _ = val;
     // Phase 2：真正的沙箱内存
@@ -462,7 +462,7 @@ fn load_byte_from_memory(vm: &VmState, addr: u64) -> Option<u8> {
 }
 
 /// 存储单个字节到内存。
-fn store_byte_to_memory(vm: &mut VmState, addr: u64, val: u8) -> bool {
+fn store_byte_to_memory(_vm: &mut VmState, addr: u64, val: u8) -> bool {
     let _ = addr;
     let _ = val;
     false

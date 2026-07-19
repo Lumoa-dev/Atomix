@@ -2,7 +2,7 @@
 //!
 //! 覆盖 04-编译管线.md §5.2 的表达式到 IR 映射规则。
 
-use crate::base::isa::{self, opcode, reg};
+use crate::base::isa::{opcode, reg};
 use crate::compiler::ast::{BinOp, Expr, UnOp};
 use crate::compiler::codegen::instr::{InstrEmitter, VReg, vreg_to_preg};
 

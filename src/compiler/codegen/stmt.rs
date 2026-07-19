@@ -2,9 +2,9 @@
 //!
 //! 覆盖 04-编译管线.md §5.2 的语句到 IR 映射规则。
 
-use crate::base::isa::{self, opcode, reg};
+use crate::base::isa::{opcode, reg};
 use crate::compiler::ast::Stmt;
-use crate::compiler::codegen::expr::{compile_expr, reset_vreg, ConstPool};
+use crate::compiler::codegen::expr::{compile_expr, ConstPool};
 use crate::compiler::codegen::instr::{InstrEmitter, vreg_to_preg};
 
 /// 编译语句列表。

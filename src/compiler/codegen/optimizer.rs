@@ -3,8 +3,6 @@
 //! 覆盖 04-编译管线.md §6 的优化规范。
 
 use crate::base::isa::{self, opcode, reg};
-use crate::compiler::codegen::instr::InstrEmitter;
-use std::collections::HashSet;
 
 // ─── 优化级别 ──────────────────────────────────────────
 

@@ -115,6 +115,7 @@ impl Parser {
     }
 
     /// 检查当前 Token 是否为语句起始关键字（用于 stop 条件）。
+    #[allow(dead_code)]
     fn is_stmt_start(kind: &TokenKind) -> bool {
         matches!(
             kind,
@@ -612,6 +613,7 @@ impl Parser {
 
     // ── 具体语句解析 ──────────────────────────────
 
+    #[allow(dead_code)]
     fn parse_let(&mut self, type_required: bool) -> Stmt {
         if type_required {
             self.advance(); // Let
