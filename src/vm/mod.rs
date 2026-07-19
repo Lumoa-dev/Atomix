@@ -1,0 +1,217 @@
+//! Atomix 虚拟机 — 加载并执行 .atxe 二进制。
+//!
+//! 详见 02-指令集规范.md、07-执行器设计.md、08-运行时架构.md
+
+use crate::base::ir::AtxeBinary;
+use crate::base::isa::{self, reg, Profile};
+
+// ─── VM 状态 ───────────────────────────────────────────
+
+/// VM 核心状态。持有任务执行所需的所有运行时数据。
+#[derive(Debug, Clone)]
+pub struct VmState {
+    /// 16 个 64 位通用寄存器。
+    pub regs: [u64; 16],
+    /// 程序计数器（当前指令在 .text 中的索引）。
+    pub pc: usize,
+    /// .text 段 — 指令序列。
+    pub text: Vec<u32>,
+    /// .rodata 段 — 只读数据。
+    pub rodata: Vec<u8>,
+    /// .exn 段 — 异常表（原始字节）。
+    pub exn_table: Vec<u8>,
+    /// 运行状态。
+    pub state: VmStateKind,
+    /// 执行 profile。
+    pub profile: Profile,
+    /// 已消耗的指令配额。
+    pub quantum: u32,
+    /// 当前任务 ID。
+    pub task_id: u16,
+}
+
+/// VM 运行状态。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VmStateKind {
+    /// 正常运行。
+    Running,
+    /// 已停止（成功完成）。
+    Halted,
+    /// 异常终止。
+    Error(String),
+    /// 挂起（等待子任务或 IO）。
+    Suspended,
+}
+
+impl VmState {
+    /// 从已解码的 .atxe 创建 VM 状态。
+    pub fn from_atxe(binary: &AtxeBinary) -> Result<Self, String> {
+        let profile = binary.header.profile();
+        let entry = binary.header.entry as usize;
+
+        if entry >= binary.text.len() {
+            return Err(format!(
+                "entry point {} out of bounds (text length {})",
+                entry,
+                binary.text.len()
+            ));
+        }
+
+        Ok(Self {
+            regs: [0u64; 16],
+            pc: entry,
+            text: binary.text.clone(),
+            rodata: binary.rodata.clone(),
+            exn_table: binary.exn_table.clone(),
+            state: VmStateKind::Running,
+            profile,
+            quantum: 0,
+            task_id: 0,
+        })
+    }
+
+    /// 从 .atxe 字节加载并创建 VM 状态。
+    pub fn load_atxe(bytes: &[u8]) -> Result<Self, String> {
+        let binary = AtxeBinary::from_bytes(bytes)
+            .ok_or_else(|| "无效的 .atxe 文件：magic 不正确或数据损坏".to_string())?;
+
+        // 版本检查
+        if binary.header.version != 0x0001 {
+            return Err(format!(
+                "版本不兼容：.atxe v{:04x}，VM 需要 v0001",
+                binary.header.version
+            ));
+        }
+
+        Self::from_atxe(&binary)
+    }
+
+    /// 读取当前指令。
+    pub fn fetch(&self) -> u32 {
+        self.text[self.pc]
+    }
+
+    /// 检查是否仍在运行。
+    pub fn is_running(&self) -> bool {
+        self.state == VmStateKind::Running
+    }
+
+    /// 读取寄存器（R0 硬编码为 0）。
+    pub fn read_reg(&self, idx: usize) -> u64 {
+        if idx == reg::ZERO {
+            0
+        } else {
+            self.regs[idx]
+        }
+    }
+
+    /// 写入寄存器（R0 写入无效，R14 只读）。
+    pub fn write_reg(&mut self, idx: usize, val: u64) {
+        if idx != reg::ZERO && idx != reg::TASK_ID {
+            self.regs[idx] = val;
+        }
+    }
+}
+
+// ─── 测试 ───────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::base::ir::{Header, AtxeBinary};
+
+    fn make_test_atxe(text: Vec<u32>) -> Vec<u8> {
+        let header = Header::new(0, 6);
+        let binary = AtxeBinary {
+            header,
+            sections: Vec::new(),
+            text,
+            rodata: vec![],
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
+        };
+        binary.to_bytes()
+    }
+
+    #[test]
+    fn load_valid_atxe() {
+        let text = vec![
+            isa::encode_r2i(isa::opcode::MOVI, 8, 0, 42),
+        ];
+        let bytes = make_test_atxe(text);
+        let vm = VmState::load_atxe(&bytes);
+        assert!(vm.is_ok());
+    }
+
+    #[test]
+    fn load_invalid_magic() {
+        let bytes = vec![0u8; 100];
+        let vm = VmState::load_atxe(&bytes);
+        assert!(vm.is_err());
+    }
+
+    #[test]
+    fn version_mismatch() {
+        let mut header = Header::new(0, 6);
+        header.version = 0x9999;
+        let binary = AtxeBinary {
+            header,
+            sections: Vec::new(),
+            text: vec![0],
+            rodata: vec![],
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
+        };
+        let bytes = binary.to_bytes();
+        let vm = VmState::load_atxe(&bytes);
+        assert!(vm.is_err());
+        assert!(vm.unwrap_err().contains("版本"));
+    }
+
+    #[test]
+    fn entry_out_of_bounds() {
+        let mut header = Header::new(100, 6); // entry at 100
+        header.total_instrs = 5; // but only 5 instructions
+        let binary = AtxeBinary {
+            header,
+            sections: Vec::new(),
+            text: vec![0; 5],
+            rodata: vec![],
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
+        };
+        let bytes = binary.to_bytes();
+        let vm = VmState::load_atxe(&bytes);
+        assert!(vm.is_err());
+    }
+
+    #[test]
+    fn zero_register_hardwired() {
+        let mut vm = VmState::load_atxe(&make_test_atxe(vec![0])).unwrap();
+        assert_eq!(vm.read_reg(0), 0);
+        vm.write_reg(0, 42);
+        assert_eq!(vm.read_reg(0), 0);
+    }
+
+    #[test]
+    fn task_id_readonly() {
+        let mut vm = VmState::load_atxe(&make_test_atxe(vec![0])).unwrap();
+        vm.task_id = 7;
+        vm.regs[14] = 7;
+        vm.write_reg(14, 99);
+        assert_eq!(vm.regs[14], 7); // unchanged
+    }
+
+    #[test]
+    fn fetch_returns_instruction() {
+        let text = vec![0x11223344];
+        let vm = VmState::load_atxe(&make_test_atxe(text)).unwrap();
+        assert_eq!(vm.fetch(), 0x11223344);
+    }
+}
