@@ -264,13 +264,16 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         }
 
         opcode::JZ => {
-            let raw = ops.imm;
+            if vm.read_reg(ops.rd as usize) == 0 {
+                let raw = ops.imm;
                 let offset = if raw & 0x80000 != 0 {
                     (raw | 0xFFF00000) as i32
                 } else {
                     raw as i32
                 };
                 vm.pc = (vm.pc as i32).wrapping_add(offset) as usize;
+                return true;
+            }
         }
 
         opcode::JNZ => {
@@ -306,16 +309,30 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             return true;
         }
 
-        // ── Concurrency (0x60–0x63) — 存根 ─────
+        // ── Concurrency / Task Management ────────
         opcode::TASK_FORK => {
-            vm.write_reg(ops.rd as usize, 0); // 空句柄
+            // 创建子任务：复制当前 VM 状态，子任务从指定 entry 开始
+            let task_id = ops.imm as u16;
+            let mut child = vm.clone();
+            child.task_id = task_id;
+            // 子任务 entry 从 .task 段查找（简化：使用当前 pc + 1）
+            child.pc = vm.pc + 1;
+            // R4-R7 已自动通过 clone 复制
+            // 实际应该从 .task 段读取 entry_offset，简化实现直接传回 handle
+            vm.write_reg(ops.rd as usize, task_id as u64);
+            // 注：完整实现需要将 child 加入调度队列
         }
 
         opcode::TASK_JOIN => {
-            vm.write_reg(ops.rd as usize, 0); // 空返回值
+            // 等待子任务完成。简化实现：直接返回 0（成功）
+            let _handle = vm.read_reg(ops.rs1 as usize);
+            vm.write_reg(ops.rd as usize, 0);
         }
 
         opcode::TASK_RET => {
+            // 结束当前任务，rd 的值作为返回值
+            let retval = vm.read_reg(ops.rd as usize);
+            vm.write_reg(reg::A0, retval);
             vm.state = crate::vm::VmStateKind::Halted;
             return false;
         }
@@ -330,8 +347,19 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             let arg1 = vm.read_reg(reg::A0);
             let arg2 = vm.read_reg(reg::A1);
             let arg3 = vm.read_reg(reg::A2);
-            let result = handle_ecall(syscall, arg1, arg2, arg3);
+            let result = handle_ecall(vm, syscall, arg1, arg2, arg3);
             vm.write_reg(reg::A0, result);
+            // 错误映射：负返回值 → 异常
+            if (result as i64) < 0 {
+                let exc_val = result.wrapping_neg() as u64;
+                if !handle_exception(vm, exc_val) {
+                    vm.state = crate::vm::VmStateKind::Error(
+                        format!("ECALL 错误: syscall={}", syscall)
+                    );
+                    return false;
+                }
+                return true; // 跳过 pc++（THROW 已跳转）
+            }
         }
 
         // ── Memory Operations (0x80–0x81) ───────
@@ -465,17 +493,31 @@ fn handle_exception(vm: &mut VmState, exc_val: u64) -> bool {
 // ─── ECALL ─────────────────────────────────────────────
 
 /// 处理 ECALL 系统调用。
-fn handle_ecall(syscall: u32, arg1: u64, arg2: u64, arg3: u64) -> u64 {
+fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64) -> u64 {
     match syscall {
         crate::base::isa::ecall::ALLOC => {
-            let _size = arg1;
-            0 // 分配失败
+            let size = arg1;
+            if size == 0 { return 0; }
+            // 简易 heap：直接在 .rodata 之后分配
+            let heap_addr = vm.rodata.len() as u64 + 8;
+            let _ = size;
+            let _ = arg2;
+            let _ = arg3;
+            heap_addr // 返回地址
         }
         crate::base::isa::ecall::FREE => {
             let _addr = arg1;
             0
         }
-        _ => u64::MAX // 不支持
+        crate::base::isa::ecall::TCP_CONNECT
+        | crate::base::isa::ecall::FS_OPEN => {
+            // 未实现：返回负错误码（对应 DSL 异常）
+            -1i64 as u64 // -EIO
+        }
+        _ => {
+            // 不支持的调用号
+            u64::MAX
+        }
     }
 }
 
@@ -677,5 +719,76 @@ mod tests {
         let mut vm = make_vm(text);
         let result = run_vm(&mut vm);
         assert_eq!(result, "halted");
+    }
+
+    #[test]
+    fn task_ret_returns_value() {
+        // MOVI a0, 42; TASK_RET a0
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42),
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert_eq!(vm.regs[reg::A0], 42);
+        assert!(matches!(vm.state, crate::vm::VmStateKind::Halted));
+    }
+
+    #[test]
+    fn task_self_returns_id() {
+        let text = vec![
+            isa::encode_r1i(opcode::TASK_SELF, 8, 0),
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        vm.task_id = 5;
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert_eq!(vm.regs[8], 5);
+    }
+
+    #[test]
+    fn ecall_unsupported_returns_max() {
+        let text = vec![
+            isa::encode_r1i(opcode::ECALL, 0, 99),
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert_eq!(vm.regs[reg::A0], u64::MAX);
+    }
+
+    #[test]
+    fn ecall_alloc_returns_address() {
+        // MOVI a0, 64; ECALL alloc
+        let text = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 64), // R4 = 64 (size)
+            isa::encode_r1i(opcode::ECALL, 0, 0), // ECALL alloc
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        assert!(vm.regs[reg::A0] > 0);
+    }
+
+    #[test]
+    fn ecall_tcp_connect_returns_error() {
+        let text = vec![
+            isa::encode_r1i(opcode::ECALL, 0, 2), // ECALL tcp_connect
+            isa::encode_ji(opcode::TRAP, 0),
+        ];
+        let mut vm = make_vm(text);
+        while vm.is_running() {
+            execute_instruction(&mut vm);
+        }
+        // 负值作为 u64（即 u64::MAX）
+        assert_eq!(vm.regs[reg::A0] as i64, -1);
     }
 }
