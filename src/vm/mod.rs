@@ -3,6 +3,7 @@
 //! 详见 02-指令集规范.md、07-执行器设计.md、08-运行时架构.md
 
 pub mod decode;
+pub mod execute;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{self, reg, Profile};
