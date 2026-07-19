@@ -3,7 +3,7 @@
 //! 覆盖 02-指令集规范.md §3 的全部指令行为。
 
 use crate::base::isa::{self, opcode, reg};
-use crate::vm::decode::{self, EncType};
+use crate::vm::decode;
 use crate::vm::VmState;
 
 /// 执行单条指令。返回 true 表示继续执行，false 表示需要让出/停止。
