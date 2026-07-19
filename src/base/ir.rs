@@ -60,7 +60,7 @@ impl Header {
         let code_mb = (text_bytes as f32) / (1024.0 * 1024.0);
         let rodata_mb = (rodata_bytes as f32) / (1024.0 * 1024.0);
         let stack_mb: f32 = 1.0; // 保守估计 1MB
-        let heap_mb: f32 = 4.0;  // 保守估计 4MB
+        let heap_mb: f32 = 4.0; // 保守估计 4MB
         let peak_mb = code_mb + rodata_mb + stack_mb.max(heap_mb);
         self.memory_profile = Some(MemoryProfile {
             code_mb,
@@ -107,7 +107,11 @@ impl Header {
     /// 如果 memory_profile 存在，追加 20 字节到 header 之后。
     pub fn to_bytes(&self) -> Vec<u8> {
         let has_profile = self.memory_profile.is_some();
-        let size = if has_profile { HEADER_SIZE + MEMORY_PROFILE_SIZE } else { HEADER_SIZE };
+        let size = if has_profile {
+            HEADER_SIZE + MEMORY_PROFILE_SIZE
+        } else {
+            HEADER_SIZE
+        };
         let mut buf = Vec::with_capacity(size);
         buf.extend_from_slice(&ATMX_MAGIC.to_le_bytes());
         buf.extend_from_slice(&self.version.to_le_bytes());
@@ -141,11 +145,36 @@ impl Header {
         let memory_profile = if has_profile && data.len() >= HEADER_SIZE + MEMORY_PROFILE_SIZE {
             let off = HEADER_SIZE;
             Some(MemoryProfile {
-                code_mb: f32::from_le_bytes([data[off], data[off+1], data[off+2], data[off+3]]),
-                rodata_mb: f32::from_le_bytes([data[off+4], data[off+5], data[off+6], data[off+7]]),
-                stack_mb: f32::from_le_bytes([data[off+8], data[off+9], data[off+10], data[off+11]]),
-                heap_mb: f32::from_le_bytes([data[off+12], data[off+13], data[off+14], data[off+15]]),
-                peak_mb: f32::from_le_bytes([data[off+16], data[off+17], data[off+18], data[off+19]]),
+                code_mb: f32::from_le_bytes([
+                    data[off],
+                    data[off + 1],
+                    data[off + 2],
+                    data[off + 3],
+                ]),
+                rodata_mb: f32::from_le_bytes([
+                    data[off + 4],
+                    data[off + 5],
+                    data[off + 6],
+                    data[off + 7],
+                ]),
+                stack_mb: f32::from_le_bytes([
+                    data[off + 8],
+                    data[off + 9],
+                    data[off + 10],
+                    data[off + 11],
+                ]),
+                heap_mb: f32::from_le_bytes([
+                    data[off + 12],
+                    data[off + 13],
+                    data[off + 14],
+                    data[off + 15],
+                ]),
+                peak_mb: f32::from_le_bytes([
+                    data[off + 16],
+                    data[off + 17],
+                    data[off + 18],
+                    data[off + 19],
+                ]),
             })
         } else {
             None
@@ -261,7 +290,12 @@ pub struct AtxeBinary {
 impl Header {
     /// 返回序列化后的 header 实际字节数（含可选的 memory profile）。
     pub fn serialized_size(&self) -> usize {
-        HEADER_SIZE + if self.memory_profile.is_some() { MEMORY_PROFILE_SIZE } else { 0 }
+        HEADER_SIZE
+            + if self.memory_profile.is_some() {
+                MEMORY_PROFILE_SIZE
+            } else {
+                0
+            }
     }
 }
 
@@ -351,7 +385,9 @@ impl AtxeBinary {
         let mut sections = Vec::with_capacity(sec_count);
         for i in 0..sec_count {
             let off = sec_start + i * SECTION_ENTRY_SIZE;
-            sections.push(SectionEntry::from_bytes(&data[off..off + SECTION_ENTRY_SIZE])?);
+            sections.push(SectionEntry::from_bytes(
+                &data[off..off + SECTION_ENTRY_SIZE],
+            )?);
         }
 
         let mut text = Vec::new();

@@ -24,8 +24,10 @@ pub fn parse_task_section(data: &[u8]) -> Result<Vec<TaskEntry>, String> {
     while offset + 8 <= data.len() {
         let task_id = u16::from_le_bytes([data[offset], data[offset + 1]]);
         let entry_offset = u32::from_le_bytes([
-            data[offset + 2], data[offset + 3],
-            data[offset + 4], data[offset + 5],
+            data[offset + 2],
+            data[offset + 3],
+            data[offset + 4],
+            data[offset + 5],
         ]);
         let dep_count = u16::from_le_bytes([data[offset + 6], data[offset + 7]]);
         offset += 8;
@@ -39,7 +41,10 @@ pub fn parse_task_section(data: &[u8]) -> Result<Vec<TaskEntry>, String> {
             }
             offset += dep_size;
         } else {
-            return Err(format!(".task 段截断: task_id={} 的依赖列表超出边界", task_id));
+            return Err(format!(
+                ".task 段截断: task_id={} 的依赖列表超出边界",
+                task_id
+            ));
         }
 
         entries.push(TaskEntry {
@@ -51,7 +56,10 @@ pub fn parse_task_section(data: &[u8]) -> Result<Vec<TaskEntry>, String> {
     }
 
     if offset != data.len() {
-        return Err(format!(".task 段末尾有 {} 个字节的残留数据", data.len() - offset));
+        return Err(format!(
+            ".task 段末尾有 {} 个字节的残留数据",
+            data.len() - offset
+        ));
     }
 
     Ok(entries)
@@ -92,13 +100,13 @@ mod tests {
         data.extend_from_slice(&1u16.to_le_bytes());
         data.extend_from_slice(&10u32.to_le_bytes());
         data.extend_from_slice(&1u16.to_le_bytes()); // dep_count=1
-        data.extend_from_slice(&0u16.to_le_bytes());  // dep_id=0
+        data.extend_from_slice(&0u16.to_le_bytes()); // dep_id=0
         // Task 2: entry=20, deps=[0, 1]
         data.extend_from_slice(&2u16.to_le_bytes());
         data.extend_from_slice(&20u32.to_le_bytes());
         data.extend_from_slice(&2u16.to_le_bytes()); // dep_count=2
-        data.extend_from_slice(&0u16.to_le_bytes());  // dep_id=0
-        data.extend_from_slice(&1u16.to_le_bytes());  // dep_id=1
+        data.extend_from_slice(&0u16.to_le_bytes()); // dep_id=0
+        data.extend_from_slice(&1u16.to_le_bytes()); // dep_id=1
 
         let entries = parse_task_section(&data).unwrap();
         assert_eq!(entries.len(), 3);

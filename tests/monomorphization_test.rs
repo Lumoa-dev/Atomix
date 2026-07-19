@@ -1,7 +1,7 @@
 //! 验证泛型单态化正确工作
-use atomix::compiler::semantic::SemanticAnalyzer;
 use atomix::compiler::lexer::Lexer;
 use atomix::compiler::parser::Parser;
+use atomix::compiler::semantic::SemanticAnalyzer;
 
 fn analyze(source: &str) -> (SemanticAnalyzer, Vec<String>) {
     let (tokens, lex_errors) = Lexer::new(source).tokenize();
@@ -25,7 +25,10 @@ fn generic_function_is_found_in_symbols() {
     }"#;
     let (analyzer, errors) = analyze(src);
     assert!(errors.is_empty(), "errors: {:?}", errors);
-    assert!(analyzer.symbols.contains("identity"), "identity should be in symbols");
+    assert!(
+        analyzer.symbols.contains("identity"),
+        "identity should be in symbols"
+    );
 }
 
 #[test]
@@ -51,7 +54,14 @@ fn generic_call_gets_monomorphized() {
     }"#;
     let (analyzer, errors) = analyze(src);
     assert!(errors.is_empty(), "errors: {:?}", errors);
-    assert!(analyzer.symbols.contains("identity::int"),
+    assert!(
+        analyzer.symbols.contains("identity::int"),
         "identity::int should be registered after monomorphization, symbols: {:?}",
-        analyzer.symbols.functions().iter().map(|s| &s.name).collect::<Vec<_>>());
+        analyzer
+            .symbols
+            .functions()
+            .iter()
+            .map(|s| &s.name)
+            .collect::<Vec<_>>()
+    );
 }

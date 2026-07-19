@@ -41,7 +41,11 @@ impl SlotManager {
         let total_bytes = (total_mem_mb * 1024.0 * 1024.0) as u64;
         let effective = (total_bytes as f64 * (1.0 - safety_margin)) as u64;
         let slot_count = (n_batch as f64 + slipway_mul) as u64;
-        let slot_size = if slot_count > 0 { effective / slot_count } else { effective };
+        let slot_size = if slot_count > 0 {
+            effective / slot_count
+        } else {
+            effective
+        };
 
         let slipway_count = slipway_mul.ceil() as usize;
 
@@ -106,22 +110,22 @@ impl SlotManager {
             self.dead_zones.push((slot.base, slot.size));
             // 尝试合并相邻死区
             self.merge_dead_zones();
-            return;
         }
     }
 
     /// 合并相邻的死区。
     fn merge_dead_zones(&mut self) {
-        if self.dead_zones.len() < 2 { return; }
+        if self.dead_zones.len() < 2 {
+            return;
+        }
         self.dead_zones.sort_by_key(|&(base, _)| base);
         let mut merged: Vec<(u64, u64)> = Vec::new();
         for (base, size) in self.dead_zones.drain(..) {
-            if let Some(last) = merged.last_mut() {
-                if last.0 + last.1 >= base {
+            if let Some(last) = merged.last_mut()
+                && last.0 + last.1 >= base {
                     last.1 = last.1.max(base + size - last.0);
                     continue;
                 }
-            }
             merged.push((base, size));
         }
         self.dead_zones = merged;

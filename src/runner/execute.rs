@@ -3,8 +3,8 @@
 //! 覆盖 02-指令集规范.md §3 的全部指令行为。
 
 use crate::base::isa::{self, opcode, reg};
-use crate::runner::decode;
 use crate::runner::VmState;
+use crate::runner::decode;
 
 /// 执行单条指令。返回 true 表示继续执行，false 表示需要让出/停止。
 pub fn execute_instruction(vm: &mut VmState) -> bool {
@@ -26,7 +26,10 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         opcode::TRAP => {
             match ops.imm {
-                0 => { vm.state = crate::runner::VmStateKind::Halted; return false; }
+                0 => {
+                    vm.state = crate::runner::VmStateKind::Halted;
+                    return false;
+                }
                 1 => { /* DEBUG: NOP for now */ }
                 _ => {}
             }
@@ -60,7 +63,8 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             if let Some(val) = load_from_memory(vm, addr) {
                 vm.write_reg(ops.rd as usize, val);
             } else {
-                vm.state = crate::runner::VmStateKind::Error(format!("LOAD 越界: addr={:#x}", addr));
+                vm.state =
+                    crate::runner::VmStateKind::Error(format!("LOAD 越界: addr={:#x}", addr));
                 return false;
             }
         }
@@ -69,29 +73,38 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             let addr = vm.read_reg(ops.rd as usize).wrapping_add(ops.imm as u64);
             let val = vm.read_reg(ops.rs1 as usize);
             if !store_to_memory(vm, addr, val) {
-                vm.state = crate::runner::VmStateKind::Error(format!("STORE 越界: addr={:#x}", addr));
+                vm.state =
+                    crate::runner::VmStateKind::Error(format!("STORE 越界: addr={:#x}", addr));
                 return false;
             }
         }
 
         // ── Integer Arithmetic (0x20–0x2E) ────────
         opcode::ADDI => {
-            let r = vm.read_reg(ops.rs1 as usize).wrapping_add(ops.imm as i16 as u64);
+            let r = vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_add(ops.imm as i16 as u64);
             vm.write_reg(ops.rd as usize, r);
         }
 
         opcode::ADD => {
-            let r = vm.read_reg(ops.rs1 as usize).wrapping_add(vm.read_reg(ops.rs2 as usize));
+            let r = vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_add(vm.read_reg(ops.rs2 as usize));
             vm.write_reg(ops.rd as usize, r);
         }
 
         opcode::SUB => {
-            let r = vm.read_reg(ops.rs1 as usize).wrapping_sub(vm.read_reg(ops.rs2 as usize));
+            let r = vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_sub(vm.read_reg(ops.rs2 as usize));
             vm.write_reg(ops.rd as usize, r);
         }
 
         opcode::MUL => {
-            let r = vm.read_reg(ops.rs1 as usize).wrapping_mul(vm.read_reg(ops.rs2 as usize));
+            let r = vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_mul(vm.read_reg(ops.rs2 as usize));
             vm.write_reg(ops.rd as usize, r);
         }
 
@@ -111,7 +124,10 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
                 vm.state = crate::runner::VmStateKind::Error("除零异常".into());
                 return false;
             }
-            vm.write_reg(ops.rd as usize, vm.read_reg(ops.rs1 as usize).wrapping_div(divisor));
+            vm.write_reg(
+                ops.rd as usize,
+                vm.read_reg(ops.rs1 as usize).wrapping_div(divisor),
+            );
         }
 
         opcode::REM => {
@@ -125,15 +141,24 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         }
 
         opcode::AND => {
-            vm.write_reg(ops.rd as usize, vm.read_reg(ops.rs1 as usize) & vm.read_reg(ops.rs2 as usize));
+            vm.write_reg(
+                ops.rd as usize,
+                vm.read_reg(ops.rs1 as usize) & vm.read_reg(ops.rs2 as usize),
+            );
         }
 
         opcode::OR => {
-            vm.write_reg(ops.rd as usize, vm.read_reg(ops.rs1 as usize) | vm.read_reg(ops.rs2 as usize));
+            vm.write_reg(
+                ops.rd as usize,
+                vm.read_reg(ops.rs1 as usize) | vm.read_reg(ops.rs2 as usize),
+            );
         }
 
         opcode::XOR => {
-            vm.write_reg(ops.rd as usize, vm.read_reg(ops.rs1 as usize) ^ vm.read_reg(ops.rs2 as usize));
+            vm.write_reg(
+                ops.rd as usize,
+                vm.read_reg(ops.rs1 as usize) ^ vm.read_reg(ops.rs2 as usize),
+            );
         }
 
         opcode::NOT => {
@@ -195,7 +220,13 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         opcode::FNE => {
             let a = f64::from_bits(vm.read_reg(ops.rs1 as usize));
             let b = f64::from_bits(vm.read_reg(ops.rs2 as usize));
-            let result = if a.is_nan() || b.is_nan() { 0 } else if a != b { 1 } else { 0 };
+            let result = if a.is_nan() || b.is_nan() {
+                0
+            } else if a != b {
+                1
+            } else {
+                0
+            };
             vm.write_reg(ops.rd as usize, result);
         }
 
@@ -223,12 +254,20 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         // ── Compare / Set (0x40–0x45) ────────────
         opcode::SEQ => {
-            let r = if vm.read_reg(ops.rs1 as usize) == vm.read_reg(ops.rs2 as usize) { 1 } else { 0 };
+            let r = if vm.read_reg(ops.rs1 as usize) == vm.read_reg(ops.rs2 as usize) {
+                1
+            } else {
+                0
+            };
             vm.write_reg(ops.rd as usize, r);
         }
 
         opcode::SNE => {
-            let r = if vm.read_reg(ops.rs1 as usize) != vm.read_reg(ops.rs2 as usize) { 1 } else { 0 };
+            let r = if vm.read_reg(ops.rs1 as usize) != vm.read_reg(ops.rs2 as usize) {
+                1
+            } else {
+                0
+            };
             vm.write_reg(ops.rd as usize, r);
         }
 
@@ -303,7 +342,9 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         opcode::JALR => {
             let link = (vm.pc + 1) as u64;
-            let target = vm.read_reg(ops.rs1 as usize).wrapping_add(ops.imm as i16 as u64);
+            let target = vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_add(ops.imm as i16 as u64);
             vm.write_reg(ops.rd as usize, link);
             vm.pc = target as usize;
             return true;
@@ -355,9 +396,10 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             if (result as i64) < 0 {
                 let exc_val = result.wrapping_neg() as u64;
                 if !handle_exception(vm, exc_val) {
-                    vm.state = crate::runner::VmStateKind::Error(
-                        format!("ECALL 错误: syscall={}", syscall)
-                    );
+                    vm.state = crate::runner::VmStateKind::Error(format!(
+                        "ECALL 错误: syscall={}",
+                        syscall
+                    ));
                     return false;
                 }
                 return true; // 跳过 pc++（THROW 已跳转）
@@ -472,7 +514,9 @@ fn handle_exception(vm: &mut VmState, exc_val: u64) -> bool {
     let pc = vm.pc as u32;
     // 解析 .exn 表：每条目 16 字节
     for chunk in vm.exn_table.chunks(16) {
-        if chunk.len() < 12 { continue; }
+        if chunk.len() < 12 {
+            continue;
+        }
         let start_pc = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         let end_pc = u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]);
         let handler_pc = u32::from_le_bytes([chunk[8], chunk[9], chunk[10], chunk[11]]);
@@ -490,11 +534,13 @@ fn handle_exception(vm: &mut VmState, exc_val: u64) -> bool {
 // ─── ECALL ─────────────────────────────────────────────
 
 /// 处理 ECALL 系统调用。
-fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64) -> u64 {
+fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, _arg2: u64, _arg3: u64) -> u64 {
     match syscall {
         crate::base::isa::ecall::ALLOC => {
             let size = arg1;
-            if size == 0 { return 0; }
+            if size == 0 {
+                return 0;
+            }
             // 水位线检查：超过警戒线时触发 OOM 暂停
             if vm.memory.is_over_watermark() {
                 vm.state = crate::runner::VmStateKind::Suspended;
@@ -507,8 +553,7 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64)
             vm.memory.free(addr);
             0
         }
-        crate::base::isa::ecall::TCP_CONNECT
-        | crate::base::isa::ecall::FS_OPEN => {
+        crate::base::isa::ecall::TCP_CONNECT | crate::base::isa::ecall::FS_OPEN => {
             // 未实现：返回负错误码（对应 DSL 异常）
             -1i64 as u64 // -EIO
         }
@@ -568,7 +613,7 @@ mod tests {
             isa::encode_r2i(opcode::MOVI, 8, 0, 2),   // t0 = 2
             isa::encode_r2i(opcode::MOVI, 9, 0, 3),   // t1 = 3
             isa::encode_r3(opcode::ADD, 10, 8, 9, 0), // t2 = t0 + t1
-            isa::encode_ji(opcode::TRAP, 0),            // HALT
+            isa::encode_ji(opcode::TRAP, 0),          // HALT
         ];
         let mut vm = make_vm(text);
         while vm.is_running() {
@@ -580,10 +625,10 @@ mod tests {
     #[test]
     fn movi_sub_mul() {
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, 8, 0, 10),  // t0 = 10
-            isa::encode_r2i(opcode::MOVI, 9, 0, 3),   // t1 = 3
-            isa::encode_r3(opcode::SUB, 10, 8, 9, 0), // t2 = 10-3 = 7
-            isa::encode_r3(opcode::MUL, 11, 10, 9, 0),// t3 = 7*3 = 21
+            isa::encode_r2i(opcode::MOVI, 8, 0, 10),   // t0 = 10
+            isa::encode_r2i(opcode::MOVI, 9, 0, 3),    // t1 = 3
+            isa::encode_r3(opcode::SUB, 10, 8, 9, 0),  // t2 = 10-3 = 7
+            isa::encode_r3(opcode::MUL, 11, 10, 9, 0), // t3 = 7*3 = 21
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -600,9 +645,9 @@ mod tests {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, 8, 0, 0),   // 0: r8 = 0
             isa::encode_r2i(opcode::MOVI, 9, 0, 1),   // 1: r9 = 1
-            isa::encode_r1i(opcode::JZ, 8, 2),         // 2: JZ r8, +2 → r8==0, 跳转
-            isa::encode_r2i(opcode::MOVI, 10, 0, 99),  // 3: 被跳过
-            isa::encode_ji(opcode::TRAP, 0),            // 4: HALT
+            isa::encode_r1i(opcode::JZ, 8, 2),        // 2: JZ r8, +2 → r8==0, 跳转
+            isa::encode_r2i(opcode::MOVI, 10, 0, 99), // 3: 被跳过
+            isa::encode_ji(opcode::TRAP, 0),          // 4: HALT
         ];
         // JZ 应跳转到 instr 4（跳过 instr 3）
         let mut vm = make_vm(text);
@@ -618,9 +663,9 @@ mod tests {
     fn jmp_forward() {
         // JMP +2; MOVI t0, 0; MOVI t0, 1; TRAP
         let text = vec![
-            isa::encode_ji(opcode::JMP, 2),           // JMP +2 → instr 2
-            isa::encode_r2i(opcode::MOVI, 8, 0, 0),   // 被跳过
-            isa::encode_r2i(opcode::MOVI, 8, 0, 1),   // t0 = 1
+            isa::encode_ji(opcode::JMP, 2),         // JMP +2 → instr 2
+            isa::encode_r2i(opcode::MOVI, 8, 0, 0), // 被跳过
+            isa::encode_r2i(opcode::MOVI, 8, 0, 1), // t0 = 1
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -635,10 +680,10 @@ mod tests {
         // main: CALL +2; TRAP
         // fn foo: MOVI t0, 42; JMPR ra
         let text = vec![
-            isa::encode_ji(opcode::CALL, 2),          // CALL foo (instr 0 → instr 2)
-            isa::encode_ji(opcode::TRAP, 0),           // TRAP (instr 1)
-            isa::encode_r2i(opcode::MOVI, 8, 0, 42),  // t0 = 42 (instr 2)
-            isa::encode_r1i(opcode::JMPR, 3, 0),       // JMPR ra (instr 3)
+            isa::encode_ji(opcode::CALL, 2), // CALL foo (instr 0 → instr 2)
+            isa::encode_ji(opcode::TRAP, 0), // TRAP (instr 1)
+            isa::encode_r2i(opcode::MOVI, 8, 0, 42), // t0 = 42 (instr 2)
+            isa::encode_r1i(opcode::JMPR, 3, 0), // JMPR ra (instr 3)
         ];
         let mut vm = make_vm(text);
         while vm.is_running() {
@@ -679,7 +724,7 @@ mod tests {
     #[test]
     fn ecall_unsupported() {
         let text = vec![
-            isa::encode_r1i(opcode::ECALL, 0, 99),    // ECALL #99 (unsupported)
+            isa::encode_r1i(opcode::ECALL, 0, 99), // ECALL #99 (unsupported)
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -692,11 +737,11 @@ mod tests {
     #[test]
     fn bitwise_operations() {
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, 8, 0, 0xFF),    // t0 = 0xFF
-            isa::encode_r2i(opcode::MOVI, 9, 0, 0x0F),    // t1 = 0x0F
-            isa::encode_r3(opcode::AND, 10, 8, 9, 0),     // t2 = 0xFF & 0x0F = 0x0F
-            isa::encode_r3(opcode::OR, 11, 8, 9, 0),      // t3 = 0xFF | 0x0F = 0xFF
-            isa::encode_r3(opcode::XOR, 12, 8, 9, 0),     // t4 = 0xFF ^ 0x0F = 0xF0
+            isa::encode_r2i(opcode::MOVI, 8, 0, 0xFF), // t0 = 0xFF
+            isa::encode_r2i(opcode::MOVI, 9, 0, 0x0F), // t1 = 0x0F
+            isa::encode_r3(opcode::AND, 10, 8, 9, 0),  // t2 = 0xFF & 0x0F = 0x0F
+            isa::encode_r3(opcode::OR, 11, 8, 9, 0),   // t3 = 0xFF | 0x0F = 0xFF
+            isa::encode_r3(opcode::XOR, 12, 8, 9, 0),  // t4 = 0xFF ^ 0x0F = 0xF0
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -766,7 +811,7 @@ mod tests {
         // MOVI a0, 64; ECALL alloc
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 64), // R4 = 64 (size)
-            isa::encode_r1i(opcode::ECALL, 0, 0), // ECALL alloc
+            isa::encode_r1i(opcode::ECALL, 0, 0),                // ECALL alloc
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -815,7 +860,7 @@ mod tests {
         let rodata = val.to_le_bytes().to_vec();
         // MOVI a0, 0; LOAD t0, [a0 + 0]; TRAP
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0),   // a0 = 0 (.rodata base)
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0), // a0 = 0 (.rodata base)
             isa::encode_r2i(opcode::LOAD, reg::T0 as u8, reg::A0 as u8, 0), // t0 = [a0+0]
             isa::encode_ji(opcode::TRAP, 0),
         ];
@@ -832,12 +877,12 @@ mod tests {
         // MOVI a0, 16; ECALL alloc; MOV t0, a0 (保存地址到 t0)
         // MOVI t1, 0x42; STORE [t0+0], t1; LOAD t2, [t0+0]; TRAP
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 16),  // a0 = 16 (size)
-            isa::encode_r1i(opcode::ECALL, 0, 0),                  // ECALL alloc → a0 = addr
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 16), // a0 = 16 (size)
+            isa::encode_r1i(opcode::ECALL, 0, 0),                // ECALL alloc → a0 = addr
             isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0), // t0 = addr
             isa::encode_r2i(opcode::MOVI, reg::T1 as u8, 0, 0x42), // t1 = 0x42
             isa::encode_r2i(opcode::STORE, reg::T0 as u8, reg::T1 as u8, 0), // [t0] = t1
-            isa::encode_r2i(opcode::LOAD, reg::T2 as u8, reg::T0 as u8, 0),  // t2 = [t0]
+            isa::encode_r2i(opcode::LOAD, reg::T2 as u8, reg::T0 as u8, 0), // t2 = [t0]
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);
@@ -853,8 +898,8 @@ mod tests {
         // 尝试写入地址 0（.rodata 区域），应触发错误
         // MOVI a0, 0; MOVI t0, 42; STORE [a0+0], t0
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0),   // a0 = 0 (.rodata base)
-            isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 42),  // t0 = 42
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0), // a0 = 0 (.rodata base)
+            isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 42), // t0 = 42
             isa::encode_r2i(opcode::STORE, reg::A0 as u8, reg::T0 as u8, 0), // [0] = 42 → 应拒绝
         ];
         let mut vm = make_vm(text);
@@ -868,7 +913,7 @@ mod tests {
     fn ecall_alloc_returns_heap_address() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 32), // size = 32
-            isa::encode_r1i(opcode::ECALL, 0, 0),                 // ECALL alloc
+            isa::encode_r1i(opcode::ECALL, 0, 0),                // ECALL alloc
             isa::encode_ji(opcode::TRAP, 0),
         ];
         let mut vm = make_vm(text);

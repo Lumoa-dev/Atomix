@@ -4,18 +4,15 @@
 
 use crate::base::isa::{opcode, reg};
 use crate::compiler::ast::Stmt;
-use crate::compiler::codegen::expr::{compile_expr, ConstPool};
+use crate::compiler::codegen::expr::{ConstPool, compile_expr};
 use crate::compiler::codegen::instr::{InstrEmitter, vreg_to_preg};
 
 /// 编译语句列表。
 pub fn compile_stmts(emit: &mut InstrEmitter, pool: &mut ConstPool, stmts: &[Stmt]) {
     // 收集所有函数定义的标签
     for stmt in stmts {
-        match stmt {
-            Stmt::FnDef(f) => {
-                emit.emit_label(&f.name);
-            }
-            _ => {}
+        if let Stmt::FnDef(f) = stmt {
+            emit.emit_label(&f.name);
         }
     }
 
@@ -31,10 +28,18 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             compile_expr(emit, pool, init);
         }
 
-        Stmt::Call { func_name, args, output, pipe, .. } => {
+        Stmt::Call {
+            func_name,
+            args,
+            output,
+            pipe,
+            ..
+        } => {
             // 参数传入 R4-R7
             for (i, arg) in args.iter().enumerate() {
-                if i >= 4 { break; }
+                if i >= 4 {
+                    break;
+                }
                 let vreg = compile_expr(emit, pool, arg);
                 let preg = match i {
                     0 => reg::A0 as u8,
@@ -55,7 +60,11 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             let _ = pipe;
         }
 
-        Stmt::Wait { template, overrides, .. } => {
+        Stmt::Wait {
+            template,
+            overrides,
+            ..
+        } => {
             // WAIT → TASK_FORK + TASK_JOIN
             for (name, val) in overrides {
                 let vreg = compile_expr(emit, pool, val);
@@ -67,7 +76,12 @@ pub fn compile_stmt(emit: &mut InstrEmitter, pool: &mut ConstPool, stmt: &Stmt) 
             emit.emit_r2i(opcode::TASK_JOIN, reg::T1 as u8, reg::T0 as u8, 0);
         }
 
-        Stmt::If { cond, body, elifs, else_body } => {
+        Stmt::If {
+            cond,
+            body,
+            elifs,
+            else_body,
+        } => {
             let endif_label = format!(".L_end_if_{}", emit.instr_count());
 
             // IF 分支

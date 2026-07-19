@@ -8,7 +8,10 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "atomix-runner", about = "Atomix 运行时执行器 — 加载并执行 .atxe")]
+#[command(
+    name = "atomix-runner",
+    about = "Atomix 运行时执行器 — 加载并执行 .atxe"
+)]
 struct Args {
     /// .atxe 文件路径
     file: PathBuf,
@@ -69,8 +72,10 @@ fn main() {
                     atomix::runner::task::TaskStatus::Error => "出错",
                     _ => "其他",
                 };
-                println!("  Task {}: {} ({} 条指令, 返回值: {})",
-                    id, status_str, instrs, retval);
+                println!(
+                    "  Task {}: {} ({} 条指令, 返回值: {})",
+                    id, status_str, instrs, retval
+                );
             }
         }
         Err(e) => {

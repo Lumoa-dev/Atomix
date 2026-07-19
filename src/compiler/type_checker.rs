@@ -6,7 +6,7 @@
 //! 类型不兼容时报告错误并标记为 Any 继续（最大努力模式）。
 
 use crate::compiler::ast::{BinOp, Expr, UnOp};
-use crate::compiler::symbol::{Type, SymbolTable};
+use crate::compiler::symbol::{SymbolTable, Type};
 
 // ─── 类型错误 ──────────────────────────────────────────
 
@@ -46,7 +46,8 @@ impl TypeChecker {
                 if let Some(sym) = st.lookup(name) {
                     sym.resolved_type.clone().unwrap_or(Type::Any)
                 } else {
-                    self.errors.push(TypeError::new(format!("未定义的标识符 `{name}`")));
+                    self.errors
+                        .push(TypeError::new(format!("未定义的标识符 `{name}`")));
                     Type::Any
                 }
             }
@@ -63,9 +64,10 @@ impl TypeChecker {
                     for item in items.iter().skip(1) {
                         let t = self.infer_expr(item, st);
                         if !self.is_compatible(&elem_type, &t) {
-                            self.errors.push(TypeError::new(
-                                format!("列表元素类型不一致: {:?} 和 {:?}", elem_type, t),
-                            ));
+                            self.errors.push(TypeError::new(format!(
+                                "列表元素类型不一致: {:?} 和 {:?}",
+                                elem_type, t
+                            )));
                         }
                     }
                     Type::List(Box::new(elem_type))
@@ -107,9 +109,7 @@ impl TypeChecker {
                         }
                         *elem.clone()
                     }
-                    Type::Dict(_, v_type) => {
-                        *v_type.clone()
-                    }
+                    Type::Dict(_, v_type) => *v_type.clone(),
                     Type::Str => {
                         if !self.is_compatible(&index_type, &Type::Int) {
                             self.errors.push(TypeError::new("字符串索引必须为 int"));
@@ -117,9 +117,10 @@ impl TypeChecker {
                         Type::Str
                     }
                     _ => {
-                        self.errors.push(TypeError::new(
-                            format!("类型 {:?} 不支持索引操作", target_type),
-                        ));
+                        self.errors.push(TypeError::new(format!(
+                            "类型 {:?} 不支持索引操作",
+                            target_type
+                        )));
                         Type::Any
                     }
                 }
@@ -149,12 +150,17 @@ impl TypeChecker {
                 } else if let Some(sym) = st.lookup(name) {
                     sym.resolved_type.clone().unwrap_or(Type::Any)
                 } else {
-                    self.errors.push(TypeError::new(format!("未定义的跨域引用 `{full}`")));
+                    self.errors
+                        .push(TypeError::new(format!("未定义的跨域引用 `{full}`")));
                     Type::Any
                 }
             }
 
-            Expr::DoFn { params, ret_type, body: _ } => {
+            Expr::DoFn {
+                params,
+                ret_type,
+                body: _,
+            } => {
                 let _ = params;
                 let _ = ret_type;
                 Type::Any // 匿名函数类型在更完整的分析中处理
@@ -167,7 +173,8 @@ impl TypeChecker {
                 if let Some(sym) = st.lookup(name) {
                     sym.resolved_type.clone().unwrap_or(Type::Any)
                 } else {
-                    self.errors.push(TypeError::new(format!("未定义的函数 `{name}`")));
+                    self.errors
+                        .push(TypeError::new(format!("未定义的函数 `{name}`")));
                     Type::Any
                 }
             }
@@ -189,9 +196,10 @@ impl TypeChecker {
                     (Type::Int, Type::Float) | (Type::Float, Type::Int) => Type::Float,
                     (Type::Str, Type::Str) if op == BinOp::Add => Type::Str, // str + str
                     _ => {
-                        self.errors.push(TypeError::new(
-                            format!("类型不兼容: {:?} {:?} {:?}", l, op, r),
-                        ));
+                        self.errors.push(TypeError::new(format!(
+                            "类型不兼容: {:?} {:?} {:?}",
+                            l, op, r
+                        )));
                         Type::Any
                     }
                 }
@@ -201,9 +209,8 @@ impl TypeChecker {
                 if self.is_compatible(&l, &r) {
                     Type::Bool
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("无法比较类型 {:?} 和 {:?}", l, r),
-                    ));
+                    self.errors
+                        .push(TypeError::new(format!("无法比较类型 {:?} 和 {:?}", l, r)));
                     Type::Bool // 仍返回 bool 以继续分析
                 }
             }
@@ -212,9 +219,10 @@ impl TypeChecker {
                 if l == Type::Bool && r == Type::Bool {
                     Type::Bool
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("逻辑运算要求 bool 类型，得到 {:?} 和 {:?}", l, r),
-                    ));
+                    self.errors.push(TypeError::new(format!(
+                        "逻辑运算要求 bool 类型，得到 {:?} 和 {:?}",
+                        l, r
+                    )));
                     Type::Bool
                 }
             }
@@ -223,9 +231,10 @@ impl TypeChecker {
                 if l == Type::Int && r == Type::Int {
                     Type::Int
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("位运算要求 int 类型，得到 {:?} 和 {:?}", l, r),
-                    ));
+                    self.errors.push(TypeError::new(format!(
+                        "位运算要求 int 类型，得到 {:?} 和 {:?}",
+                        l, r
+                    )));
                     Type::Int
                 }
             }
@@ -241,9 +250,10 @@ impl TypeChecker {
                 if inner == Type::Int || inner == Type::Float {
                     inner
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("负号要求 int/float，得到 {:?}", inner),
-                    ));
+                    self.errors.push(TypeError::new(format!(
+                        "负号要求 int/float，得到 {:?}",
+                        inner
+                    )));
                     Type::Int
                 }
             }
@@ -251,9 +261,8 @@ impl TypeChecker {
                 if inner == Type::Bool {
                     Type::Bool
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("not 要求 bool，得到 {:?}", inner),
-                    ));
+                    self.errors
+                        .push(TypeError::new(format!("not 要求 bool，得到 {:?}", inner)));
                     Type::Bool
                 }
             }
@@ -261,9 +270,8 @@ impl TypeChecker {
                 if inner == Type::Int {
                     Type::Int
                 } else {
-                    self.errors.push(TypeError::new(
-                        format!("~ 要求 int，得到 {:?}", inner),
-                    ));
+                    self.errors
+                        .push(TypeError::new(format!("~ 要求 int，得到 {:?}", inner)));
                     Type::Int
                 }
             }
@@ -295,18 +303,20 @@ impl TypeChecker {
     /// 检查值类型是否匹配标注类型（标注兼容值）。
     pub fn check_annotation(&mut self, ann: &Type, value: &Type, name: &str) {
         if !self.is_compatible(ann, value) && *value != Type::Any {
-            self.errors.push(TypeError::new(
-                format!("变量 `{name}` 标注为 {:?}，但值类型为 {:?}", ann, value),
-            ));
+            self.errors.push(TypeError::new(format!(
+                "变量 `{name}` 标注为 {:?}，但值类型为 {:?}",
+                ann, value
+            )));
         }
     }
 
     /// 检查函数返回类型是否匹配。
     pub fn check_return(&mut self, expected: &Type, actual: &Type, fn_name: &str) {
         if !self.is_compatible(expected, actual) && *actual != Type::Any {
-            self.errors.push(TypeError::new(
-                format!("函数 `{fn_name}` 返回类型应为 {:?}，实际为 {:?}", expected, actual),
-            ));
+            self.errors.push(TypeError::new(format!(
+                "函数 `{fn_name}` 返回类型应为 {:?}，实际为 {:?}",
+                expected, actual
+            )));
         }
     }
 }
@@ -396,10 +406,7 @@ mod tests {
         let mut tc = TypeChecker::new();
         let st = new_st();
         let expr = Expr::List(vec![Expr::Int(1), Expr::Int(2), Expr::Int(3)]);
-        assert_eq!(
-            tc.infer_expr(&expr, &st),
-            Type::List(Box::new(Type::Int))
-        );
+        assert_eq!(tc.infer_expr(&expr, &st), Type::List(Box::new(Type::Int)));
     }
 
     #[test]
@@ -414,11 +421,8 @@ mod tests {
     fn defined_variable() {
         let mut tc = TypeChecker::new();
         let mut st = new_st();
-        st.declare(
-            Symbol::new("x".into(), SymbolKind::Variable)
-                .with_type(Type::Int),
-        )
-        .unwrap();
+        st.declare(Symbol::new("x".into(), SymbolKind::Variable).with_type(Type::Int))
+            .unwrap();
         assert_eq!(tc.infer_expr(&Expr::Ident("x".into()), &st), Type::Int);
         assert!(tc.errors.is_empty());
     }

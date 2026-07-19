@@ -2,20 +2,20 @@
 //!
 //! 详见 02-指令集规范.md、07-执行器设计.md、08-运行时架构.md
 
-pub mod decode;
-pub mod execute;
-pub mod memory;
-pub mod task;
-pub mod pool;
-pub mod loader;
-pub mod sched;
 pub mod batch;
 pub mod config;
+pub mod decode;
+pub mod execute;
 pub mod hwinfo;
+pub mod loader;
+pub mod memory;
+pub mod pool;
+pub mod sched;
 pub mod slot;
+pub mod task;
 
 use crate::base::ir::AtxeBinary;
-use crate::base::isa::{reg, Profile};
+use crate::base::isa::{Profile, reg};
 use crate::runner::memory::SandboxMemory;
 
 // ─── VM 状态 ───────────────────────────────────────────
@@ -80,8 +80,8 @@ impl VmState {
 
         // 初始化沙箱内存
         let rodata_len = binary.rodata.len();
-        let heap_size = 65536u64;  // 64 KB 默认堆
-        let stack_size = 4096u64;  // 4 KB 栈
+        let heap_size = 65536u64; // 64 KB 默认堆
+        let stack_size = 4096u64; // 4 KB 栈
         let total = (rodata_len as u64 + heap_size + stack_size).max(8192) as usize;
 
         let mut memory = SandboxMemory::new(total);
@@ -93,7 +93,7 @@ impl VmState {
         memory.text_size = 0;
         let stack_base = (total - stack_size as usize) as u64;
         memory.stack_base = stack_base;
-        memory.stack_size = stack_size as u64;
+        memory.stack_size = stack_size;
         if rodata_len > 0 {
             memory.heap_base = rodata_len as u64;
         }
@@ -117,7 +117,7 @@ impl VmState {
         };
 
         // 初始化 SP（栈顶，向下增长）
-        vm.regs[reg::SP] = stack_base + stack_size as u64;
+        vm.regs[reg::SP] = stack_base + stack_size;
 
         Ok(vm)
     }
@@ -150,11 +150,7 @@ impl VmState {
 
     /// 读取寄存器（R0 硬编码为 0）。
     pub fn read_reg(&self, idx: usize) -> u64 {
-        if idx == reg::ZERO {
-            0
-        } else {
-            self.regs[idx]
-        }
+        if idx == reg::ZERO { 0 } else { self.regs[idx] }
     }
 
     /// 写入寄存器（R0 写入无效，R14 只读）。
@@ -170,7 +166,7 @@ impl VmState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::ir::{Header, AtxeBinary};
+    use crate::base::ir::{AtxeBinary, Header};
 
     fn make_test_atxe(text: Vec<u32>) -> Vec<u8> {
         let header = Header::new(0, 6);
@@ -189,9 +185,12 @@ mod tests {
 
     #[test]
     fn load_valid_atxe() {
-        let text = vec![
-            crate::base::isa::encode_r2i(crate::base::isa::opcode::MOVI, 8, 0, 42),
-        ];
+        let text = vec![crate::base::isa::encode_r2i(
+            crate::base::isa::opcode::MOVI,
+            8,
+            0,
+            42,
+        )];
         let bytes = make_test_atxe(text);
         let vm = VmState::load_atxe(&bytes);
         assert!(vm.is_ok());

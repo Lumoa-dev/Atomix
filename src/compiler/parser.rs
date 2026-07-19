@@ -77,10 +77,10 @@ impl Parser {
             Some(span)
         } else {
             let got = self.peek().map(|t| &t.kind);
-            let span = self.peek().map(|t| t.span).unwrap_or(Span::new(
-                SourcePos::new(0, 0),
-                SourcePos::new(0, 0),
-            ));
+            let span = self
+                .peek()
+                .map(|t| t.span)
+                .unwrap_or(Span::new(SourcePos::new(0, 0), SourcePos::new(0, 0)));
             self.errors.push(ParseError::new(
                 format!("期望 {}, 得到 {:?}", kind, got.unwrap_or(&TokenKind::Eof)),
                 span,
@@ -168,8 +168,7 @@ impl Parser {
             match self.peek_kind().cloned() {
                 None | Some(TokenKind::Eof) => break,
                 Some(TokenKind::MetaBlock(_)) => {
-                    if let Some(TokenKind::MetaBlock(content)) =
-                        self.advance().kind.clone().into()
+                    if let Some(TokenKind::MetaBlock(content)) = self.advance().kind.clone().into()
                     {
                         meta = Some(MetaBlock { content });
                     }
@@ -269,7 +268,11 @@ impl Parser {
         } else {
             None
         };
-        Some(FromDecl { path, target, alias })
+        Some(FromDecl {
+            path,
+            target,
+            alias,
+        })
     }
 
     fn parse_exception_def(&mut self) -> Option<ExceptionDef> {
@@ -361,15 +364,33 @@ impl Parser {
         match kind {
             ZoneKind::Input => {
                 let (body, source_decls) = self.parse_input_zone_body();
-                Some(Zone { kind, name: None, body, source_decls, target_decls: Vec::new() })
+                Some(Zone {
+                    kind,
+                    name: None,
+                    body,
+                    source_decls,
+                    target_decls: Vec::new(),
+                })
             }
             ZoneKind::Out => {
                 let (body, target_decls) = self.parse_out_zone_body();
-                Some(Zone { kind, name: None, body, source_decls: Vec::new(), target_decls })
+                Some(Zone {
+                    kind,
+                    name: None,
+                    body,
+                    source_decls: Vec::new(),
+                    target_decls,
+                })
             }
             _ => {
                 let body = self.parse_delimited_block();
-                Some(Zone { kind, name: None, body, source_decls: Vec::new(), target_decls: Vec::new() })
+                Some(Zone {
+                    kind,
+                    name: None,
+                    body,
+                    source_decls: Vec::new(),
+                    target_decls: Vec::new(),
+                })
             }
         }
     }
@@ -556,7 +577,10 @@ impl Parser {
             let var_name = self.parse_ident().unwrap_or_default();
             let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
                 self.advance();
-                Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+                Some(
+                    self.parse_type_node()
+                        .unwrap_or(TypeNode::Base("any".into())),
+                )
             } else {
                 None
             };
@@ -570,7 +594,10 @@ impl Parser {
             let var_name = self.parse_ident().unwrap_or_default();
             let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
                 self.advance();
-                Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+                Some(
+                    self.parse_type_node()
+                        .unwrap_or(TypeNode::Base("any".into())),
+                )
             } else {
                 None
             };
@@ -891,24 +918,18 @@ impl Parser {
             TokenKind::Return => Some(self.parse_return()),
             TokenKind::LBrace => Some(Stmt::Block(self.parse_delimited_block())),
             // 函数定义（TOOLS/WORKS 内）
-            TokenKind::Fn | TokenKind::Pub => {
-                self.parse_func_def().map(Stmt::FnDef)
-            }
+            TokenKind::Fn | TokenKind::Pub => self.parse_func_def().map(Stmt::FnDef),
             // 以标识符开始的语句——可能是变量声明或表达式
             TokenKind::Ident(_) => {
-                if let Some(stmt) = self.try_parse_ident_stmt() {
-                    Some(stmt)
-                } else {
-                    None
-                }
+                self.try_parse_ident_stmt()
             }
             // 以表达式开始的语句
             _ => {
                 if Self::is_expr_start(&kind) {
                     let expr = self.parse_expr();
                     // 检测赋值语句: ident = expr（无类型标注）
-                    if let Expr::Ident(name) = &expr {
-                        if self.peek_kind() == Some(&TokenKind::Eq) {
+                    if let Expr::Ident(name) = &expr
+                        && self.peek_kind() == Some(&TokenKind::Eq) {
                             self.advance();
                             let init = self.parse_expr();
                             return Some(Stmt::Let {
@@ -916,7 +937,6 @@ impl Parser {
                                 type_ann: TypeNode::Base("any".into()),
                                 init,
                             });
-                        }
                     }
                     self.errors.push(ParseError::new(
                         "表达式语句在此上下文中无效——变量声明必须带类型标注 `: type`",
@@ -955,7 +975,9 @@ impl Parser {
             // ident : Type = expr → 变量声明
             Some(TokenKind::Colon) => {
                 self.advance();
-                let type_ann = self.parse_type_node().unwrap_or(TypeNode::Base("any".into()));
+                let type_ann = self
+                    .parse_type_node()
+                    .unwrap_or(TypeNode::Base("any".into()));
                 let init = if self.peek_kind() == Some(&TokenKind::Eq) {
                     self.advance();
                     Some(self.parse_expr())
@@ -992,7 +1014,8 @@ impl Parser {
         let name = self.parse_ident().unwrap_or_default();
         let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
             self.advance();
-            self.parse_type_node().unwrap_or(TypeNode::Base("any".into()))
+            self.parse_type_node()
+                .unwrap_or(TypeNode::Base("any".into()))
         } else {
             TypeNode::Base("any".into())
         };
@@ -1013,7 +1036,9 @@ impl Parser {
         self.advance(); // CONST
         let name = self.parse_ident().unwrap_or_default();
         self.expect(&TokenKind::Colon);
-        let type_ann = self.parse_type_node().unwrap_or(TypeNode::Base("any".into()));
+        let type_ann = self
+            .parse_type_node()
+            .unwrap_or(TypeNode::Base("any".into()));
         self.expect(&TokenKind::Eq);
         let init = self.parse_expr();
         Stmt::Const {
@@ -1027,7 +1052,9 @@ impl Parser {
         self.advance(); // GOOUT
         let name = self.parse_ident().unwrap_or_default();
         self.expect(&TokenKind::Colon);
-        let type_ann = self.parse_type_node().unwrap_or(TypeNode::Base("any".into()));
+        let type_ann = self
+            .parse_type_node()
+            .unwrap_or(TypeNode::Base("any".into()));
         self.expect(&TokenKind::Eq);
         let init = self.parse_expr();
         Stmt::Goout {
@@ -1041,7 +1068,11 @@ impl Parser {
         self.advance(); // CALL 或 WAIT
 
         // 检查 CALL 的输入语法: CALL raw = func()
-        let input = if is_call && self.peek_kind().map_or(false, |k| matches!(k, TokenKind::Ident(_))) {
+        let input = if is_call
+            && self
+                .peek_kind()
+                .is_some_and(|k| matches!(k, TokenKind::Ident(_)))
+        {
             // 可能是 ident = func() 模式
             // 先检查后面是不是 =
             let saved = self.pos;
@@ -1271,9 +1302,7 @@ impl Parser {
                 self.peek().map(|t| t.span).unwrap(),
             ));
         }
-        let cond = if self.peek_kind().map_or(false, |k| {
-            Self::is_expr_start(k)
-        }) {
+        let cond = if self.peek_kind().is_some_and(Self::is_expr_start) {
             Some(self.parse_expr())
         } else {
             None
@@ -1325,9 +1354,7 @@ impl Parser {
 
     fn parse_return(&mut self) -> Stmt {
         self.advance(); // return
-        let value = if self.peek_kind().map_or(false, |k| {
-            Self::is_expr_start(k)
-        }) {
+        let value = if self.peek_kind().is_some_and(Self::is_expr_start) {
             Some(self.parse_expr())
         } else {
             None
@@ -1353,7 +1380,10 @@ impl Parser {
         self.expect(&TokenKind::RParen)?;
         let ret_type = if self.peek_kind() == Some(&TokenKind::Colon) {
             self.advance();
-            Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+            Some(
+                self.parse_type_node()
+                    .unwrap_or(TypeNode::Base("any".into())),
+            )
         } else {
             None
         };
@@ -1377,7 +1407,8 @@ impl Parser {
                     let name = self.parse_ident().unwrap_or_default();
                     let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
                         self.advance();
-                        self.parse_type_node().unwrap_or(TypeNode::Base("any".into()))
+                        self.parse_type_node()
+                            .unwrap_or(TypeNode::Base("any".into()))
                     } else {
                         TypeNode::Base("any".into())
                     };
@@ -1464,7 +1495,8 @@ impl Parser {
         loop {
             // 检查是否是语句/表达式结束符
             match self.peek_kind() {
-                None | Some(TokenKind::Eof)
+                None
+                | Some(TokenKind::Eof)
                 | Some(TokenKind::RBrace)
                 | Some(TokenKind::RParen)
                 | Some(TokenKind::RBracket)
@@ -1519,9 +1551,7 @@ impl Parser {
                     .into_iter()
                     .map(|part| match part {
                         FStringPart::Text(t) => FStringFragment::Text(t),
-                        FStringPart::Interp(_) => {
-                            FStringFragment::Text("{expr}".into())
-                        }
+                        FStringPart::Interp(_) => FStringFragment::Text("{expr}".into()),
                     })
                     .collect();
                 Expr::FStr(fragments)
@@ -1649,7 +1679,10 @@ impl Parser {
                 self.expect(&TokenKind::RParen);
                 let ret_type = if self.peek_kind() == Some(&TokenKind::Colon) {
                     self.advance();
-                    Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+                    Some(
+                        self.parse_type_node()
+                            .unwrap_or(TypeNode::Base("any".into())),
+                    )
                 } else {
                     None
                 };
@@ -1666,9 +1699,13 @@ impl Parser {
                 self.parse_ident_or_cross_ref(name)
             }
             // 关键字也可作为跨域引用的域名
-            Some(kind) if kind.is_zone_keyword()
-                || kind.is_source_target_keyword()
-                || matches!(kind, TokenKind::Exception | TokenKind::Enum | TokenKind::Type) =>
+            Some(kind)
+                if kind.is_zone_keyword()
+                    || kind.is_source_target_keyword()
+                    || matches!(
+                        kind,
+                        TokenKind::Exception | TokenKind::Enum | TokenKind::Type
+                    ) =>
             {
                 let name = format!("{}", kind);
                 self.advance();
@@ -1876,7 +1913,10 @@ impl Parser {
         let is_keyword_domain = |kind: &TokenKind| -> bool {
             kind.is_zone_keyword()
                 || kind.is_source_target_keyword()
-                || matches!(kind, TokenKind::Exception | TokenKind::Enum | TokenKind::Type)
+                || matches!(
+                    kind,
+                    TokenKind::Exception | TokenKind::Enum | TokenKind::Type
+                )
         };
 
         let name = match self.peek_kind() {
@@ -2132,7 +2172,11 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
         assert_eq!(input_zone.source_decls.len(), 1);
         assert_eq!(input_zone.source_decls[0].source_kind, "http");
         assert_eq!(input_zone.source_decls[0].address, "https://api.com/data");
@@ -2146,8 +2190,15 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
-        assert_eq!(input_zone.source_decls[0].decorators, vec!["gzip", "encrypt"]);
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
+        assert_eq!(
+            input_zone.source_decls[0].decorators,
+            vec!["gzip", "encrypt"]
+        );
     }
 
     #[test]
@@ -2157,7 +2208,11 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
         assert_eq!(input_zone.source_decls.len(), 1);
         assert!(input_zone.source_decls[0].target.is_none());
     }
@@ -2170,7 +2225,11 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
         assert_eq!(input_zone.source_decls.len(), 1);
         assert_eq!(input_zone.body.len(), 1); // CONST
     }
@@ -2230,7 +2289,11 @@ mod tests {
             CALL foo()
         }"#;
         let (ast, errors) = parse(src);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
         assert!(input_zone.source_decls.is_empty());
         // CALL 被解析为语句，语义阶段会报错
     }
@@ -2242,7 +2305,11 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
-        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        let input_zone = ast
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Input)
+            .unwrap();
         assert!(input_zone.source_decls.is_empty());
         assert_eq!(input_zone.body.len(), 1);
     }

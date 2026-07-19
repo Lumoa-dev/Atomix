@@ -53,7 +53,7 @@ impl ConstPool {
 
     /// 确保 8 字节对齐。
     fn align8(&mut self) {
-        while self.data.len() % 8 != 0 {
+        while !self.data.len().is_multiple_of(8) {
             self.data.push(0);
         }
     }
@@ -87,6 +87,11 @@ impl ConstPool {
     /// 当前 .rodata 大小（字节）。
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    /// 是否为空。
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }
 
@@ -152,15 +157,17 @@ pub fn compile_expr(emit: &mut InstrEmitter, pool: &mut ConstPool, expr: &Expr) 
             alloc_vreg()
         }
         Expr::DoFn { .. } => alloc_vreg(),
-        Expr::Call { name, args } => {
-            compile_call(emit, pool, name, args)
-        }
+        Expr::Call { name, args } => compile_call(emit, pool, name, args),
         Expr::FStr(parts) => {
             // F-字符串：拼接所有片段
             for part in parts {
                 match part {
-                    crate::compiler::ast::FStringFragment::Text(t) => { compile_str(emit, pool, t); }
-                    crate::compiler::ast::FStringFragment::Interp(e) => { compile_expr(emit, pool, e); }
+                    crate::compiler::ast::FStringFragment::Text(t) => {
+                        compile_str(emit, pool, t);
+                    }
+                    crate::compiler::ast::FStringFragment::Interp(e) => {
+                        compile_expr(emit, pool, e);
+                    }
                 }
             }
             alloc_vreg()
@@ -183,7 +190,7 @@ fn compile_int(emit: &mut InstrEmitter, n: i64) -> VReg {
     let preg = vreg_to_preg(rd);
     if n >= 0 && n <= u16::MAX as i64 {
         emit.emit_movi(preg, n as u16);
-    } else if n >= -(1 << 19) && n < (1 << 19) {
+    } else if (-(1 << 19)..(1 << 19)).contains(&n) {
         emit.emit_r1i(opcode::LCONST, preg, n as u32);
     } else {
         // 大整数：通过 MOVI + SHL + MOVI 组合
@@ -219,7 +226,13 @@ fn compile_str(emit: &mut InstrEmitter, pool: &mut ConstPool, s: &str) -> VReg {
 }
 
 /// 编译二元运算。
-fn compile_binary(emit: &mut InstrEmitter, pool: &mut ConstPool, op: BinOp, lhs: &Expr, rhs: &Expr) -> VReg {
+fn compile_binary(
+    emit: &mut InstrEmitter,
+    pool: &mut ConstPool,
+    op: BinOp,
+    lhs: &Expr,
+    rhs: &Expr,
+) -> VReg {
     let lr = compile_expr(emit, pool, lhs);
     let rr = compile_expr(emit, pool, rhs);
     let rd = alloc_vreg();

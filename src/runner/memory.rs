@@ -117,7 +117,7 @@ impl SandboxMemory {
     /// 返回分配的地址，OOM 时返回 u64::MAX。
     pub fn alloc(&mut self, size: u64) -> u64 {
         let addr = self.heap_base + self.usage;
-        let end = addr.checked_add(size).unwrap_or(u64::MAX);
+        let end = addr.saturating_add(size);
         let max_addr = self.stack_base;
         if end > max_addr {
             return u64::MAX; // OOM

@@ -4,18 +4,18 @@
 //! 16 个物理寄存器，6 个通用临时寄存器 (T0-T5)。
 //! 溢出到栈通过 sp 相对偏移的 LOAD/STORE 实现。
 
-use std::collections::{HashMap, HashSet, VecDeque};
 use crate::base::isa::{self, opcode, reg};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 // ─── 可用物理寄存器列表（临时寄存器） ──────────────────
 
 const PHYSICAL_REGS: &[u8] = &[
-    reg::T0 as u8,  // 8
-    reg::T1 as u8,  // 9
-    reg::T2 as u8,  // 10
-    reg::T3 as u8,  // 11
-    reg::T4 as u8,  // 12
-    reg::T5 as u8,  // 13
+    reg::T0 as u8, // 8
+    reg::T1 as u8, // 9
+    reg::T2 as u8, // 10
+    reg::T3 as u8, // 11
+    reg::T4 as u8, // 12
+    reg::T5 as u8, // 13
 ];
 
 const _NUM_PHYSICAL_REGS: usize = PHYSICAL_REGS.len();
@@ -125,17 +125,17 @@ impl RegAllocator {
 
             // 检查源操作数是否在溢出寄存器
             for vreg in &[rs1, rs2] {
-                if let Some(&sp_offset_val) = self.spills.get(vreg) {
-                    if !loaded.contains_key(&(*vreg, i)) {
-                        // LOAD tmp, [sp + sp_offset]
-                        result.push(isa::encode_r2i(
-                            opcode::LOAD,
-                            reg::TMP as u8,
-                            reg::SP as u8,
-                            sp_offset_val as u16,
-                        ));
-                        loaded.insert((*vreg, i), true);
-                    }
+                if let Some(&sp_offset_val) = self.spills.get(vreg)
+                    && !loaded.contains_key(&(*vreg, i))
+                {
+                    // LOAD tmp, [sp + sp_offset]
+                    result.push(isa::encode_r2i(
+                        opcode::LOAD,
+                        reg::TMP as u8,
+                        reg::SP as u8,
+                        sp_offset_val as u16,
+                    ));
+                    loaded.entry((*vreg, i)).or_insert(true);
                 }
             }
 
@@ -166,9 +166,15 @@ impl RegAllocator {
             let rs1 = ((instr >> 16) & 0x0F) as usize;
             let rs2 = ((instr >> 12) & 0x0F) as usize;
             // R0-R7 是特殊寄存器，不参与分配
-            if rd >= 8 { vregs.insert(rd); }
-            if rs1 >= 8 { vregs.insert(rs1); }
-            if rs2 >= 8 { vregs.insert(rs2); }
+            if rd >= 8 {
+                vregs.insert(rd);
+            }
+            if rs1 >= 8 {
+                vregs.insert(rs1);
+            }
+            if rs2 >= 8 {
+                vregs.insert(rs2);
+            }
         }
         vregs
     }
@@ -184,8 +190,12 @@ impl RegAllocator {
                 let rs1 = ((instr >> 16) & 0x0F) as usize;
                 let rs2 = ((instr >> 12) & 0x0F) as usize;
                 if rd == vreg || rs1 == vreg || rs2 == vreg {
-                    if i < start { start = i; }
-                    if i + 1 > end { end = i + 1; }
+                    if i < start {
+                        start = i;
+                    }
+                    if i + 1 > end {
+                        end = i + 1;
+                    }
                 }
             }
             if start != usize::MAX {
@@ -220,7 +230,7 @@ impl Default for RegAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::isa::{encode_r3, encode_r2i, encode_r1i};
+    use crate::base::isa::{encode_r1i, encode_r2i, encode_r3};
 
     #[test]
     fn collect_vregs_simple() {
@@ -306,9 +316,7 @@ mod tests {
     #[test]
     fn no_vregs() {
         let mut alloc = RegAllocator::new();
-        let text = vec![
-            encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42),
-        ];
+        let text = vec![encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42)];
         alloc.allocate(&text);
         assert!(alloc.mapping.is_empty());
     }

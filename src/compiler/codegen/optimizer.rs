@@ -18,14 +18,16 @@ pub enum OptLevel {
     Os,
 }
 
-impl OptLevel {
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
+impl std::str::FromStr for OptLevel {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
             "1" | "o1" => OptLevel::O1,
             "2" | "o2" => OptLevel::O2,
             "s" | "os" => OptLevel::Os,
             _ => OptLevel::O0,
-        }
+        })
     }
 }
 
@@ -112,8 +114,7 @@ impl Optimizer {
                     let imm2 = (op2 & 0xFFFF) as u16;
 
                     // 第三个指令使用它们: OP rd, rd, rs
-                    if i + 2 < text.len() {
-                        if self.is_alu_op(op3_kind) {
+                    if i + 2 < text.len() && self.is_alu_op(op3_kind) {
                             let op3_rd = ((op3 >> 20) & 0x0F) as u8;
                             let op3_rs1 = ((op3 >> 16) & 0x0F) as u8;
                             let op3_rs2 = ((op3 >> 12) & 0x0F) as u8;
@@ -124,20 +125,23 @@ impl Optimizer {
 
                             // 对于 ADD/MUL 等交换律运算，操作数可交换
                             let is_commutative = matches!(
-                                op3_kind, opcode::ADD | opcode::MUL | opcode::AND
-                                    | opcode::OR | opcode::XOR
+                                op3_kind,
+                                opcode::ADD | opcode::MUL | opcode::AND | opcode::OR | opcode::XOR
                             );
                             if is_commutative {
                                 match_first = match_first || (op3_rs1 == rd1 && op3_rs2 == rd2);
                                 match_second = match_second || (op3_rs1 == rd2 && op3_rs2 == rd1);
                             }
 
-                            if match_first || match_second {
-                                if let Some(folded) = try_fold(op3_kind, imm1 as i64, imm2 as i64) {
+                            if (match_first || match_second)
+                                && let Some(folded) = try_fold(op3_kind, imm1 as i64, imm2 as i64) {
                                     let target_rd = op3_rd;
                                     if folded >= 0 && folded <= u16::MAX as i64 {
                                         result.push(isa::encode_r2i(
-                                            opcode::MOVI, target_rd, 0, folded as u16,
+                                            opcode::MOVI,
+                                            target_rd,
+                                            0,
+                                            folded as u16,
                                         ));
                                         self.stats.constant_folds += 1;
                                         i += 3;
@@ -147,8 +151,6 @@ impl Optimizer {
                             }
                         }
                     }
-                }
-            }
 
             result.push(text[i]);
             i += 1;
@@ -160,10 +162,19 @@ impl Optimizer {
     fn is_alu_op(&self, opcode: u8) -> bool {
         matches!(
             opcode,
-            opcode::ADD | opcode::SUB | opcode::MUL | opcode::DIV
-                | opcode::AND | opcode::OR | opcode::XOR
-                | opcode::SHL | opcode::SHR
-                | opcode::SEQ | opcode::SNE | opcode::SLT | opcode::SGT
+            opcode::ADD
+                | opcode::SUB
+                | opcode::MUL
+                | opcode::DIV
+                | opcode::AND
+                | opcode::OR
+                | opcode::XOR
+                | opcode::SHL
+                | opcode::SHR
+                | opcode::SEQ
+                | opcode::SNE
+                | opcode::SLT
+                | opcode::SGT
         )
     }
 
@@ -174,7 +185,9 @@ impl Optimizer {
     /// 死代码消除：从入口标记所有可达指令，未标记的移除。
     /// 入口 = 第一条指令（指令 0）。
     fn dead_code_eliminate(&mut self, text: &[u32]) -> Vec<u32> {
-        if text.is_empty() { return Vec::new(); }
+        if text.is_empty() {
+            return Vec::new();
+        }
 
         let n = text.len();
         let mut reachable = vec![false; n];
@@ -313,13 +326,21 @@ impl Optimizer {
                 let next_rs1 = ((next >> 16) & 0x0F) as u8;
                 let next_rs2 = ((next >> 12) & 0x0F) as u8;
                 // MOV rd, rs; ADD rd, R0, rs → 只保留 ADD
-                if next_op == opcode::ADD && next_rd == rd && next_rs1 == reg::ZERO as u8 && next_rs2 == rs {
+                if next_op == opcode::ADD
+                    && next_rd == rd
+                    && next_rs1 == reg::ZERO as u8
+                    && next_rs2 == rs
+                {
                     self.stats.peephole_applies += 1;
                     i += 1; // 跳过 MOV
                     continue;
                 }
                 // MOV rd, rs; ADD rd, rs, R0 → 只保留 ADD
-                if next_op == opcode::ADD && next_rd == rd && next_rs1 == rs && next_rs2 == reg::ZERO as u8 {
+                if next_op == opcode::ADD
+                    && next_rd == rd
+                    && next_rs1 == rs
+                    && next_rs2 == reg::ZERO as u8
+                {
                     self.stats.peephole_applies += 1;
                     i += 1;
                     continue;
@@ -385,7 +406,13 @@ fn try_fold(opcode: u8, a: i64, b: i64) -> Option<i64> {
         o if o == opcode::ADD => a.checked_add(b),
         o if o == opcode::SUB => a.checked_sub(b),
         o if o == opcode::MUL => a.checked_mul(b),
-        o if o == opcode::DIV => if b != 0 { a.checked_div(b) } else { None },
+        o if o == opcode::DIV => {
+            if b != 0 {
+                a.checked_div(b)
+            } else {
+                None
+            }
+        }
         o if o == opcode::AND => Some(a & b),
         o if o == opcode::OR => Some(a | b),
         o if o == opcode::XOR => Some(a ^ b),
@@ -415,7 +442,11 @@ mod tests {
 
     #[test]
     fn o0_no_change() {
-        let text = vec![make_movi(8, 2), make_movi(9, 3), make_r3(opcode::ADD, 10, 8, 9)];
+        let text = vec![
+            make_movi(8, 2),
+            make_movi(9, 3),
+            make_r3(opcode::ADD, 10, 8, 9),
+        ];
         let mut opt = Optimizer::new(OptLevel::O0);
         let result = opt.optimize(&text);
         assert_eq!(result.len(), 3);
@@ -424,7 +455,11 @@ mod tests {
     #[test]
     fn constant_fold_add() {
         // MOVI t0,2; MOVI t1,3; ADD t2,t0,t1 → MOVI t2,5
-        let text = vec![make_movi(8, 2), make_movi(9, 3), make_r3(opcode::ADD, 10, 8, 9)];
+        let text = vec![
+            make_movi(8, 2),
+            make_movi(9, 3),
+            make_r3(opcode::ADD, 10, 8, 9),
+        ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
         assert_eq!(result.len(), 1);
@@ -434,7 +469,11 @@ mod tests {
 
     #[test]
     fn constant_fold_mul() {
-        let text = vec![make_movi(8, 6), make_movi(9, 7), make_r3(opcode::MUL, 10, 8, 9)];
+        let text = vec![
+            make_movi(8, 6),
+            make_movi(9, 7),
+            make_r3(opcode::MUL, 10, 8, 9),
+        ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
         assert_eq!(result.len(), 1);
@@ -443,7 +482,11 @@ mod tests {
 
     #[test]
     fn constant_fold_commutative() {
-        let text = vec![make_movi(8, 3), make_movi(9, 4), make_r3(opcode::ADD, 10, 9, 8)];
+        let text = vec![
+            make_movi(8, 3),
+            make_movi(9, 4),
+            make_r3(opcode::ADD, 10, 9, 8),
+        ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
         assert_eq!(result.len(), 1);
@@ -455,10 +498,10 @@ mod tests {
         // JMP to end; NOP; NOP; NOP(end)
         // instr 0: JMP +3 → 跳转到 instr 3（从 instr 0 跳 3 条到 instr 3）
         let text = vec![
-            isa::encode_ji(opcode::JMP, 3),  // JMP到instr 3
-            make_movi(8, 42),                  // 不可达
-            make_movi(9, 99),                  // 不可达
-            make_movi(10, 1),                  // 可达（目标）
+            isa::encode_ji(opcode::JMP, 3), // JMP到instr 3
+            make_movi(8, 42),               // 不可达
+            make_movi(9, 99),               // 不可达
+            make_movi(10, 1),               // 可达（目标）
         ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
@@ -469,8 +512,11 @@ mod tests {
     fn fold_then_compare() {
         // 2 + 3 = 5, then SEQ 5, 5 → MOVI 1
         let text = vec![
-            make_movi(8, 2), make_movi(9, 3), make_r3(opcode::ADD, 10, 8, 9),
-            make_movi(11, 5), make_r3(opcode::SEQ, 12, 10, 11),
+            make_movi(8, 2),
+            make_movi(9, 3),
+            make_r3(opcode::ADD, 10, 8, 9),
+            make_movi(11, 5),
+            make_r3(opcode::SEQ, 12, 10, 11),
         ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
@@ -484,8 +530,8 @@ mod tests {
     fn peephole_mov_add_identity() {
         // MOV t0, t1; ADD t0, R0, t1 → 删除 MOV（ADD 会覆盖结果）
         let text = vec![
-            isa::encode_r3(opcode::MOV, 8, 9, 0, 0),  // MOV t0, t1
-            isa::encode_r3(opcode::ADD, 8, 0, 9, 0),   // ADD t0, R0, t1
+            isa::encode_r3(opcode::MOV, 8, 9, 0, 0), // MOV t0, t1
+            isa::encode_r3(opcode::ADD, 8, 0, 9, 0), // ADD t0, R0, t1
         ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
@@ -497,8 +543,8 @@ mod tests {
     fn peephole_jz_jmp_reversal() {
         // JZ t0, +4; JMP +8 → JNZ t0, +8; JMP +4
         let text = vec![
-            isa::encode_r1i(opcode::JZ, 8, 4),    // JZ t0, +4
-            isa::encode_ji(opcode::JMP, 8),        // JMP +8
+            isa::encode_r1i(opcode::JZ, 8, 4), // JZ t0, +4
+            isa::encode_ji(opcode::JMP, 8),    // JMP +8
         ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);
@@ -511,9 +557,9 @@ mod tests {
     fn peephole_jmp_kept_as_is() {
         // JMP +1; NOP; MOVI → DCE 可消除 NOP，窥孔不处理
         let text = vec![
-            isa::encode_ji(opcode::JMP, 2),     // JMP +2 → instr 2
-            make_movi(8, 42),                    // 不可达（DCE 消除）
-            make_movi(9, 99),                    // 目标（JMP 跳转到此）
+            isa::encode_ji(opcode::JMP, 2), // JMP +2 → instr 2
+            make_movi(8, 42),               // 不可达（DCE 消除）
+            make_movi(9, 99),               // 目标（JMP 跳转到此）
         ];
         let mut opt = Optimizer::new(OptLevel::O1);
         let result = opt.optimize(&text);

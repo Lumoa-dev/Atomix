@@ -270,11 +270,14 @@ impl Lexer {
 
         // 检查前导零（非零整数不允许前导零，但 0 本身合法）
         if first == '0' && digits.len() > 1 {
-            return self.error_token("前导零：整数不允许前导零（如 007），使用 `0x`/`0b`/`0o` 前缀替代", start);
+            return self.error_token(
+                "前导零：整数不允许前导零（如 007），使用 `0x`/`0b`/`0o` 前缀替代",
+                start,
+            );
         }
 
         // 浮点数（带小数点）
-        if self.peek() == Some('.') && self.peek_next().map_or(false, |c| c.is_ascii_digit()) {
+        if self.peek() == Some('.') && self.peek_next().is_some_and(|c| c.is_ascii_digit()) {
             self.advance(); // .
             digits.push('.');
             while let Some(ch) = self.peek() {
@@ -373,7 +376,7 @@ impl Lexer {
                         Some('x') => {
                             // \xHH
                             let hex = self.read_hex_escape(start);
-                            content.push(hex as u8 as char);
+                            content.push(hex as char);
                         }
                         Some(c) => {
                             self.errors.push(LexError::new(
@@ -450,8 +453,8 @@ impl Lexer {
                         Some('r') => text.push('\r'),
                         Some('\\') => text.push('\\'),
                         Some('"') => text.push('"'),
-                        Some('{') => text.push('{'),  // \{
-                        Some('}') => text.push('}'),  // \}
+                        Some('{') => text.push('{'), // \{
+                        Some('}') => text.push('}'), // \}
                         Some(c) => text.push(c),
                         None => {
                             self.errors.push(LexError::new(
@@ -882,10 +885,10 @@ mod tests {
             TokenKind::Neq,
             TokenKind::Lt,
             TokenKind::Gt,
-            TokenKind::ArrowL,  // <=
-            TokenKind::Ge,      // >=
-            TokenKind::Shl,     // <<
-            TokenKind::Shr,     // >>
+            TokenKind::ArrowL, // <=
+            TokenKind::Ge,     // >=
+            TokenKind::Shl,    // <<
+            TokenKind::Shr,    // >>
             TokenKind::Amp,
             TokenKind::Pipe,
             TokenKind::Caret,

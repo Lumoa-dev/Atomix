@@ -26,7 +26,7 @@ fn main() {
         "编译: {} → {}.atxe (优化: {})",
         args.source,
         args.output
-            .unwrap_or_else(|| format!("{}", args.source.replace(".atx", ""))),
+            .unwrap_or_else(|| args.source.replace(".atx", "").to_string()),
         args.opt_level
     );
     // TODO: Phase 1 完成后调用完整编译管线

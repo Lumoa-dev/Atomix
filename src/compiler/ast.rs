@@ -35,10 +35,7 @@ pub enum Expr {
         rhs: Box<Expr>,
     },
     /// 一元运算：op expr
-    Unary {
-        op: UnOp,
-        expr: Box<Expr>,
-    },
+    Unary { op: UnOp, expr: Box<Expr> },
     /// 标识符引用
     Ident(String),
     /// 整数字面量
@@ -58,24 +55,15 @@ pub enum Expr {
     /// 元组字面量 (expr, ...)
     Tuple(Vec<Expr>),
     /// 索引/下标访问 expr[index]
-    Index {
-        target: Box<Expr>,
-        index: Box<Expr>,
-    },
+    Index { target: Box<Expr>, index: Box<Expr> },
     /// 字段访问 expr.field
-    Dot {
-        target: Box<Expr>,
-        field: String,
-    },
+    Dot { target: Box<Expr>, field: String },
     /// `$` 管道变量
     Dollar,
     /// `$[key]` 管道变量属性
     DollarKey(String),
     /// 跨域引用 `DOMAIN :: name`
-    CrossRef {
-        domain: String,
-        name: String,
-    },
+    CrossRef { domain: String, name: String },
     /// 匿名函数 `do (params) [: ret] { body }`
     DoFn {
         params: Vec<FuncParam>,
@@ -83,10 +71,7 @@ pub enum Expr {
         body: Vec<Stmt>,
     },
     /// 函数调用（表达式上下文）
-    Call {
-        name: String,
-        args: Vec<Expr>,
-    },
+    Call { name: String, args: Vec<Expr> },
 }
 
 /// F-字符串片段。
@@ -99,24 +84,24 @@ pub enum FStringFragment {
 /// 二元运算符。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
-    Add,        // +
-    Sub,        // -
-    Mul,        // *
-    Div,        // /
-    Mod,        // %
-    And,        // and
-    Or,         // or
-    Eq,         // ==
-    Ne,         // !=
-    Lt,         // <
-    Gt,         // >
-    Le,         // <= (比较上下文)
-    Ge,         // >=
-    BitAnd,     // &
-    BitOr,      // |
-    BitXor,     // ^
-    Shl,        // <<
-    Shr,        // >>
+    Add,    // +
+    Sub,    // -
+    Mul,    // *
+    Div,    // /
+    Mod,    // %
+    And,    // and
+    Or,     // or
+    Eq,     // ==
+    Ne,     // !=
+    Lt,     // <
+    Gt,     // >
+    Le,     // <= (比较上下文)
+    Ge,     // >=
+    BitAnd, // &
+    BitOr,  // |
+    BitXor, // ^
+    Shl,    // <<
+    Shr,    // >>
 }
 
 /// 一元运算符。
@@ -186,32 +171,17 @@ pub enum Stmt {
         else_body: Option<Vec<Stmt>>,
     },
     /// FOR 循环
-    For {
-        cond: Expr,
-        body: Vec<Stmt>,
-    },
+    For { cond: Expr, body: Vec<Stmt> },
     /// BREAK [cond]
-    Break {
-        cond: Option<Expr>,
-    },
+    Break { cond: Option<Expr> },
     /// CONTINUE [cond]
-    Continue {
-        cond: Option<Expr>,
-    },
+    Continue { cond: Option<Expr> },
     /// ASSERT expr [, msg]
-    Assert {
-        cond: Expr,
-        msg: Option<String>,
-    },
+    Assert { cond: Expr, msg: Option<String> },
     /// RAISE expr [, msg]
-    Raise {
-        expr: Expr,
-        msg: Option<String>,
-    },
+    Raise { expr: Expr, msg: Option<String> },
     /// return [expr]
-    Return {
-        value: Option<Expr>,
-    },
+    Return { value: Option<Expr> },
     /// 语句块 { stmt* }
     Block(Vec<Stmt>),
     /// 函数定义（TOOLS/WORKS 中出现在语句位置）
@@ -366,7 +336,7 @@ pub struct WorksDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourceDecl {
-    pub source_kind: String,    // HTTP, FILES, JSON, ...
+    pub source_kind: String, // HTTP, FILES, JSON, ...
     pub address: String,
     pub params: Vec<(String, String)>,
     pub decorators: Vec<String>,

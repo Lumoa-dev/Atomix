@@ -7,8 +7,8 @@
 //!   Level 1: 区域级（TOOLS 函数名、WORKS 属性/方法、TASK 局部变量）
 //!   Level 2+: 块级（IF/FOR 体、TRY 块、匿名函数体）
 
-use std::collections::HashMap;
 use crate::compiler::ast::{FuncDef, TypeNode};
+use std::collections::HashMap;
 
 // ─── 符号种类 ──────────────────────────────────────────
 
@@ -230,7 +230,10 @@ mod tests {
         let mut st = SymbolTable::new();
         st.declare(Symbol::new("x".into(), SymbolKind::Variable))
             .unwrap();
-        assert!(st.declare(Symbol::new("x".into(), SymbolKind::Variable)).is_err());
+        assert!(
+            st.declare(Symbol::new("x".into(), SymbolKind::Variable))
+                .is_err()
+        );
     }
 
     #[test]

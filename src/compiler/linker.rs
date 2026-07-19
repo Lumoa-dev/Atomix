@@ -2,12 +2,12 @@
 //!
 //! 覆盖 04-编译管线.md §7 的链接规范。
 
-use std::collections::HashMap;
 use crate::base::ir::{AtxeBinary, Header};
 use crate::base::isa::{self, opcode};
 use crate::compiler::ast::ZoneKind;
 use crate::compiler::codegen::assembly::{self, ExnEntry};
 use crate::compiler::codegen::instr::InstrEmitter;
+use std::collections::HashMap;
 
 // ─── 链接器 ────────────────────────────────────────────
 
@@ -97,7 +97,9 @@ impl Linker {
 
     /// 闭包修剪：从 TASK 入口出发，标记所有可达指令。
     fn closure_prune(&self, text: &[u32]) -> Vec<u32> {
-        if text.is_empty() { return Vec::new(); }
+        if text.is_empty() {
+            return Vec::new();
+        }
 
         let n = text.len();
         let mut reachable = vec![false; n];
@@ -113,7 +115,8 @@ impl Linker {
         }
 
         // 收集可达指令
-        text.iter().enumerate()
+        text.iter()
+            .enumerate()
             .filter(|(i, _)| reachable[*i])
             .map(|(_, &instr)| instr)
             .collect()
@@ -155,7 +158,9 @@ impl Linker {
                     i += 1;
                 }
                 opcode::JMPR | opcode::THROW | opcode::TRAP => break,
-                _ => { i += 1; }
+                _ => {
+                    i += 1;
+                }
             }
         }
     }

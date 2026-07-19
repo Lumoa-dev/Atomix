@@ -208,7 +208,7 @@ pub type PReg = u8;
 /// Phase 1 简单实现：直接使用 T0-T5 临时寄存器。
 pub fn vreg_to_preg(vreg: VReg) -> PReg {
     if vreg < 6 {
-        (reg::T0 as usize + vreg) as PReg
+        (reg::T0 + vreg) as PReg
     } else {
         reg::TMP as PReg // 溢出使用 TMP
     }

@@ -5,13 +5,13 @@
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::reg;
+use crate::runner::VmState;
 use crate::runner::batch::BatchManager;
 use crate::runner::execute;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
 use crate::runner::slot::SlotManager;
 use crate::runner::task::{Task, TaskId, TaskStatus};
-use crate::runner::VmState;
 
 /// 调度器。管理多个任务的分时执行。
 pub struct Scheduler {
@@ -114,35 +114,39 @@ impl Scheduler {
             return Ok(());
         }
 
-        for (level, task_ids) in &levels {
+        for (_level, task_ids) in &levels {
             // 激活当前层级所有任务
             self.pool.activate_ready_tasks();
 
             // 更新 N_batch
             let n_ready = task_ids.len() as f64;
-            self.batch.set_pool_depth(n_ready + self.pool.len() as f64 * 0.5);
+            self.batch
+                .set_pool_depth(n_ready + self.pool.len() as f64 * 0.5);
             let decision = self.batch.compute_decision();
             let n_batch = if self.cold_start {
                 if self.cold_start_count >= 8 {
                     self.cold_start = false;
                     decision.n_batch as usize
-                } else { 2 }
-            } else { decision.n_batch as usize };
+                } else {
+                    2
+                }
+            } else {
+                decision.n_batch as usize
+            };
 
             // 将当前层级所有任务设为 Ready
             for &id in task_ids {
-                if let Some(task) = self.pool.get_mut(id) {
-                    if task.status == TaskStatus::Init {
-                        task.status = TaskStatus::Ready;
-                    }
+                if let Some(task) = self.pool.get_mut(id)
+                    && task.status == TaskStatus::Init
+                {
+                    task.status = TaskStatus::Ready;
                 }
             }
 
             // 循环执行当前层级任务直到全部完成
             let level_complete = |pool: &TaskPool, ids: &[TaskId]| -> bool {
-                ids.iter().all(|id| {
-                    pool.get(*id).map_or(false, |t| t.status.is_terminal())
-                })
+                ids.iter()
+                    .all(|id| pool.get(*id).is_some_and(|t| t.status.is_terminal()))
             };
 
             while !level_complete(&self.pool, task_ids) {
@@ -198,11 +202,11 @@ impl Scheduler {
     /// 则扩容内存后恢复为 Ready。
     fn recover_oom_tasks(&mut self) {
         // 收集所有 OOM-Suspended 任务的 ID
-        let oom_tasks: Vec<TaskId> = self.pool.all_tasks().iter()
-            .filter(|t| {
-                t.status == TaskStatus::Suspended
-                    && t.vm.join_waiting_for.is_none()
-            })
+        let oom_tasks: Vec<TaskId> = self
+            .pool
+            .all_tasks()
+            .iter()
+            .filter(|t| t.status == TaskStatus::Suspended && t.vm.join_waiting_for.is_none())
             .map(|t| t.id)
             .collect();
 
@@ -210,12 +214,15 @@ impl Scheduler {
             if let Some(task) = self.pool.get_mut(id) {
                 // 扩容 1.5 倍
                 let old_size = task.vm.memory.data.len();
-                let new_size = (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
+                let new_size =
+                    (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
                 task.vm.memory.data.resize(new_size, 0);
                 task.vm.memory.watermark_high = (new_size as u64) * 75 / 100;
-                task.vm.memory.usage = task.vm.memory.usage.min(
-                    (new_size as u64).saturating_sub(task.vm.memory.heap_base) * 50 / 100
-                );
+                task.vm.memory.usage = task
+                    .vm
+                    .memory
+                    .usage
+                    .min((new_size as u64).saturating_sub(task.vm.memory.heap_base) * 50 / 100);
                 task.vm.state = crate::runner::VmStateKind::Running;
                 task.status = TaskStatus::Ready;
             }
@@ -278,10 +285,7 @@ impl Scheduler {
         if let Some(done_id) = completed_id {
             self.pool.wake_joiners(done_id, retval);
             // 更新运行时统计（估算 wall_time 和 peak_mem）
-            self.batch.update_stats(
-                self.quantum as f64 * 0.001,
-                16.0,
-            );
+            self.batch.update_stats(self.quantum as f64 * 0.001, 16.0);
             if self.cold_start {
                 self.cold_start_count += 1;
             }
@@ -381,10 +385,7 @@ mod tests {
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 20),
             isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
         ];
-        let bytes = make_multi_task_atxe(
-            vec![task0, task1],
-            vec![(0, 0, vec![]), (1, 2, vec![0])],
-        );
+        let bytes = make_multi_task_atxe(vec![task0, task1], vec![(0, 0, vec![]), (1, 2, vec![0])]);
         let binary = AtxeBinary::from_bytes(&bytes).unwrap();
         let mut sched = Scheduler::from_atxe(&binary).unwrap();
         sched.run_all().unwrap();
@@ -457,7 +458,7 @@ mod tests {
         // 简化设计：让父子任务执行相同的代码路径
         // MOVI A0, 42; TASK_RET A0
         // 父任务 fork 后，子任务也从当前位置开始执行相同的指令
-        
+
         // 最简单的 fork 测试：父任务 fork child，child 自动运行然后完成
         // 但父子共享同一份代码——fork 时 child.pc = parent.pc + 1
         // 所以如果父任务指令是:
@@ -469,18 +470,18 @@ mod tests {
         // 子任务从 pc=2 (parent.pc+1=1+1=2) 开始：
         // 2: MOVI A0, 20
         // 3: TASK_RET A0     → 子任务返回 20
-        
+
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 10),  // 0: a0=10
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 10), // 0: a0=10
             isa::encode_r1i(opcode::TASK_FORK, reg::T0 as u8, 1), // 1: fork id=1
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 20),  // 2: a0=20
-            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),  // 3: ret
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 20), // 2: a0=20
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0), // 3: ret
         ];
         let bytes = make_multi_task_atxe(vec![text], vec![(0, 0, vec![])]);
         let binary = AtxeBinary::from_bytes(&bytes).unwrap();
         let mut sched = Scheduler::from_atxe(&binary).unwrap();
         sched.run_all().unwrap();
-        
+
         // 应有 2 个任务：父(0) + child(1)
         let results = sched.pool.results();
         assert_eq!(results.len(), 2, "should have parent + child");
@@ -501,14 +502,14 @@ mod tests {
         // 4: TASK_RET a0
         //
         // child 从 pc=2 (parent fork 时的 pc+1 = 1+1) 开始：
-        // 2: TASK_JOIN t1, t0  — child 没有 join_waiting_for，所以 join 的是... 
+        // 2: TASK_JOIN t1, t0  — child 没有 join_waiting_for，所以 join 的是...
         //     这个问题！child 也执行了 TASK_JOIN，但 t0 里存的是 0（没意义），
         //     join_waiting_for = Some(0) 但 id=0 的任务还在运行，会死锁。
         //
         // 需要让 child 不走 TASK_JOIN 路径。
         // 方案：child 和 parent 用不同的代码路径。
         // 但 fork 时 child.pc = parent.pc+1 = 1+1 = 2，即从 TASK_JOIN 开始执行。
-        // 
+        //
         // 不行，这样父子共享代码会出问题。
         //
         // 换个思路：把 child 的入口放在另一个位置。
@@ -518,7 +519,7 @@ mod tests {
         //
         // 最简测试：不用 JOIN，只验证 fork 产生子任务并行执行。
         // 或者在 fork 前先跳转到子程序，然后 fork，让 child 从子程序开始。
-        
+
         // 简化：让父子代码路径独立。
         // 父：MOVI t0, 42; TASK_FORK t1, 1; TASK_JOIN t2, t1; MOV a0, t2; TASK_RET a0
         // 子做独立的事情（MOVI a0, 99; TASK_RET a0）
@@ -535,15 +536,15 @@ mod tests {
         // 6: TASK_RET a0          (父任务返回)
 
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 0),   // 0: t0=0
+            isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 0), // 0: t0=0
             isa::encode_r1i(opcode::TASK_FORK, reg::T1 as u8, 1), // 1: fork id=1, handle→t1
             // child code (pc=2):
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 77),  // 2: a0=77
-            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),  // 3: ret→77
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 77), // 2: a0=77
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0), // 3: ret→77
             // parent resume (pc=4):
             isa::encode_r2i(opcode::TASK_JOIN, reg::T2 as u8, reg::T1 as u8, 0), // 4: join t1→t2
             isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T2 as u8, 0, 0),     // 5: a0=t2
-            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),                  // 6: ret
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),                 // 6: ret
         ];
         let bytes = make_multi_task_atxe(vec![text], vec![(0, 0, vec![])]);
         let binary = AtxeBinary::from_bytes(&bytes).unwrap();
@@ -588,7 +589,12 @@ mod tests {
         ];
         let bytes = make_multi_task_atxe(
             vec![t0, t1, t2, t3],
-            vec![(0, 0, vec![]), (1, 2, vec![]), (2, 4, vec![0, 1]), (3, 6, vec![2])],
+            vec![
+                (0, 0, vec![]),
+                (1, 2, vec![]),
+                (2, 4, vec![0, 1]),
+                (3, 6, vec![2]),
+            ],
         );
         let binary = AtxeBinary::from_bytes(&bytes).unwrap();
         let mut sched = Scheduler::from_atxe(&binary).unwrap();
@@ -600,9 +606,9 @@ mod tests {
             assert_eq!(*status, TaskStatus::Done);
         }
         // Verify values
-        assert_eq!(results.iter().find(|(id,..)| *id==0).unwrap().2, 10);
-        assert_eq!(results.iter().find(|(id,..)| *id==1).unwrap().2, 20);
-        assert_eq!(results.iter().find(|(id,..)| *id==2).unwrap().2, 30);
-        assert_eq!(results.iter().find(|(id,..)| *id==3).unwrap().2, 40);
+        assert_eq!(results.iter().find(|(id, ..)| *id == 0).unwrap().2, 10);
+        assert_eq!(results.iter().find(|(id, ..)| *id == 1).unwrap().2, 20);
+        assert_eq!(results.iter().find(|(id, ..)| *id == 2).unwrap().2, 30);
+        assert_eq!(results.iter().find(|(id, ..)| *id == 3).unwrap().2, 40);
     }
 }

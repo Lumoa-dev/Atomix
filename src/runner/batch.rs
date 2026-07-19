@@ -91,9 +91,9 @@ impl BatchManager {
             mem_per_task: 16.0,
             alpha_cpu: 0.75,
             alpha_mem,
-            mu_t: 500.0,       // 初始猜测 500ms
-            mu_m: 16.0,         // 初始猜测 16MB
-            sigma_t: 250.0,     // 初始猜测
+            mu_t: 500.0,    // 初始猜测 500ms
+            mu_m: 16.0,     // 初始猜测 16MB
+            sigma_t: 250.0, // 初始猜测
             pool_depth: 1.0,
             oom_count: 0,
             alpha_mem_current: alpha_mem,
@@ -128,7 +128,9 @@ impl BatchManager {
     /// 积压因子 β(d)：d→0 → 1.00，d=1.5 → 0.75，d→∞ → 0.50
     pub fn factor_beta(&self) -> f64 {
         let h = self.compute_hard_ceiling();
-        if h <= 0.0 { return 0.50; }
+        if h <= 0.0 {
+            return 0.50;
+        }
         let d = self.pool_depth / h;
         0.50 + 0.50 / (1.0 + f64::exp(5.0 * (d - 1.5)))
     }
@@ -215,8 +217,7 @@ impl BatchManager {
     pub fn update_stats(&mut self, task_time_ms: f64, task_mem_mb: f64) {
         let alpha = 0.3;
         self.mu_t = self.mu_t * (1.0 - alpha) + task_time_ms * alpha;
-        self.sigma_t = self.sigma_t * (1.0 - alpha)
-            + (task_time_ms - self.mu_t).abs() * alpha;
+        self.sigma_t = self.sigma_t * (1.0 - alpha) + (task_time_ms - self.mu_t).abs() * alpha;
         self.mu_m = self.mu_m * (1.0 - alpha) + task_mem_mb * alpha;
     }
 

@@ -15,8 +15,8 @@
 
 use crate::compiler::ast::*;
 use crate::compiler::symbol::*;
-use crate::compiler::type_checker::TypeChecker;
 use crate::compiler::token::Span;
+use crate::compiler::type_checker::TypeChecker;
 
 // ─── 语义错误 ──────────────────────────────────────────
 
@@ -152,21 +152,23 @@ impl SemanticAnalyzer {
         self.analyze_reachability(&ordered);
 
         // 阶段 5: 区外 + TOOLS 常驻
-        self.zones.insert(0, ZoneInfo {
-            kind: ZoneKind::Tools,
-            name: None,
-            body: Vec::new(),
-            lifecycle: Lifecycle::Persistent,
-            is_pruned: false,
-        });
+        self.zones.insert(
+            0,
+            ZoneInfo {
+                kind: ZoneKind::Tools,
+                name: None,
+                body: Vec::new(),
+                lifecycle: Lifecycle::Persistent,
+                is_pruned: false,
+            },
+        );
 
         // 合并所有错误
-        self.errors.extend(
-            self.type_checker.errors.drain(..).map(|e| SemanticError {
+        self.errors
+            .extend(self.type_checker.errors.drain(..).map(|e| SemanticError {
                 message: e.message,
                 span: None,
-            }),
-        );
+            }));
 
         self.errors.is_empty()
     }
@@ -181,7 +183,12 @@ impl SemanticAnalyzer {
         let mut ordered = Vec::new();
 
         // 固定顺序：TOOLS → INPUT → TASK → OUT
-        for kind in &[ZoneKind::Tools, ZoneKind::Input, ZoneKind::Task, ZoneKind::Out] {
+        for kind in &[
+            ZoneKind::Tools,
+            ZoneKind::Input,
+            ZoneKind::Task,
+            ZoneKind::Out,
+        ] {
             if let Some(pos) = remaining.iter().position(|z| z.kind == *kind) {
                 ordered.push(remaining.remove(pos));
             }
@@ -199,9 +206,10 @@ impl SemanticAnalyzer {
     fn register_file_level(&mut self, file: &FileAst) {
         // 第一遍：注册 EXCEPTION
         for exc in &file.exception_defs {
-            if let Err(e) = self.symbols.declare(
-                Symbol::new(exc.name.clone(), SymbolKind::Exception),
-            ) {
+            if let Err(e) = self
+                .symbols
+                .declare(Symbol::new(exc.name.clone(), SymbolKind::Exception))
+            {
                 self.errors.push(SemanticError::new(e));
             }
         }
@@ -211,10 +219,10 @@ impl SemanticAnalyzer {
 
         // enum
         for enm in &file.enum_defs {
-            if let Err(e) = self.symbols.declare(
-                Symbol::new(enm.name.clone(), SymbolKind::Type)
-                    .with_type(Type::Int),
-            ) {
+            if let Err(e) = self
+                .symbols
+                .declare(Symbol::new(enm.name.clone(), SymbolKind::Type).with_type(Type::Int))
+            {
                 self.errors.push(SemanticError::new(e));
             }
         }
@@ -222,10 +230,10 @@ impl SemanticAnalyzer {
         // type 别名
         for alias in &file.type_aliases {
             let resolved = resolve_type(&alias.target);
-            if let Err(e) = self.symbols.declare(
-                Symbol::new(alias.name.clone(), SymbolKind::Type)
-                    .with_type(resolved),
-            ) {
+            if let Err(e) = self
+                .symbols
+                .declare(Symbol::new(alias.name.clone(), SymbolKind::Type).with_type(resolved))
+            {
                 self.errors.push(SemanticError::new(e));
             }
         }
@@ -240,8 +248,8 @@ impl SemanticAnalyzer {
         // 第一遍：注册函数签名（全局可见，Level 0）
         for stmt in &zone.body {
             if let Stmt::FnDef(func) = stmt {
-                let mut sym = Symbol::new(func.name.clone(), SymbolKind::Function)
-                    .with_public(func.is_pub);
+                let mut sym =
+                    Symbol::new(func.name.clone(), SymbolKind::Function).with_public(func.is_pub);
                 if let Some(ret) = &func.ret_type {
                     sym = sym.with_type(resolve_type(ret));
                 } else {
@@ -276,12 +284,13 @@ impl SemanticAnalyzer {
 
         for exc in defs {
             // 父异常存在性检查
-            if let Some(parent) = &exc.parent {
-                if !self.symbols.contains(parent) {
-                    self.errors.push(SemanticError::new(
-                        format!("EXCEPTION `{}` 的父异常 `{parent}` 未定义", exc.name),
-                    ));
-                }
+            if let Some(parent) = &exc.parent
+                && !self.symbols.contains(parent)
+            {
+                self.errors.push(SemanticError::new(format!(
+                    "EXCEPTION `{}` 的父异常 `{parent}` 未定义",
+                    exc.name
+                )));
             }
 
             // 循环继承检测（沿父链向上走，看是否能回到自己）
@@ -290,9 +299,10 @@ impl SemanticAnalyzer {
             visited.insert(current);
             while let Some(parent) = parents.get(current) {
                 if visited.contains(parent) {
-                    self.errors.push(SemanticError::new(
-                        format!("EXCEPTION 循环继承: `{}` 和 `{parent}`", exc.name),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "EXCEPTION 循环继承: `{}` 和 `{parent}`",
+                        exc.name
+                    )));
                     break;
                 }
                 visited.insert(parent);
@@ -308,7 +318,9 @@ impl SemanticAnalyzer {
     /// 验证跨域引用方向是否合法。
     /// 数据流单向：TOOLS → INPUT → WORKS → TASK → OUT
     fn check_cross_ref_direction(&mut self, domain: &str) {
-        let Some(from) = self.current_zone else { return };
+        let Some(from) = self.current_zone else {
+            return;
+        };
 
         let domain_lower = domain.to_lowercase();
         let to = match domain_lower.as_str() {
@@ -339,9 +351,9 @@ impl SemanticAnalyzer {
         };
 
         if !valid {
-            self.errors.push(SemanticError::new(
-                format!("跨域引用方向非法：{domain} 不可从当前区域引用"),
-            ));
+            self.errors.push(SemanticError::new(format!(
+                "跨域引用方向非法：{domain} 不可从当前区域引用"
+            )));
         }
     }
 
@@ -353,15 +365,18 @@ impl SemanticAnalyzer {
         for param in &func.params {
             let param_type = resolve_type(&param.type_ann);
             if let Err(e) = self.symbols.declare(
-                Symbol::new(param.name.clone(), SymbolKind::Variable)
-                    .with_type(param_type),
+                Symbol::new(param.name.clone(), SymbolKind::Variable).with_type(param_type),
             ) {
                 self.errors.push(SemanticError::new(e));
             }
         }
 
         // 检查函数体语句
-        let _return_type = func.ret_type.as_ref().map(|t| resolve_type(t)).unwrap_or(Type::Void);
+        let _return_type = func
+            .ret_type
+            .as_ref()
+            .map(resolve_type)
+            .unwrap_or(Type::Void);
         self.check_stmts(&func.body);
 
         self.symbols.pop_scope();
@@ -375,21 +390,26 @@ impl SemanticAnalyzer {
         self.current_zone = Some(ZoneKind::Input);
         for stmt in &zone.body {
             match stmt {
-                Stmt::Let { name, type_ann, init } => {
+                Stmt::Let {
+                    name,
+                    type_ann,
+                    init,
+                } => {
                     let t = resolve_type(type_ann);
                     // 验证初始值类型匹配标注
                     let val_type = self.infer_expr_type(init);
                     self.type_checker.check_annotation(&t, &val_type, name);
                     // INPUT 常量全局可见（Level 0）
-                    if let Err(e) = self.symbols.declare(
-                        Symbol::new(name.clone(), SymbolKind::Const).with_type(t),
-                    ) {
+                    if let Err(e) = self
+                        .symbols
+                        .declare(Symbol::new(name.clone(), SymbolKind::Const).with_type(t))
+                    {
                         self.errors.push(SemanticError::new(e));
                     }
                 }
                 Stmt::Call { .. } | Stmt::Wait { .. } | Stmt::If { .. } | Stmt::For { .. } => {
                     self.errors.push(SemanticError::new(
-                        format!("INPUT 区不允许控制流或调用语句"),
+                        "INPUT 区不允许控制流或调用语句".to_string(),
                     ));
                 }
                 _ => {
@@ -403,19 +423,22 @@ impl SemanticAnalyzer {
             // 验证装饰器标识符引用已注册的 TOOLS 函数
             for deco in &decl.decorators {
                 if !self.symbols.contains(deco) {
-                    self.errors.push(SemanticError::new(
-                        format!("装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"
+                    )));
                 }
             }
             // 如果有 target 变量，注册为常量
             if let Some(target) = &decl.target {
-                let t = target.type_ann.as_ref()
-                    .map(|tn| resolve_type(tn))
+                let t = target
+                    .type_ann
+                    .as_ref()
+                    .map(resolve_type)
                     .unwrap_or(Type::Any);
-                if let Err(e) = self.symbols.declare(
-                    Symbol::new(target.var_name.clone(), SymbolKind::Const).with_type(t),
-                ) {
+                if let Err(e) = self
+                    .symbols
+                    .declare(Symbol::new(target.var_name.clone(), SymbolKind::Const).with_type(t))
+                {
                     self.errors.push(SemanticError::new(e));
                 }
             }
@@ -433,7 +456,9 @@ impl SemanticAnalyzer {
         self.check_stmts(&zone.body);
 
         // 收集当前作用域中的 GOOUT 变量
-        let goouts: Vec<Symbol> = self.symbols.current_scope()
+        let goouts: Vec<Symbol> = self
+            .symbols
+            .current_scope()
             .filter(|(_, s)| s.is_goout)
             .map(|(_, s)| s.clone())
             .collect();
@@ -460,14 +485,14 @@ impl SemanticAnalyzer {
                     // 验证引用的变量是 GOOUT 声明的
                     match self.symbols.lookup(func_name) {
                         Some(sym) if !sym.is_goout => {
-                            self.errors.push(SemanticError::new(
-                                format!("OUT 区引用的 `{func_name}` 不是 GOOUT 变量"),
-                            ));
+                            self.errors.push(SemanticError::new(format!(
+                                "OUT 区引用的 `{func_name}` 不是 GOOUT 变量"
+                            )));
                         }
                         None => {
-                            self.errors.push(SemanticError::new(
-                                format!("OUT 区引用的 `{func_name}` 未定义"),
-                            ));
+                            self.errors.push(SemanticError::new(format!(
+                                "OUT 区引用的 `{func_name}` 未定义"
+                            )));
                         }
                         _ => {} // GOOUT 变量，通过
                     }
@@ -476,9 +501,8 @@ impl SemanticAnalyzer {
                     // OUT 区允许 Let 声明（临时变量）
                 }
                 _ => {
-                    self.errors.push(SemanticError::new(
-                        "OUT 区内此语句类型不允许",
-                    ));
+                    self.errors
+                        .push(SemanticError::new("OUT 区内此语句类型不允许"));
                 }
             }
         }
@@ -488,23 +512,25 @@ impl SemanticAnalyzer {
             // 验证源变量是 GOOUT 声明的
             match self.symbols.lookup(&decl.source_var) {
                 Some(sym) if !sym.is_goout => {
-                    self.errors.push(SemanticError::new(
-                        format!("OUT 区引用的 `{}` 不是 GOOUT 变量", decl.source_var),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "OUT 区引用的 `{}` 不是 GOOUT 变量",
+                        decl.source_var
+                    )));
                 }
                 None => {
-                    self.errors.push(SemanticError::new(
-                        format!("OUT 区引用的 `{}` 未定义", decl.source_var),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "OUT 区引用的 `{}` 未定义",
+                        decl.source_var
+                    )));
                 }
                 _ => {}
             }
             // 验证装饰器标识符引用已注册的 TOOLS 函数
             for deco in &decl.decorators {
                 if !self.symbols.contains(deco) {
-                    self.errors.push(SemanticError::new(
-                        format!("装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"
+                    )));
                 }
             }
         }
@@ -538,7 +564,11 @@ impl SemanticAnalyzer {
     }
 
     /// 递归收集语句中的所有 CALL/WAIT 目标名。
-    fn collect_call_targets(&self, stmts: &[Stmt], targets: &mut std::collections::HashSet<String>) {
+    fn collect_call_targets(
+        &self,
+        stmts: &[Stmt],
+        targets: &mut std::collections::HashSet<String>,
+    ) {
         for stmt in stmts {
             match stmt {
                 Stmt::Call { func_name, .. } => {
@@ -551,7 +581,12 @@ impl SemanticAnalyzer {
                 Stmt::Wait { template, .. } => {
                     targets.insert(template.clone());
                 }
-                Stmt::If { body, elifs, else_body, .. } => {
+                Stmt::If {
+                    body,
+                    elifs,
+                    else_body,
+                    ..
+                } => {
                     self.collect_call_targets(body, targets);
                     for (_, eb) in elifs {
                         self.collect_call_targets(eb, targets);
@@ -583,7 +618,10 @@ impl SemanticAnalyzer {
         if type_args.is_empty() {
             return func_name.to_string();
         }
-        let type_suffix: Vec<String> = type_args.iter().map(|t| format!("{:?}", t).to_lowercase()).collect();
+        let type_suffix: Vec<String> = type_args
+            .iter()
+            .map(|t| format!("{:?}", t).to_lowercase())
+            .collect();
         format!("{}::{}", func_name, type_suffix.join("_"))
     }
 
@@ -594,7 +632,11 @@ impl SemanticAnalyzer {
         type_args: &[Type],
         original: &FuncDef,
     ) -> String {
-        let key = type_args.iter().map(|t| format!("{:?}", t)).collect::<Vec<_>>().join(",");
+        let key = type_args
+            .iter()
+            .map(|t| format!("{:?}", t))
+            .collect::<Vec<_>>()
+            .join(",");
         let map_key = (func_name.to_string(), key.clone());
 
         if let Some(existing) = self.monomorphizations.get(&map_key) {
@@ -624,9 +666,9 @@ impl SemanticAnalyzer {
         // 替换函数体内所有类型标注
         substitute_types_in_stmts(&mut mono_func.body, &param_names, type_args);
 
-        let ret_type = mono_func.ret_type.as_ref().map(|t| resolve_type(t));
-        let mut sym = Symbol::new(mono_name.clone(), SymbolKind::Function)
-            .with_public(original.is_pub);
+        let ret_type = mono_func.ret_type.as_ref().map(resolve_type);
+        let mut sym =
+            Symbol::new(mono_name.clone(), SymbolKind::Function).with_public(original.is_pub);
         if let Some(rt) = ret_type {
             sym = sym.with_type(rt);
         } else {
@@ -644,9 +686,12 @@ impl SemanticAnalyzer {
     fn match_type_params(&self, func_def: &FuncDef, arg_types: &[Type]) -> Vec<Type> {
         let param_set: std::collections::HashSet<&str> =
             func_def.type_params.iter().map(|s| s.as_str()).collect();
-        let mut type_map: std::collections::HashMap<String, Type> = std::collections::HashMap::new();
+        let mut type_map: std::collections::HashMap<String, Type> =
+            std::collections::HashMap::new();
         for (i, param) in func_def.params.iter().enumerate() {
-            if i >= arg_types.len() { break; }
+            if i >= arg_types.len() {
+                break;
+            }
             let type_param_name = match &param.type_ann {
                 TypeNode::GenericParam(name) => Some(name.clone()),
                 TypeNode::Named(name) if param_set.contains(name.as_str()) => Some(name.clone()),
@@ -679,16 +724,22 @@ impl SemanticAnalyzer {
     }
 
     /// 递归遍历语句体，替换泛型调用。
-    fn rename_generic_calls_in_body(&mut self, body: &mut Vec<Stmt>) {
+    fn rename_generic_calls_in_body(&mut self, body: &mut [Stmt]) {
         // 先收集所有需要改名的调用信息，避免借用冲突
         let mut pending: Vec<PendingCall> = Vec::new();
         for stmt in body.iter() {
-            if let Stmt::Call { func_name, args, .. } = stmt {
-                let func_def_opt = self.symbols.lookup(func_name)
+            if let Stmt::Call {
+                func_name, args, ..
+            } = stmt
+            {
+                let func_def_opt = self
+                    .symbols
+                    .lookup(func_name)
                     .and_then(|sym| sym.func_def.clone());
-                if let Some(func_def) = func_def_opt {
-                    if !func_def.type_params.is_empty() {
-                        let arg_types: Vec<Type> = args.iter()
+                if let Some(func_def) = func_def_opt
+                    && !func_def.type_params.is_empty() {
+                        let arg_types: Vec<Type> = args
+                            .iter()
                             .map(|a| self.type_checker.infer_expr(a, &self.symbols))
                             .collect();
                         pending.push(PendingCall {
@@ -697,15 +748,14 @@ impl SemanticAnalyzer {
                             arg_types,
                         });
                     }
-                }
             }
         }
         // 注册单态化并记录改名映射
         let mut call_renames: Vec<(String, String)> = Vec::new();
         for item in &pending {
             let concrete_types = self.match_type_params(&item.func_def, &item.arg_types);
-            let mono_name = self.register_monomorphization(
-                &item.old_name, &concrete_types, &item.func_def);
+            let mono_name =
+                self.register_monomorphization(&item.old_name, &concrete_types, &item.func_def);
             call_renames.push((item.old_name.clone(), mono_name));
         }
         drop(pending); // 释放 pending 以便后续可变借用
@@ -724,7 +774,13 @@ impl SemanticAnalyzer {
                 Stmt::Let { init, .. } | Stmt::Const { init, .. } | Stmt::Goout { init, .. } => {
                     self.rename_generic_calls_in_expr(init);
                 }
-                Stmt::If { cond, body: b, elifs, else_body, .. } => {
+                Stmt::If {
+                    cond,
+                    body: b,
+                    elifs,
+                    else_body,
+                    ..
+                } => {
                     self.rename_generic_calls_in_expr(cond);
                     self.rename_generic_calls_in_body(b);
                     for (ec, eb) in elifs.iter_mut() {
@@ -745,19 +801,17 @@ impl SemanticAnalyzer {
                 Stmt::FnDef(f) => {
                     self.rename_generic_calls_in_body(&mut f.body);
                 }
-                Stmt::Return { value } => {
-                    if let Some(v) = value {
-                        self.rename_generic_calls_in_expr(v);
-                    }
+                Stmt::Return { value: Some(v) } => {
+                    self.rename_generic_calls_in_expr(v);
                 }
+                Stmt::Return { value: None } => {}
                 Stmt::Assert { cond, .. } | Stmt::Raise { expr: cond, .. } => {
                     self.rename_generic_calls_in_expr(cond);
                 }
-                Stmt::Break { cond } | Stmt::Continue { cond } => {
-                    if let Some(c) = cond {
-                        self.rename_generic_calls_in_expr(c);
-                    }
+                Stmt::Break { cond: Some(c) } | Stmt::Continue { cond: Some(c) } => {
+                    self.rename_generic_calls_in_expr(c);
                 }
+                Stmt::Break { cond: None } | Stmt::Continue { cond: None } => {}
                 Stmt::Wait { overrides, .. } => {
                     for (_, val) in overrides.iter_mut() {
                         self.rename_generic_calls_in_expr(val);
@@ -826,8 +880,8 @@ impl SemanticAnalyzer {
         // 第二遍：注册单态化
         for item in &pending {
             let concrete_types = self.match_type_params(&item.func_def, &item.arg_types);
-            let mono_name = self.register_monomorphization(
-                &item.old_name, &concrete_types, &item.func_def);
+            let mono_name =
+                self.register_monomorphization(&item.old_name, &concrete_types, &item.func_def);
             renames.push((item.old_name.clone(), mono_name));
         }
     }
@@ -835,11 +889,14 @@ impl SemanticAnalyzer {
     /// 递归收集表达式中的泛型调用信息。
     fn gather_generic_expr_calls(&mut self, expr: &Expr, pending: &mut Vec<PendingCall>) {
         if let Expr::Call { name, args } = expr {
-            let func_def_opt = self.symbols.lookup(name)
+            let func_def_opt = self
+                .symbols
+                .lookup(name)
                 .and_then(|sym| sym.func_def.clone());
-            if let Some(func_def) = func_def_opt {
-                if !func_def.type_params.is_empty() {
-                    let arg_types: Vec<Type> = args.iter()
+            if let Some(func_def) = func_def_opt
+                && !func_def.type_params.is_empty() {
+                    let arg_types: Vec<Type> = args
+                        .iter()
                         .map(|a| self.type_checker.infer_expr(a, &self.symbols))
                         .collect();
                     pending.push(PendingCall {
@@ -849,7 +906,6 @@ impl SemanticAnalyzer {
                     });
                 }
             }
-        }
         match expr {
             Expr::Binary { lhs, rhs, .. } => {
                 self.gather_generic_expr_calls(lhs, pending);
@@ -941,9 +997,9 @@ impl SemanticAnalyzer {
             match &h.filter {
                 TryFilter::IsError(err_type) => {
                     if !self.symbols.contains(err_type) {
-                        self.errors.push(SemanticError::new(
-                            format!("TRY 引用的异常类型 `{err_type}` 未定义"),
-                        ));
+                        self.errors.push(SemanticError::new(format!(
+                            "TRY 引用的异常类型 `{err_type}` 未定义"
+                        )));
                     }
                 }
                 TryFilter::IsTimeout(_) => {
@@ -978,7 +1034,9 @@ impl SemanticAnalyzer {
             }
             Expr::Unary { expr: inner, .. } => self.validate_expr_refs(inner),
             Expr::List(items) => {
-                for item in items { self.validate_expr_refs(item); }
+                for item in items {
+                    self.validate_expr_refs(item);
+                }
             }
             Expr::Dict(entries) => {
                 for (k, v) in entries {
@@ -987,7 +1045,9 @@ impl SemanticAnalyzer {
                 }
             }
             Expr::Tuple(items) => {
-                for item in items { self.validate_expr_refs(item); }
+                for item in items {
+                    self.validate_expr_refs(item);
+                }
             }
             Expr::Index { target, index } => {
                 self.validate_expr_refs(target);
@@ -995,7 +1055,9 @@ impl SemanticAnalyzer {
             }
             Expr::Dot { target, .. } => self.validate_expr_refs(target),
             Expr::Call { args, .. } => {
-                for arg in args { self.validate_expr_refs(arg); }
+                for arg in args {
+                    self.validate_expr_refs(arg);
+                }
             }
             Expr::DoFn { body, .. } => {
                 // DoFn body is Vec<Stmt>, not Expr — skip for now
@@ -1013,38 +1075,54 @@ impl SemanticAnalyzer {
 
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { name, type_ann, init } => {
+            Stmt::Let {
+                name,
+                type_ann,
+                init,
+            } => {
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
-                self.type_checker.check_annotation(&ann_type, &val_type, name);
-                if let Err(e) = self.symbols.declare(
-                    Symbol::new(name.clone(), SymbolKind::Variable).with_type(ann_type),
-                ) {
+                self.type_checker
+                    .check_annotation(&ann_type, &val_type, name);
+                if let Err(e) = self
+                    .symbols
+                    .declare(Symbol::new(name.clone(), SymbolKind::Variable).with_type(ann_type))
+                {
                     self.errors.push(SemanticError::new(e));
                 }
             }
 
-            Stmt::Const { name, type_ann, init } => {
+            Stmt::Const {
+                name,
+                type_ann,
+                init,
+            } => {
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
-                self.type_checker.check_annotation(&ann_type, &val_type, name);
-                if let Err(e) = self.symbols.declare(
-                    Symbol::new(name.clone(), SymbolKind::Const).with_type(ann_type),
-                ) {
+                self.type_checker
+                    .check_annotation(&ann_type, &val_type, name);
+                if let Err(e) = self
+                    .symbols
+                    .declare(Symbol::new(name.clone(), SymbolKind::Const).with_type(ann_type))
+                {
                     self.errors.push(SemanticError::new(e));
                 }
             }
 
-            Stmt::Goout { name, type_ann, init } => {
+            Stmt::Goout {
+                name,
+                type_ann,
+                init,
+            } => {
                 // GOOUT 只能在 TASK 区使用
                 if self.current_zone != Some(ZoneKind::Task) {
-                    self.errors.push(SemanticError::new(
-                        format!("GOOUT 只能在 TASK 区使用"),
-                    ));
+                    self.errors
+                        .push(SemanticError::new("GOOUT 只能在 TASK 区使用".to_string()));
                 }
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
-                self.type_checker.check_annotation(&ann_type, &val_type, name);
+                self.type_checker
+                    .check_annotation(&ann_type, &val_type, name);
                 if let Err(e) = self.symbols.declare(
                     Symbol::new(name.clone(), SymbolKind::Variable)
                         .with_type(ann_type)
@@ -1054,24 +1132,33 @@ impl SemanticAnalyzer {
                 }
             }
 
-            Stmt::Call { func_name, args, try_handler, .. } => {
+            Stmt::Call {
+                func_name,
+                args,
+                try_handler,
+                ..
+            } => {
                 self.check_call_target_ref(func_name);
                 if !self.symbols.contains(func_name) {
-                    self.errors.push(SemanticError::new(
-                        format!("未定义的函数 `{func_name}`"),
-                    ));
+                    self.errors
+                        .push(SemanticError::new(format!("未定义的函数 `{func_name}`")));
                 }
                 let _arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
                 // 验证 TRY handler
                 self.validate_try_handler(try_handler);
             }
 
-            Stmt::Wait { template, overrides, try_handler, .. } => {
+            Stmt::Wait {
+                template,
+                overrides,
+                try_handler,
+                ..
+            } => {
                 self.check_call_target_ref(template);
                 if !self.symbols.contains(template) {
-                    self.errors.push(SemanticError::new(
-                        format!("未定义的 WORKS 模板 `{template}`"),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "未定义的 WORKS 模板 `{template}`"
+                    )));
                 }
                 for (name, val) in overrides {
                     let _val_type = self.infer_expr_type(val);
@@ -1080,12 +1167,18 @@ impl SemanticAnalyzer {
                 self.validate_try_handler(try_handler);
             }
 
-            Stmt::If { cond, body, elifs, else_body } => {
+            Stmt::If {
+                cond,
+                body,
+                elifs,
+                else_body,
+            } => {
                 let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
-                    self.errors.push(SemanticError::new(
-                        format!("IF 条件必须为 bool，得到 {:?}", cond_type),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "IF 条件必须为 bool，得到 {:?}",
+                        cond_type
+                    )));
                 }
                 self.symbols.push_scope();
                 self.check_stmts(body);
@@ -1094,9 +1187,10 @@ impl SemanticAnalyzer {
                 for (elif_cond, elif_body) in elifs {
                     let et = self.infer_expr_type(elif_cond);
                     if et != Type::Bool && et != Type::Any {
-                        self.errors.push(SemanticError::new(
-                            format!("ELIF 条件必须为 bool，得到 {:?}", et),
-                        ));
+                        self.errors.push(SemanticError::new(format!(
+                            "ELIF 条件必须为 bool，得到 {:?}",
+                            et
+                        )));
                     }
                     self.symbols.push_scope();
                     self.check_stmts(elif_body);
@@ -1113,9 +1207,10 @@ impl SemanticAnalyzer {
             Stmt::For { cond, body } => {
                 let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
-                    self.errors.push(SemanticError::new(
-                        format!("FOR 条件必须为 bool，得到 {:?}", cond_type),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "FOR 条件必须为 bool，得到 {:?}",
+                        cond_type
+                    )));
                 }
                 self.symbols.push_scope();
                 self.check_stmts(body);
@@ -1126,9 +1221,10 @@ impl SemanticAnalyzer {
                 if let Some(c) = cond {
                     let ct = self.infer_expr_type(c);
                     if ct != Type::Bool && ct != Type::Any {
-                        self.errors.push(SemanticError::new(
-                            format!("BREAK/CONTINUE 条件必须为 bool，得到 {:?}", ct),
-                        ));
+                        self.errors.push(SemanticError::new(format!(
+                            "BREAK/CONTINUE 条件必须为 bool，得到 {:?}",
+                            ct
+                        )));
                     }
                 }
             }
@@ -1136,9 +1232,10 @@ impl SemanticAnalyzer {
             Stmt::Assert { cond, .. } => {
                 let ct = self.infer_expr_type(cond);
                 if ct != Type::Bool && ct != Type::Any {
-                    self.errors.push(SemanticError::new(
-                        format!("ASSERT 条件必须为 bool，得到 {:?}", ct),
-                    ));
+                    self.errors.push(SemanticError::new(format!(
+                        "ASSERT 条件必须为 bool，得到 {:?}",
+                        ct
+                    )));
                 }
             }
 
@@ -1199,8 +1296,13 @@ fn type_node_from_type(t: &Type) -> Box<TypeNode> {
         Type::Bytes => Box::new(TypeNode::Base("bytes".into())),
         Type::Duration => Box::new(TypeNode::Base("duration".into())),
         Type::List(inner) => Box::new(TypeNode::List(type_node_from_type(inner))),
-        Type::Dict(k, v) => Box::new(TypeNode::Dict(type_node_from_type(k), type_node_from_type(v))),
-        Type::Tuple(types) => Box::new(TypeNode::Tuple(types.iter().map(|t| *type_node_from_type(t)).collect())),
+        Type::Dict(k, v) => Box::new(TypeNode::Dict(
+            type_node_from_type(k),
+            type_node_from_type(v),
+        )),
+        Type::Tuple(types) => Box::new(TypeNode::Tuple(
+            types.iter().map(|t| *type_node_from_type(t)).collect(),
+        )),
         Type::Named(name) => Box::new(TypeNode::Named(name.clone())),
         _ => Box::new(TypeNode::Base("any".into())),
     }
@@ -1241,15 +1343,26 @@ fn substitute_type_node(node: &mut TypeNode, param_names: &[&str], concrete_type
 }
 
 /// 递归遍历语句体，替换所有类型标注中的泛型参数。
-fn substitute_types_in_stmts(stmts: &mut Vec<Stmt>, param_names: &[&str], concrete_types: &[Type]) {
+fn substitute_types_in_stmts(stmts: &mut [Stmt], param_names: &[&str], concrete_types: &[Type]) {
     for stmt in stmts.iter_mut() {
         match stmt {
-            Stmt::Let { type_ann, init: _, .. }
-            | Stmt::Const { type_ann, init: _, .. }
-            | Stmt::Goout { type_ann, init: _, .. } => {
+            Stmt::Let {
+                type_ann, init: _, ..
+            }
+            | Stmt::Const {
+                type_ann, init: _, ..
+            }
+            | Stmt::Goout {
+                type_ann, init: _, ..
+            } => {
                 substitute_type_node(type_ann, param_names, concrete_types);
             }
-            Stmt::If { body, elifs, else_body, .. } => {
+            Stmt::If {
+                body,
+                elifs,
+                else_body,
+                ..
+            } => {
                 substitute_types_in_stmts(body, param_names, concrete_types);
                 for (_, eb) in elifs.iter_mut() {
                     substitute_types_in_stmts(eb, param_names, concrete_types);
@@ -1576,11 +1689,19 @@ TASK : { CALL used() }";
         // 验证单态化函数已注册
         assert!(analyzer.symbols.contains("identity::int"));
         // 验证调用点已被改名
-        let task_zone = analyzer.zones.iter().find(|z| z.kind == ZoneKind::Task).unwrap();
-        let has_mono_call = task_zone.body.iter().any(|s| {
-            matches!(s, Stmt::Call { func_name, .. } if func_name == "identity::int")
-        });
-        assert!(has_mono_call, "call site should be renamed to monomorphized name");
+        let task_zone = analyzer
+            .zones
+            .iter()
+            .find(|z| z.kind == ZoneKind::Task)
+            .unwrap();
+        let has_mono_call = task_zone
+            .body
+            .iter()
+            .any(|s| matches!(s, Stmt::Call { func_name, .. } if func_name == "identity::int"));
+        assert!(
+            has_mono_call,
+            "call site should be renamed to monomorphized name"
+        );
     }
 
     #[test]

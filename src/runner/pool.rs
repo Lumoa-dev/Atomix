@@ -2,8 +2,8 @@
 //!
 //! 覆盖 P3-PL-001 任务池基本设计、P3-PL-002 状态码范围。
 
-use std::collections::HashSet;
 use crate::runner::task::{Task, TaskId, TaskStatus};
+use std::collections::HashSet;
 
 /// 任务池。持有所有任务，提供状态查询和就绪判定。
 #[derive(Debug, Clone)]
@@ -29,12 +29,15 @@ impl TaskPool {
 
     /// 返回所有状态为 Ready 且依赖已完成的就绪任务。
     pub fn ready_tasks(&self) -> Vec<TaskId> {
-        let done_ids: HashSet<TaskId> = self.tasks.iter()
+        let done_ids: HashSet<TaskId> = self
+            .tasks
+            .iter()
             .filter(|t| t.status.is_terminal())
             .map(|t| t.id)
             .collect();
 
-        self.tasks.iter()
+        self.tasks
+            .iter()
             .filter(|t| {
                 if t.status != TaskStatus::Ready {
                     return false;
@@ -48,14 +51,15 @@ impl TaskPool {
     /// 将所有依赖已完成的 Init 任务转为 Ready。
     /// 在每次调度循环前调用。
     pub fn activate_ready_tasks(&mut self) {
-        let done_ids: HashSet<TaskId> = self.tasks.iter()
+        let done_ids: HashSet<TaskId> = self
+            .tasks
+            .iter()
             .filter(|t| t.status.is_terminal())
             .map(|t| t.id)
             .collect();
 
         for task in self.tasks.iter_mut() {
-            if task.status == TaskStatus::Init
-                && task.deps.iter().all(|dep| done_ids.contains(dep))
+            if task.status == TaskStatus::Init && task.deps.iter().all(|dep| done_ids.contains(dep))
             {
                 task.status = TaskStatus::Ready;
             }
@@ -74,7 +78,8 @@ impl TaskPool {
 
     /// 检查指定任务是否已完成（Done 或 Error）。
     pub fn task_is_done(&self, id: TaskId) -> bool {
-        self.tasks.iter()
+        self.tasks
+            .iter()
             .any(|t| t.id == id && t.status.is_terminal())
     }
 
@@ -86,9 +91,7 @@ impl TaskPool {
     /// 唤醒所有等待指定任务完成的 Suspended 任务。
     pub fn wake_joiners(&mut self, done_id: TaskId, return_value: u64) {
         for task in self.tasks.iter_mut() {
-            if task.status == TaskStatus::Suspended
-                && task.vm.join_waiting_for == Some(done_id)
-            {
+            if task.status == TaskStatus::Suspended && task.vm.join_waiting_for == Some(done_id) {
                 task.vm.join_waiting_for = None;
                 task.vm.state = crate::runner::VmStateKind::Running;
                 task.vm.write_reg(crate::base::isa::reg::A0, return_value);
@@ -106,7 +109,9 @@ impl TaskPool {
         }
 
         // 每个任务的 deps 集合
-        let dep_sets: Vec<HashSet<TaskId>> = self.tasks.iter()
+        let dep_sets: Vec<HashSet<TaskId>> = self
+            .tasks
+            .iter()
             .map(|t| t.deps.iter().copied().collect())
             .collect();
 
@@ -160,7 +165,8 @@ impl TaskPool {
 
     /// 获取所有已完成的条目及其返回值。
     pub fn results(&self) -> Vec<(TaskId, TaskStatus, u64, u64)> {
-        self.tasks.iter()
+        self.tasks
+            .iter()
             .map(|t| (t.id, t.status, t.return_value, t.total_instrs))
             .collect()
     }
@@ -169,9 +175,9 @@ impl TaskPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runner::task::Task;
-    use crate::runner::VmState;
     use crate::base::ir::{AtxeBinary, Header};
+    use crate::runner::VmState;
+    use crate::runner::task::Task;
 
     fn mock_vm() -> VmState {
         let header = Header::new(0, 0);
@@ -215,10 +221,10 @@ mod tests {
     #[test]
     fn ready_tasks_with_deps() {
         let tasks = vec![
-            make_task(0, vec![], TaskStatus::Done),  // completed
-            make_task(1, vec![0], TaskStatus::Ready),  // dep 0 done → ready
-            make_task(2, vec![0], TaskStatus::Ready),  // dep 0 done → ready
-            make_task(3, vec![1], TaskStatus::Ready),  // dep 1 NOT done yet → not ready
+            make_task(0, vec![], TaskStatus::Done),   // completed
+            make_task(1, vec![0], TaskStatus::Ready), // dep 0 done → ready
+            make_task(2, vec![0], TaskStatus::Ready), // dep 0 done → ready
+            make_task(3, vec![1], TaskStatus::Ready), // dep 1 NOT done yet → not ready
         ];
         let pool = TaskPool::new(tasks);
         let ready = pool.ready_tasks();
@@ -230,8 +236,8 @@ mod tests {
     #[test]
     fn ready_tasks_dep_not_met() {
         let tasks = vec![
-            make_task(0, vec![], TaskStatus::Init),     // not ready
-            make_task(1, vec![0], TaskStatus::Ready),   // dep 0 not terminal → not ready
+            make_task(0, vec![], TaskStatus::Init),   // not ready
+            make_task(1, vec![0], TaskStatus::Ready), // dep 0 not terminal → not ready
         ];
         let pool = TaskPool::new(tasks);
         let ready = pool.ready_tasks();
@@ -260,9 +266,7 @@ mod tests {
 
     #[test]
     fn get_by_id() {
-        let tasks = vec![
-            make_task(5, vec![], TaskStatus::Ready),
-        ];
+        let tasks = vec![make_task(5, vec![], TaskStatus::Ready)];
         let pool = TaskPool::new(tasks);
         assert!(pool.get(5).is_some());
         assert!(pool.get(99).is_none());
@@ -270,9 +274,7 @@ mod tests {
 
     #[test]
     fn get_mut_by_id() {
-        let tasks = vec![
-            make_task(0, vec![], TaskStatus::Ready),
-        ];
+        let tasks = vec![make_task(0, vec![], TaskStatus::Ready)];
         let mut pool = TaskPool::new(tasks);
         let t = pool.get_mut(0).unwrap();
         t.status = TaskStatus::Done;

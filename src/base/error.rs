@@ -160,7 +160,9 @@ mod tests {
 
     #[test]
     fn code_roundtrip() {
-        let defined: &[u32] = &[0, 400, 401, 403, 404, 405, 408, 409, 412, 413, 415, 429, 500, 503, 504];
+        let defined: &[u32] = &[
+            0, 400, 401, 403, 404, 405, 408, 409, 412, 413, 415, 429, 500, 503, 504,
+        ];
         for &code in defined {
             let c = ErrorCode::from_u32(code);
             assert_eq!(c as u32, code);

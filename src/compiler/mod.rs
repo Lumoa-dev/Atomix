@@ -6,19 +6,19 @@
 //!
 //! 详见 docs/04-编译管线.md。
 
-pub mod token;
-pub mod lexer;
 pub mod ast;
-pub mod parser;
-pub mod symbol;
-pub mod type_checker;
-pub mod semantic;
 pub mod codegen;
+pub mod lexer;
 pub mod linker;
+pub mod parser;
+pub mod semantic;
+pub mod symbol;
+pub mod token;
+pub mod type_checker;
 
 use crate::compiler::ast::*;
 use crate::compiler::codegen::assembly;
-use crate::compiler::codegen::expr::{reset_vreg, ConstPool};
+use crate::compiler::codegen::expr::{ConstPool, reset_vreg};
 use crate::compiler::codegen::instr::InstrEmitter;
 use crate::compiler::codegen::stmt;
 use crate::compiler::lexer::Lexer;
@@ -71,8 +71,8 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
 
     // 编译单态化函数体（在符号表中以 "func::type" 命名）
     for sym in analyzer.symbols.functions() {
-        if sym.name.contains("::") {
-            if let Some(func_def) = &sym.func_def {
+        if sym.name.contains("::")
+            && let Some(func_def) = &sym.func_def {
                 // 为单态化函数生成标签和指令
                 emit.emit_label(&sym.name);
                 // 为参数分配虚拟寄存器（简化实现）
@@ -82,10 +82,12 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
                 }
                 stmt::compile_stmts(&mut emit, &mut pool, &func_def.body);
                 // 函数末尾隐式 return
-                emit.emit_r1i(crate::base::isa::opcode::JMPR,
-                    crate::base::isa::reg::RA as u8, 0);
+                emit.emit_r1i(
+                    crate::base::isa::opcode::JMPR,
+                    crate::base::isa::reg::RA as u8,
+                    0,
+                );
             }
-        }
     }
 
     emit.resolve_all();
@@ -101,7 +103,9 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
     let text = reg_alloc.insert_spill_code(&optimized_text);
 
     // 7. 汇编为 .atxe
-    let zones_meta: Vec<(ZoneKind, String)> = analyzer.zones.iter()
+    let zones_meta: Vec<(ZoneKind, String)> = analyzer
+        .zones
+        .iter()
         .map(|z| (z.kind, z.name.clone().unwrap_or_default()))
         .collect();
 

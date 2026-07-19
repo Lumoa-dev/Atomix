@@ -172,22 +172,22 @@ pub enum TokenKind {
     Dollar,
 
     // ── 运算符 ────────────────────────────────────────
-    Plus,   // +
-    Minus,  // -
-    Star,   // *
-    Slash,  // /
+    Plus,    // +
+    Minus,   // -
+    Star,    // *
+    Slash,   // /
     Percent, // %
-    Amp,    // &
-    Pipe,   // |
-    Caret,  // ^
-    Tilde,  // ~
-    Shl,    // <<
-    Shr,    // >>
-    EqEq,   // ==
-    Neq,    // !=
-    Lt,     // <
-    Gt,     // >
-    Ge,     // >=
+    Amp,     // &
+    Pipe,    // |
+    Caret,   // ^
+    Tilde,   // ~
+    Shl,     // <<
+    Shr,     // >>
+    EqEq,    // ==
+    Neq,     // !=
+    Lt,      // <
+    Gt,      // >
+    Ge,      // >=
 }
 
 /// 携带位置信息的 Token。
@@ -495,15 +495,64 @@ mod tests {
     fn all_keywords_covered() {
         // 验证全部 50+ 关键字都被 match_keyword 覆盖
         let keywords = [
-            "use", "true", "false", "and", "or", "not", "fn", "return", "do",
-            "if", "elif", "else", "for", "break", "continue",
-            "call", "wait", "join", "assert", "raise", "try",
-            "const", "goout", "pub",
-            "tools", "input", "works", "task", "out", "test",
-            "exception", "enum", "type", "from", "as",
-            "webs", "files", "mems", "http", "tcp", "db", "oss",
-            "txt", "csv", "json", "jsons", "yaml", "toml", "xml",
-            "int", "float", "bool", "str", "bytes", "list", "dict", "tuple", "self",
+            "use",
+            "true",
+            "false",
+            "and",
+            "or",
+            "not",
+            "fn",
+            "return",
+            "do",
+            "if",
+            "elif",
+            "else",
+            "for",
+            "break",
+            "continue",
+            "call",
+            "wait",
+            "join",
+            "assert",
+            "raise",
+            "try",
+            "const",
+            "goout",
+            "pub",
+            "tools",
+            "input",
+            "works",
+            "task",
+            "out",
+            "test",
+            "exception",
+            "enum",
+            "type",
+            "from",
+            "as",
+            "webs",
+            "files",
+            "mems",
+            "http",
+            "tcp",
+            "db",
+            "oss",
+            "txt",
+            "csv",
+            "json",
+            "jsons",
+            "yaml",
+            "toml",
+            "xml",
+            "int",
+            "float",
+            "bool",
+            "str",
+            "bytes",
+            "list",
+            "dict",
+            "tuple",
+            "self",
         ];
         for kw in &keywords {
             assert!(match_keyword(kw).is_some(), "keyword `{kw}` should match");

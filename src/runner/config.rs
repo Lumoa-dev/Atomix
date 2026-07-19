@@ -5,7 +5,7 @@
 use serde::Deserialize;
 
 /// Runner 完整配置。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct RunnerConfig {
     #[serde(default)]
     pub runner: RunnerSection,
@@ -112,18 +112,42 @@ impl Default for PerTaskSection {
 
 // ─── 默认值 ─────────────────────────────────────
 
-fn default_listen() -> String { "0.0.0.0:9000".into() }
-fn default_task_dir() -> String { "/var/atomix/tasks".into() }
-fn default_state_dir() -> String { "/var/atomix/state".into() }
-fn default_resource() -> String { "auto".into() }
-fn default_alpha_cpu() -> f64 { 0.75 }
-fn default_alpha_mem() -> f64 { 0.50 }
-fn default_alpha_io() -> f64 { 0.50 }
-fn default_alpha_net() -> f64 { 0.60 }
-fn default_cpu_per_task() -> f64 { 0.25 }
-fn default_mem_per_task() -> f64 { 16.0 }
-fn default_iops_per_task() -> f64 { 100.0 }
-fn default_net_per_task() -> f64 { 1.0 }
+fn default_listen() -> String {
+    "0.0.0.0:9000".into()
+}
+fn default_task_dir() -> String {
+    "/var/atomix/tasks".into()
+}
+fn default_state_dir() -> String {
+    "/var/atomix/state".into()
+}
+fn default_resource() -> String {
+    "auto".into()
+}
+fn default_alpha_cpu() -> f64 {
+    0.75
+}
+fn default_alpha_mem() -> f64 {
+    0.50
+}
+fn default_alpha_io() -> f64 {
+    0.50
+}
+fn default_alpha_net() -> f64 {
+    0.60
+}
+fn default_cpu_per_task() -> f64 {
+    0.25
+}
+fn default_mem_per_task() -> f64 {
+    16.0
+}
+fn default_iops_per_task() -> f64 {
+    100.0
+}
+fn default_net_per_task() -> f64 {
+    1.0
+}
 
 impl RunnerConfig {
     /// 加载配置文件。path 为 None 时使用默认值。
@@ -131,10 +155,9 @@ impl RunnerConfig {
         let Some(path) = path else {
             return Ok(Self::default());
         };
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("读取配置文件失败: {}", e))?;
-        toml::from_str(&content)
-            .map_err(|e| format!("解析配置文件失败: {}", e))
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("读取配置文件失败: {}", e))?;
+        toml::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))
     }
 
     /// 将 resources 中的百分比/绝对值解析为实际数字。
@@ -146,32 +169,21 @@ impl RunnerConfig {
             _ => "auto",
         };
         match raw {
-            s if s == "auto" => hardware,
+            "auto" => hardware,
             s if s.ends_with('%') => {
-                let pct: f64 = s[..s.len()-1].parse().unwrap_or(100.0);
+                let pct: f64 = s[..s.len() - 1].parse().unwrap_or(100.0);
                 hardware * pct / 100.0
             }
             s if s.ends_with("MB") || s.ends_with("mb") => {
-                let val: f64 = s[..s.len()-2].trim().parse().unwrap_or(0.0);
+                let val: f64 = s[..s.len() - 2].trim().parse().unwrap_or(0.0);
                 val
             }
-            s => {
-                s.parse::<f64>().unwrap_or(hardware)
-            }
+            s => s.parse::<f64>().unwrap_or(hardware),
         }
     }
 }
 
-impl Default for RunnerConfig {
-    fn default() -> Self {
-        Self {
-            runner: RunnerSection::default(),
-            resources: ResourceSection::default(),
-            coefficients: CoefficientSection::default(),
-            per_task: PerTaskSection::default(),
-        }
-    }
-}
+// RunnerConfig 使用 #[derive(Default)]
 
 #[cfg(test)]
 mod tests {

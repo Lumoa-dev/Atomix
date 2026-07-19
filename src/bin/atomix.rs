@@ -6,7 +6,11 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "atomix", version, about = "Atomix — 任务执行 DSL 编译器与运行时")]
+#[command(
+    name = "atomix",
+    version,
+    about = "Atomix — 任务执行 DSL 编译器与运行时"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
