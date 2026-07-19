@@ -357,12 +357,383 @@ impl Parser {
         self.advance();
         self.current_zone = Some(kind);
         self.expect(&TokenKind::Colon);
-        let body = self.parse_delimited_block();
-        Some(Zone {
-            kind,
-            name: None,
-            body,
+
+        match kind {
+            ZoneKind::Input => {
+                let (body, source_decls) = self.parse_input_zone_body();
+                Some(Zone { kind, name: None, body, source_decls, target_decls: Vec::new() })
+            }
+            ZoneKind::Out => {
+                let (body, target_decls) = self.parse_out_zone_body();
+                Some(Zone { kind, name: None, body, source_decls: Vec::new(), target_decls })
+            }
+            _ => {
+                let body = self.parse_delimited_block();
+                Some(Zone { kind, name: None, body, source_decls: Vec::new(), target_decls: Vec::new() })
+            }
+        }
+    }
+
+    // ── INPUT/OUT 区专用解析 ──────────────────────
+
+    /// 解析 INPUT 区体：数据源声明 + 普通语句的混合。
+    fn parse_input_zone_body(&mut self) -> (Vec<Stmt>, Vec<SourceDecl>) {
+        let mut stmts = Vec::new();
+        let mut source_decls = Vec::new();
+
+        self.expect(&TokenKind::LBrace);
+        loop {
+            match self.peek_kind() {
+                Some(TokenKind::RBrace) => {
+                    self.advance();
+                    break;
+                }
+                Some(TokenKind::Eof) => break,
+                // 源关键词开头 → 数据源声明
+                Some(kind) if kind.is_source_target_keyword() => {
+                    if let Some(decl) = self.parse_source_decl() {
+                        source_decls.push(decl);
+                    }
+                }
+                Some(TokenKind::Ident(_)) => {
+                    // 窥探下一个 token：如果是 `:` 则是变量声明
+                    if self.pos + 1 < self.tokens.len()
+                        && matches!(self.tokens[self.pos + 1].kind, TokenKind::Colon)
+                    {
+                        if let Some(stmt) = self.try_parse_ident_stmt() {
+                            stmts.push(stmt);
+                        }
+                    } else {
+                        // 尝试按源声明解析
+                        let saved = self.pos;
+                        if let Some(decl) = self.parse_source_decl() {
+                            source_decls.push(decl);
+                        } else {
+                            self.pos = saved;
+                            // 不是源声明 → 尝试作为普通语句
+                            if let Some(stmt) = self.parse_stmt() {
+                                stmts.push(stmt);
+                            } else {
+                                self.sync();
+                            }
+                        }
+                    }
+                }
+                // 其他语句关键词 → 尝试按普通语句解析
+                _ => {
+                    if let Some(stmt) = self.parse_stmt() {
+                        stmts.push(stmt);
+                    } else {
+                        self.errors.push(ParseError::new(
+                            format!("INPUT 区意外的 Token: {:?}", self.peek_kind()),
+                            self.peek().map(|t| t.span).unwrap(),
+                        ));
+                        self.sync();
+                    }
+                }
+            }
+        }
+        (stmts, source_decls)
+    }
+
+    /// 解析 OUT 区体：数据交付声明 + 普通语句的混合。
+    fn parse_out_zone_body(&mut self) -> (Vec<Stmt>, Vec<TargetDecl>) {
+        let mut stmts = Vec::new();
+        let mut target_decls = Vec::new();
+
+        self.expect(&TokenKind::LBrace);
+        loop {
+            match self.peek_kind() {
+                Some(TokenKind::RBrace) => {
+                    self.advance();
+                    break;
+                }
+                Some(TokenKind::Eof) => break,
+                // 标识符开头 → 变量声明或数据交付声明
+                Some(TokenKind::Ident(_)) => {
+                    // 窥探下一个 token：如果是 `:` 则是变量声明
+                    if self.pos + 1 < self.tokens.len()
+                        && matches!(self.tokens[self.pos + 1].kind, TokenKind::Colon)
+                    {
+                        if let Some(stmt) = self.try_parse_ident_stmt() {
+                            stmts.push(stmt);
+                        }
+                    } else {
+                        // 尝试按数据交付声明解析
+                        let saved = self.pos;
+                        if let Some(decl) = self.parse_target_decl() {
+                            target_decls.push(decl);
+                        } else {
+                            self.pos = saved;
+                            // 不是交付声明 → 尝试作为普通语句
+                            if let Some(stmt) = self.parse_stmt() {
+                                stmts.push(stmt);
+                            } else {
+                                self.sync();
+                            }
+                        }
+                    }
+                }
+                // 其他语句关键词 → 尝试按普通语句解析
+                _ => {
+                    if let Some(stmt) = self.parse_stmt() {
+                        stmts.push(stmt);
+                    } else {
+                        self.errors.push(ParseError::new(
+                            format!("OUT 区意外的 Token: {:?}", self.peek_kind()),
+                            self.peek().map(|t| t.span).unwrap(),
+                        ));
+                        self.sync();
+                    }
+                }
+            }
+        }
+        (stmts, target_decls)
+    }
+
+    /// 解析数据源声明: KIND : "address" [deco]... [=> VAR : TYPE]
+    ///
+    /// 原子解析：失败时回退到保存的位置，不消耗任何 token。
+    fn parse_source_decl(&mut self) -> Option<SourceDecl> {
+        let saved = self.pos;
+
+        // 确定 source_kind（仅源关键词或带冒号后接字符串的标识符才匹配）
+        let source_kind = match self.peek_kind()? {
+            // 源关键词（HTTP/FILES/JSON 等）→ 确定是源声明，转小写
+            kind if kind.is_source_target_keyword() => {
+                let s = self.token_kind_to_source_name(kind);
+                self.advance();
+                s
+            }
+            // 普通标识符：只有后面跟着 `:` 时才可能是源声明
+            TokenKind::Ident(s) => {
+                let s = s.clone();
+                if self.pos + 1 >= self.tokens.len()
+                    || !matches!(self.tokens[self.pos + 1].kind, TokenKind::Colon)
+                {
+                    return None;
+                }
+                self.advance();
+                s.to_lowercase()
+            }
+            _ => return None,
+        };
+
+        // 必须有冒号
+        if self.peek_kind() != Some(&TokenKind::Colon) {
+            self.pos = saved;
+            return None;
+        }
+        self.advance(); // :
+
+        // 地址必须为字符串字面量
+        let address = match self.peek_kind()? {
+            TokenKind::Str(s) => {
+                let s = s.clone();
+                self.advance();
+                s
+            }
+            _ => {
+                // 不是字符串 → 不是源声明，回退
+                self.pos = saved;
+                return None;
+            }
+        };
+
+        // 可选参数: (key=val, ...)
+        let params = if self.peek_kind() == Some(&TokenKind::LParen) {
+            self.parse_source_params()
+        } else {
+            Vec::new()
+        };
+
+        // 可选装饰器
+        let decorators = self.parse_decorators();
+
+        // 可选箭头 + 目标
+        let target = if self.peek_kind() == Some(&TokenKind::ArrowR) {
+            self.advance(); // =>
+            let var_name = self.parse_ident().unwrap_or_default();
+            let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
+                self.advance();
+                Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+            } else {
+                None
+            };
+            Some(SourceTarget {
+                arrow: ArrowKind::Forward,
+                var_name,
+                type_ann,
+            })
+        } else if self.peek_kind() == Some(&TokenKind::Eq) {
+            self.advance(); // =
+            let var_name = self.parse_ident().unwrap_or_default();
+            let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
+                self.advance();
+                Some(self.parse_type_node().unwrap_or(TypeNode::Base("any".into())))
+            } else {
+                None
+            };
+            Some(SourceTarget {
+                arrow: ArrowKind::Copy,
+                var_name,
+                type_ann,
+            })
+        } else {
+            None
+        };
+
+        Some(SourceDecl {
+            source_kind,
+            address,
+            params,
+            decorators,
+            target,
         })
+    }
+
+    /// 解析数据交付声明: VAR [deco]... => KIND : "address" (params)
+    ///
+    /// 原子解析：失败时回退到保存的位置，不消耗任何 token。
+    fn parse_target_decl(&mut self) -> Option<TargetDecl> {
+        let saved = self.pos;
+
+        // 源变量名必须为标识符
+        let source_var = match self.peek_kind()? {
+            TokenKind::Ident(s) => {
+                let s = s.clone();
+                self.advance();
+                s
+            }
+            _ => return None,
+        };
+
+        // 可选装饰器
+        let decorators = self.parse_decorators();
+
+        // 必须有 =>
+        if self.peek_kind() != Some(&TokenKind::ArrowR) {
+            self.pos = saved;
+            return None;
+        }
+        self.advance(); // =>
+
+        // 目标 kind
+        let target_kind = match self.peek_kind()? {
+            TokenKind::Ident(s) => {
+                let s = s.clone();
+                self.advance();
+                s.to_lowercase()
+            }
+            kind if kind.is_source_target_keyword() => {
+                let s = self.token_kind_to_source_name(kind);
+                self.advance();
+                s
+            }
+            _ => {
+                self.pos = saved;
+                return None;
+            }
+        };
+
+        // 必须带冒号
+        if self.peek_kind() != Some(&TokenKind::Colon) {
+            self.pos = saved;
+            return None;
+        }
+        self.advance();
+
+        // 地址必须为字符串
+        let address = match self.peek_kind()? {
+            TokenKind::Str(s) => {
+                let s = s.clone();
+                self.advance();
+                s
+            }
+            _ => {
+                self.pos = saved;
+                return None;
+            }
+        };
+
+        // 可选参数
+        let params = if self.peek_kind() == Some(&TokenKind::LParen) {
+            self.parse_source_params()
+        } else {
+            Vec::new()
+        };
+
+        Some(TargetDecl {
+            source_var,
+            decorators,
+            target_kind,
+            address,
+            params,
+        })
+    }
+
+    /// 解析源/目标参数: (key=val, key=val, ...)
+    fn parse_source_params(&mut self) -> Vec<(String, String)> {
+        let mut params = Vec::new();
+        self.advance(); // (
+        loop {
+            match self.peek_kind() {
+                Some(TokenKind::RParen) => {
+                    self.advance();
+                    break;
+                }
+                Some(TokenKind::Eof) => break,
+                _ => {
+                    let key = match self.peek_kind() {
+                        Some(TokenKind::Ident(s)) => s.clone(),
+                        Some(TokenKind::Str(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+                    self.advance();
+                    let val = if self.peek_kind() == Some(&TokenKind::Eq) {
+                        self.advance();
+                        match self.peek_kind() {
+                            Some(TokenKind::Str(s)) => s.clone(),
+                            Some(TokenKind::Ident(s)) => s.clone(),
+                            Some(TokenKind::Int(n)) => n.to_string(),
+                            _ => String::new(),
+                        }
+                    } else {
+                        String::new()
+                    };
+                    params.push((key, val));
+                    if self.peek_kind() == Some(&TokenKind::Comma) {
+                        self.advance();
+                    }
+                }
+            }
+        }
+        params
+    }
+
+    /// 解析装饰器: [id] [id] ...
+    fn parse_decorators(&mut self) -> Vec<String> {
+        let mut decos = Vec::new();
+        while self.peek_kind() == Some(&TokenKind::LBracket) {
+            self.advance(); // [
+            let name = match self.peek_kind() {
+                Some(TokenKind::Ident(s)) => {
+                    let s = s.clone();
+                    self.advance();
+                    s
+                }
+                _ => {
+                    self.errors.push(ParseError::new(
+                        "装饰器必须为标识符 `[name]`",
+                        self.peek().map(|t| t.span).unwrap(),
+                    ));
+                    String::new()
+                }
+            };
+            self.expect(&TokenKind::RBracket);
+            decos.push(name);
+        }
+        decos
     }
 
     fn parse_works_def(&mut self) -> Option<WorksDef> {
@@ -1473,6 +1844,32 @@ impl Parser {
         }
     }
 
+    /// 将 TokenKind 转换为源/目标名称（小写字符串，无格式标记）。
+    fn token_kind_to_source_name(&self, kind: &TokenKind) -> String {
+        match kind {
+            TokenKind::Webs => "webs".into(),
+            TokenKind::Files => "files".into(),
+            TokenKind::Mems => "mems".into(),
+            TokenKind::Http => "http".into(),
+            TokenKind::Tcp => "tcp".into(),
+            TokenKind::Db => "db".into(),
+            TokenKind::Oss => "oss".into(),
+            TokenKind::Txt => "txt".into(),
+            TokenKind::Csv => "csv".into(),
+            TokenKind::Json => "json".into(),
+            TokenKind::Jsons => "jsons".into(),
+            TokenKind::Yaml => "yaml".into(),
+            TokenKind::Toml => "toml".into(),
+            TokenKind::Xml => "xml".into(),
+            TokenKind::Tools => "tools".into(),
+            TokenKind::Input => "input".into(),
+            TokenKind::Works => "works".into(),
+            TokenKind::Task => "task".into(),
+            TokenKind::Out => "out".into(),
+            _ => format!("{:?}", kind).to_lowercase(),
+        }
+    }
+
     /// 解析 CALL/WAIT 目标名称（标识符或关键字，用于 `TOOLS::func` 跨域引用）。
     fn parse_call_target(&mut self) -> String {
         // 关键字也可作为跨域引用中的域名
@@ -1724,5 +2121,129 @@ mod tests {
         }"#;
         let (ast, errors) = parse(src);
         assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    // ── INPUT/OUT 区 + 装饰器测试 ──────────────────
+
+    #[test]
+    fn input_zone_source_decl() {
+        let src = r#"INPUT : {
+            HTTP : "https://api.com/data" => RAW : bytes
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert_eq!(input_zone.source_decls.len(), 1);
+        assert_eq!(input_zone.source_decls[0].source_kind, "http");
+        assert_eq!(input_zone.source_decls[0].address, "https://api.com/data");
+        assert!(input_zone.source_decls[0].target.is_some());
+    }
+
+    #[test]
+    fn input_zone_source_with_decorators() {
+        let src = r#"INPUT : {
+            HTTP : "https://api.com/data" [gzip] [encrypt] => RAW : bytes
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert_eq!(input_zone.source_decls[0].decorators, vec!["gzip", "encrypt"]);
+    }
+
+    #[test]
+    fn input_zone_source_without_target() {
+        let src = r#"INPUT : {
+            JSON : "input/report.json"
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert_eq!(input_zone.source_decls.len(), 1);
+        assert!(input_zone.source_decls[0].target.is_none());
+    }
+
+    #[test]
+    fn input_zone_mixed_const_and_source() {
+        let src = r#"INPUT : {
+            CONST MAX_RETRY : int = 3
+            HTTP : "https://api.com/data" => RAW : bytes
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert_eq!(input_zone.source_decls.len(), 1);
+        assert_eq!(input_zone.body.len(), 1); // CONST
+    }
+
+    #[test]
+    fn out_zone_target_decl() {
+        let src = r#"TASK : { GOOUT result : int = 42 }
+        OUT : {
+            result => HTTP : "https://api.com/upload"
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let out_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Out).unwrap();
+        assert_eq!(out_zone.target_decls.len(), 1);
+        assert_eq!(out_zone.target_decls[0].source_var, "result");
+        assert_eq!(out_zone.target_decls[0].target_kind, "http");
+    }
+
+    #[test]
+    fn out_zone_target_with_decorators() {
+        let src = r#"TASK : { GOOUT data : bytes = "hello" }
+        OUT : {
+            data [encrypt] [gzip] => HTTP : "https://api.com/upload"
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let out_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Out).unwrap();
+        assert_eq!(out_zone.target_decls[0].decorators, vec!["encrypt", "gzip"]);
+    }
+
+    #[test]
+    fn out_zone_target_invalid_no_arrow() {
+        // 缺少 => 应当不被解析为目标声明（回退为语句解析）
+        let src = r#"OUT : {
+            x HTTP : "url"
+        }"#;
+        let (ast, errors) = parse(src);
+        // 应为语句解析，不产生 target_decls
+        let out_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Out).unwrap();
+        assert!(out_zone.target_decls.is_empty());
+    }
+
+    #[test]
+    fn decorator_not_ident_errors() {
+        // [a + b] 不是合法装饰器
+        let src = r#"INPUT : {
+            HTTP : "url" [a + b] => RAW : bytes
+        }"#;
+        let (_, errors) = parse(src);
+        assert!(!errors.is_empty(), "should error on non-ident decorator");
+    }
+
+    #[test]
+    fn input_zone_invalid_stmt_errors() {
+        // CALL 在 INPUT 区不应产生 source_decl
+        let src = r#"INPUT : {
+            CALL foo()
+        }"#;
+        let (ast, errors) = parse(src);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert!(input_zone.source_decls.is_empty());
+        // CALL 被解析为语句，语义阶段会报错
+    }
+
+    #[test]
+    fn input_zone_variable_declaration() {
+        let src = r#"INPUT : {
+            x : int = 42
+        }"#;
+        let (ast, errors) = parse(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        let input_zone = ast.zones.iter().find(|z| z.kind == ZoneKind::Input).unwrap();
+        assert!(input_zone.source_decls.is_empty());
+        assert_eq!(input_zone.body.len(), 1);
     }
 }

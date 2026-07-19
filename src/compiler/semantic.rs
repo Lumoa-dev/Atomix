@@ -145,10 +145,13 @@ impl SemanticAnalyzer {
             }
         }
 
-        // 阶段 3: 可达性分析
+        // 阶段 3: 单态化后处理 — 将所有泛型调用点替换为单态化函数名
+        self.resolve_generic_calls();
+
+        // 阶段 4: 可达性分析
         self.analyze_reachability(&ordered);
 
-        // 阶段 4: 区外 + TOOLS 常驻
+        // 阶段 5: 区外 + TOOLS 常驻
         self.zones.insert(0, ZoneInfo {
             kind: ZoneKind::Tools,
             name: None,
@@ -394,6 +397,29 @@ impl SemanticAnalyzer {
                 }
             }
         }
+
+        // 处理数据源声明
+        for decl in &zone.source_decls {
+            // 验证装饰器标识符引用已注册的 TOOLS 函数
+            for deco in &decl.decorators {
+                if !self.symbols.contains(deco) {
+                    self.errors.push(SemanticError::new(
+                        format!("装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"),
+                    ));
+                }
+            }
+            // 如果有 target 变量，注册为常量
+            if let Some(target) = &decl.target {
+                let t = target.type_ann.as_ref()
+                    .map(|tn| resolve_type(tn))
+                    .unwrap_or(Type::Any);
+                if let Err(e) = self.symbols.declare(
+                    Symbol::new(target.var_name.clone(), SymbolKind::Const).with_type(t),
+                ) {
+                    self.errors.push(SemanticError::new(e));
+                }
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════
@@ -452,6 +478,32 @@ impl SemanticAnalyzer {
                 _ => {
                     self.errors.push(SemanticError::new(
                         "OUT 区内此语句类型不允许",
+                    ));
+                }
+            }
+        }
+
+        // 处理数据交付声明
+        for decl in &zone.target_decls {
+            // 验证源变量是 GOOUT 声明的
+            match self.symbols.lookup(&decl.source_var) {
+                Some(sym) if !sym.is_goout => {
+                    self.errors.push(SemanticError::new(
+                        format!("OUT 区引用的 `{}` 不是 GOOUT 变量", decl.source_var),
+                    ));
+                }
+                None => {
+                    self.errors.push(SemanticError::new(
+                        format!("OUT 区引用的 `{}` 未定义", decl.source_var),
+                    ));
+                }
+                _ => {}
+            }
+            // 验证装饰器标识符引用已注册的 TOOLS 函数
+            for deco in &decl.decorators {
+                if !self.symbols.contains(deco) {
+                    self.errors.push(SemanticError::new(
+                        format!("装饰器 `{deco}` 未定义（需在 TOOLS 区声明）"),
                     ));
                 }
             }
@@ -523,7 +575,7 @@ impl SemanticAnalyzer {
     }
 
     // ═══════════════════════════════════════════════
-    //  泛型单态化 (IR-008)
+    //  泛型单态化 (SEM-006 + IR-008)
     // ═══════════════════════════════════════════════
 
     /// 生成单态化函数名：`identity::int`。
@@ -552,10 +604,26 @@ impl SemanticAnalyzer {
         let mono_name = Self::monomorphize_name(func_name, type_args);
         self.monomorphizations.insert(map_key, mono_name.clone());
 
-        // 创建单态化后的函数副本，注册到符号表
+        // 创建单态化后的函数副本
         let mut mono_func = original.clone();
         mono_func.name = mono_name.clone();
-        // 替换泛型参数为具体类型（简化：只注册签名，类型检查在副本上执行）
+
+        // 在函数体内替换泛型参数为具体类型
+        let param_names: Vec<&str> = original.type_params.iter().map(|s| s.as_str()).collect();
+
+        // 递归替换参数类型
+        mono_func.params.iter_mut().for_each(|p| {
+            substitute_type_node(&mut p.type_ann, &param_names, type_args);
+        });
+
+        // 替换返回类型
+        if let Some(ref mut ret) = mono_func.ret_type {
+            substitute_type_node(ret, &param_names, type_args);
+        }
+
+        // 替换函数体内所有类型标注
+        substitute_types_in_stmts(&mut mono_func.body, &param_names, type_args);
+
         let ret_type = mono_func.ret_type.as_ref().map(|t| resolve_type(t));
         let mut sym = Symbol::new(mono_name.clone(), SymbolKind::Function)
             .with_public(original.is_pub);
@@ -568,6 +636,293 @@ impl SemanticAnalyzer {
         let _ = self.symbols.declare(sym);
 
         mono_name
+    }
+
+    /// 从调用参数类型匹配函数的泛型参数。
+    /// 对每个函数参数，如果其类型标注是泛型参数（GenericParam 或 Named 匹配 type_params），
+    /// 则从对应的实参类型推断。
+    fn match_type_params(&self, func_def: &FuncDef, arg_types: &[Type]) -> Vec<Type> {
+        let param_set: std::collections::HashSet<&str> =
+            func_def.type_params.iter().map(|s| s.as_str()).collect();
+        let mut type_map: std::collections::HashMap<String, Type> = std::collections::HashMap::new();
+        for (i, param) in func_def.params.iter().enumerate() {
+            if i >= arg_types.len() { break; }
+            let type_param_name = match &param.type_ann {
+                TypeNode::GenericParam(name) => Some(name.clone()),
+                TypeNode::Named(name) if param_set.contains(name.as_str()) => Some(name.clone()),
+                _ => None,
+            };
+            if let Some(name) = type_param_name {
+                type_map.entry(name).or_insert_with(|| arg_types[i].clone());
+            }
+        }
+        let mut result = Vec::new();
+        for param_name in &func_def.type_params {
+            if let Some(t) = type_map.get(param_name) {
+                result.push(t.clone());
+            } else {
+                result.push(Type::Any);
+            }
+        }
+        result
+    }
+
+    /// 后处理：遍历所有 zone，将泛型调用点的函数名替换为单态化名。
+    fn resolve_generic_calls(&mut self) {
+        let zone_count = self.zones.len();
+        for i in 0..zone_count {
+            // 用 take 将 body 移出 self，避免借用冲突
+            let mut body = std::mem::take(&mut self.zones[i].body);
+            self.rename_generic_calls_in_body(&mut body);
+            self.zones[i].body = body;
+        }
+    }
+
+    /// 递归遍历语句体，替换泛型调用。
+    fn rename_generic_calls_in_body(&mut self, body: &mut Vec<Stmt>) {
+        // 先收集所有需要改名的调用信息，避免借用冲突
+        let mut pending: Vec<PendingCall> = Vec::new();
+        for stmt in body.iter() {
+            if let Stmt::Call { func_name, args, .. } = stmt {
+                let func_def_opt = self.symbols.lookup(func_name)
+                    .and_then(|sym| sym.func_def.clone());
+                if let Some(func_def) = func_def_opt {
+                    if !func_def.type_params.is_empty() {
+                        let arg_types: Vec<Type> = args.iter()
+                            .map(|a| self.type_checker.infer_expr(a, &self.symbols))
+                            .collect();
+                        pending.push(PendingCall {
+                            old_name: func_name.clone(),
+                            func_def: *func_def,
+                            arg_types,
+                        });
+                    }
+                }
+            }
+        }
+        // 注册单态化并记录改名映射
+        let mut call_renames: Vec<(String, String)> = Vec::new();
+        for item in &pending {
+            let concrete_types = self.match_type_params(&item.func_def, &item.arg_types);
+            let mono_name = self.register_monomorphization(
+                &item.old_name, &concrete_types, &item.func_def);
+            call_renames.push((item.old_name.clone(), mono_name));
+        }
+        drop(pending); // 释放 pending 以便后续可变借用
+        // 执行改名
+        for stmt in body.iter_mut() {
+            if let Stmt::Call { func_name, .. } = stmt {
+                for (old_name, new_name) in &call_renames {
+                    if func_name == old_name {
+                        *func_name = new_name.clone();
+                        break;
+                    }
+                }
+            }
+            // 递归进入子语句
+            match stmt {
+                Stmt::Let { init, .. } | Stmt::Const { init, .. } | Stmt::Goout { init, .. } => {
+                    self.rename_generic_calls_in_expr(init);
+                }
+                Stmt::If { cond, body: b, elifs, else_body, .. } => {
+                    self.rename_generic_calls_in_expr(cond);
+                    self.rename_generic_calls_in_body(b);
+                    for (ec, eb) in elifs.iter_mut() {
+                        self.rename_generic_calls_in_expr(ec);
+                        self.rename_generic_calls_in_body(eb);
+                    }
+                    if let Some(eb) = else_body {
+                        self.rename_generic_calls_in_body(eb);
+                    }
+                }
+                Stmt::For { cond, body: b, .. } => {
+                    self.rename_generic_calls_in_expr(cond);
+                    self.rename_generic_calls_in_body(b);
+                }
+                Stmt::Block(b) => {
+                    self.rename_generic_calls_in_body(b);
+                }
+                Stmt::FnDef(f) => {
+                    self.rename_generic_calls_in_body(&mut f.body);
+                }
+                Stmt::Return { value } => {
+                    if let Some(v) = value {
+                        self.rename_generic_calls_in_expr(v);
+                    }
+                }
+                Stmt::Assert { cond, .. } | Stmt::Raise { expr: cond, .. } => {
+                    self.rename_generic_calls_in_expr(cond);
+                }
+                Stmt::Break { cond } | Stmt::Continue { cond } => {
+                    if let Some(c) = cond {
+                        self.rename_generic_calls_in_expr(c);
+                    }
+                }
+                Stmt::Wait { overrides, .. } => {
+                    for (_, val) in overrides.iter_mut() {
+                        self.rename_generic_calls_in_expr(val);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// 递归遍历表达式中的泛型函数调用。
+    fn rename_generic_calls_in_expr(&mut self, expr: &mut Expr) {
+        // 先收集需要改名的调用
+        let mut renames: Vec<(String, String)> = Vec::new();
+        self.collect_generic_calls_in_expr(expr, &mut renames);
+        // 执行改名
+        for (old_name, new_name) in &renames {
+            Self::apply_rename_in_expr(expr, old_name, new_name);
+        }
+        // 递归进入子表达式
+        match expr {
+            Expr::Binary { lhs, rhs, .. } => {
+                self.rename_generic_calls_in_expr(lhs);
+                self.rename_generic_calls_in_expr(rhs);
+            }
+            Expr::Unary { expr: inner, .. } => {
+                self.rename_generic_calls_in_expr(inner);
+            }
+            Expr::List(items) => {
+                for item in items.iter_mut() {
+                    self.rename_generic_calls_in_expr(item);
+                }
+            }
+            Expr::Dict(entries) => {
+                for (k, v) in entries.iter_mut() {
+                    self.rename_generic_calls_in_expr(k);
+                    self.rename_generic_calls_in_expr(v);
+                }
+            }
+            Expr::Tuple(items) => {
+                for item in items.iter_mut() {
+                    self.rename_generic_calls_in_expr(item);
+                }
+            }
+            Expr::Index { target, index } => {
+                self.rename_generic_calls_in_expr(target);
+                self.rename_generic_calls_in_expr(index);
+            }
+            Expr::Dot { target, .. } => {
+                self.rename_generic_calls_in_expr(target);
+            }
+            Expr::DoFn { body, .. } => {
+                self.rename_generic_calls_in_body(body);
+            }
+            _ => {}
+        }
+    }
+
+    /// 收集表达式树中所有泛型调用的改名映射。
+    /// 先收集调用信息（不可变借用），再执行注册（可变借用）。
+    fn collect_generic_calls_in_expr(&mut self, expr: &Expr, renames: &mut Vec<(String, String)>) {
+        // 第一遍：收集所有需要改名的调用
+        let mut pending: Vec<PendingCall> = Vec::new();
+        self.gather_generic_expr_calls(expr, &mut pending);
+
+        // 第二遍：注册单态化
+        for item in &pending {
+            let concrete_types = self.match_type_params(&item.func_def, &item.arg_types);
+            let mono_name = self.register_monomorphization(
+                &item.old_name, &concrete_types, &item.func_def);
+            renames.push((item.old_name.clone(), mono_name));
+        }
+    }
+
+    /// 递归收集表达式中的泛型调用信息。
+    fn gather_generic_expr_calls(&mut self, expr: &Expr, pending: &mut Vec<PendingCall>) {
+        if let Expr::Call { name, args } = expr {
+            let func_def_opt = self.symbols.lookup(name)
+                .and_then(|sym| sym.func_def.clone());
+            if let Some(func_def) = func_def_opt {
+                if !func_def.type_params.is_empty() {
+                    let arg_types: Vec<Type> = args.iter()
+                        .map(|a| self.type_checker.infer_expr(a, &self.symbols))
+                        .collect();
+                    pending.push(PendingCall {
+                        old_name: name.clone(),
+                        func_def: *func_def,
+                        arg_types,
+                    });
+                }
+            }
+        }
+        match expr {
+            Expr::Binary { lhs, rhs, .. } => {
+                self.gather_generic_expr_calls(lhs, pending);
+                self.gather_generic_expr_calls(rhs, pending);
+            }
+            Expr::Unary { expr: inner, .. } => {
+                self.gather_generic_expr_calls(inner, pending);
+            }
+            Expr::List(items) => {
+                for item in items {
+                    self.gather_generic_expr_calls(item, pending);
+                }
+            }
+            Expr::Dict(entries) => {
+                for (k, v) in entries {
+                    self.gather_generic_expr_calls(k, pending);
+                    self.gather_generic_expr_calls(v, pending);
+                }
+            }
+            Expr::Tuple(items) => {
+                for item in items {
+                    self.gather_generic_expr_calls(item, pending);
+                }
+            }
+            Expr::Index { target, index } => {
+                self.gather_generic_expr_calls(target, pending);
+                self.gather_generic_expr_calls(index, pending);
+            }
+            Expr::Dot { target, .. } => {
+                self.gather_generic_expr_calls(target, pending);
+            }
+            _ => {}
+        }
+    }
+
+    /// 在表达式树中替换指定函数名。
+    fn apply_rename_in_expr(expr: &mut Expr, old_name: &str, new_name: &str) {
+        match expr {
+            Expr::Call { name, .. } if name == old_name => {
+                *name = new_name.to_string();
+            }
+            Expr::Binary { lhs, rhs, .. } => {
+                Self::apply_rename_in_expr(lhs, old_name, new_name);
+                Self::apply_rename_in_expr(rhs, old_name, new_name);
+            }
+            Expr::Unary { expr: inner, .. } => {
+                Self::apply_rename_in_expr(inner, old_name, new_name);
+            }
+            Expr::List(items) => {
+                for item in items {
+                    Self::apply_rename_in_expr(item, old_name, new_name);
+                }
+            }
+            Expr::Dict(entries) => {
+                for (k, v) in entries {
+                    Self::apply_rename_in_expr(k, old_name, new_name);
+                    Self::apply_rename_in_expr(v, old_name, new_name);
+                }
+            }
+            Expr::Tuple(items) => {
+                for item in items {
+                    Self::apply_rename_in_expr(item, old_name, new_name);
+                }
+            }
+            Expr::Index { target, index } => {
+                Self::apply_rename_in_expr(target, old_name, new_name);
+                Self::apply_rename_in_expr(index, old_name, new_name);
+            }
+            Expr::Dot { target, .. } => {
+                Self::apply_rename_in_expr(target, old_name, new_name);
+            }
+            _ => {}
+        }
     }
 
     // ═══════════════════════════════════════════════
@@ -814,12 +1169,106 @@ impl Default for SemanticAnalyzer {
     }
 }
 
+// ─── 辅助：单态化收集 ──────────────────────────────────
+
+/// 待处理的泛型函数调用。
+struct PendingCall {
+    old_name: String,
+    func_def: FuncDef,
+    arg_types: Vec<Type>,
+}
+
 // ─── 辅助：Symbol 的 goout 方法 ────────────────────────
 
 impl Symbol {
     fn with_goout(mut self, goout: bool) -> Self {
         self.is_goout = goout;
         self
+    }
+}
+
+// ─── 辅助：类型替换（用于泛型单态化） ──────────────────
+
+/// 将语义类型转换为类型节点（用于单态化时的类型替换）。
+fn type_node_from_type(t: &Type) -> Box<TypeNode> {
+    match t {
+        Type::Int => Box::new(TypeNode::Base("int".into())),
+        Type::Float => Box::new(TypeNode::Base("float".into())),
+        Type::Bool => Box::new(TypeNode::Base("bool".into())),
+        Type::Str => Box::new(TypeNode::Base("str".into())),
+        Type::Bytes => Box::new(TypeNode::Base("bytes".into())),
+        Type::Duration => Box::new(TypeNode::Base("duration".into())),
+        Type::List(inner) => Box::new(TypeNode::List(type_node_from_type(inner))),
+        Type::Dict(k, v) => Box::new(TypeNode::Dict(type_node_from_type(k), type_node_from_type(v))),
+        Type::Tuple(types) => Box::new(TypeNode::Tuple(types.iter().map(|t| *type_node_from_type(t)).collect())),
+        Type::Named(name) => Box::new(TypeNode::Named(name.clone())),
+        _ => Box::new(TypeNode::Base("any".into())),
+    }
+}
+
+/// 递归替换 TypeNode 中的泛型参数引用为具体类型。
+/// 注意：Parser 将泛型参数名解析为 TypeNode::Named(name)，而非 GenericParam。
+fn substitute_type_node(node: &mut TypeNode, param_names: &[&str], concrete_types: &[Type]) {
+    let type_param_name = match node {
+        TypeNode::GenericParam(name) => Some(name.clone()),
+        TypeNode::Named(name) if param_names.contains(&name.as_str()) => Some(name.clone()),
+        _ => None,
+    };
+    if let Some(name) = type_param_name {
+        for (i, p) in param_names.iter().enumerate() {
+            if *p == name.as_str() {
+                if let Some(ct) = concrete_types.get(i) {
+                    *node = *type_node_from_type(ct);
+                }
+                break;
+            }
+        }
+        return; // replaced, no need to recurse
+    }
+    match node {
+        TypeNode::List(inner) => substitute_type_node(inner, param_names, concrete_types),
+        TypeNode::Dict(k, v) => {
+            substitute_type_node(k, param_names, concrete_types);
+            substitute_type_node(v, param_names, concrete_types);
+        }
+        TypeNode::Tuple(types) => {
+            for t in types.iter_mut() {
+                substitute_type_node(t, param_names, concrete_types);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 递归遍历语句体，替换所有类型标注中的泛型参数。
+fn substitute_types_in_stmts(stmts: &mut Vec<Stmt>, param_names: &[&str], concrete_types: &[Type]) {
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            Stmt::Let { type_ann, init: _, .. }
+            | Stmt::Const { type_ann, init: _, .. }
+            | Stmt::Goout { type_ann, init: _, .. } => {
+                substitute_type_node(type_ann, param_names, concrete_types);
+            }
+            Stmt::If { body, elifs, else_body, .. } => {
+                substitute_types_in_stmts(body, param_names, concrete_types);
+                for (_, eb) in elifs.iter_mut() {
+                    substitute_types_in_stmts(eb, param_names, concrete_types);
+                }
+                if let Some(eb) = else_body {
+                    substitute_types_in_stmts(eb, param_names, concrete_types);
+                }
+            }
+            Stmt::For { body, .. } => {
+                substitute_types_in_stmts(body, param_names, concrete_types);
+            }
+            Stmt::Block(b) => {
+                substitute_types_in_stmts(b, param_names, concrete_types);
+            }
+            Stmt::FnDef(f) => {
+                substitute_types_in_stmts(&mut f.body, param_names, concrete_types);
+            }
+            _ => {}
+        }
     }
 }
 
@@ -1022,6 +1471,48 @@ OUT : { CALL result() }";
         assert!(errors.is_empty(), "{:?}", errors);
     }
 
+    // ── SYN-009 INPUT/OUT 区 + 装饰器语义验证 ──────
+
+    #[test]
+    fn input_zone_source_decl_semantic() {
+        let src = r#"TOOLS : { fn gzip() {} }
+INPUT : {
+    HTTP : "https://api.com/data" [gzip] => RAW : bytes
+}"#;
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn input_zone_decorator_undefined_error() {
+        let src = r#"INPUT : {
+    HTTP : "https://api.com/data" [undefined_deco] => RAW : bytes
+}"#;
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should error on undefined decorator");
+    }
+
+    #[test]
+    fn out_zone_target_decl_semantic() {
+        let src = r#"TOOLS : { fn encrypt() {} }
+TASK : { GOOUT data : str = "hello" }
+OUT : {
+    data [encrypt] => HTTP : "https://api.com/upload"
+}"#;
+        let (_, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+    }
+
+    #[test]
+    fn out_zone_target_not_goout_error() {
+        let src = r#"TASK : { x : int = 42 }
+OUT : {
+    x => HTTP : "https://api.com/data"
+}"#;
+        let (_, errors) = analyze(src);
+        assert!(!errors.is_empty(), "should error on non-GOOUT variable");
+    }
+
     // ── SEM-012 异常层级与 TRY 校验 ─────────────────
 
     #[test]
@@ -1070,5 +1561,54 @@ TASK : { CALL used() }";
         let name = SemanticAnalyzer::monomorphize_name("pair", &[Type::Int, Type::Str]);
         assert!(name.contains("int"));
         assert!(name.contains("str"));
+    }
+
+    #[test]
+    fn generic_function_call_monomorphized() {
+        let src = r#"TOOLS : {
+            fn identity<T>(x : T) : T { x }
+        }
+        TASK : {
+            CALL identity(42) => result
+        }"#;
+        let (analyzer, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        // 验证单态化函数已注册
+        assert!(analyzer.symbols.contains("identity::int"));
+        // 验证调用点已被改名
+        let task_zone = analyzer.zones.iter().find(|z| z.kind == ZoneKind::Task).unwrap();
+        let has_mono_call = task_zone.body.iter().any(|s| {
+            matches!(s, Stmt::Call { func_name, .. } if func_name == "identity::int")
+        });
+        assert!(has_mono_call, "call site should be renamed to monomorphized name");
+    }
+
+    #[test]
+    fn generic_function_unused_not_monomorphized() {
+        let src = r#"TOOLS : {
+            fn identity<T>(x : T) : T { x }
+        }
+        TASK : {
+            x : int = 42
+        }"#;
+        let (analyzer, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        // identity 未被调用，不应该生成 identity::int
+        assert!(!analyzer.symbols.contains("identity::int"));
+    }
+
+    #[test]
+    fn generic_function_multiple_calls_deduplicated() {
+        let src = r#"TOOLS : {
+            fn identity<T>(x : T) : T { x }
+        }
+        TASK : {
+            CALL identity(42) => a
+            CALL identity(99) => b
+        }"#;
+        let (analyzer, errors) = analyze(src);
+        assert!(errors.is_empty(), "{:?}", errors);
+        // 两次 int 调用应共享同一个单态化副本
+        assert!(analyzer.symbols.contains("identity::int"));
     }
 }

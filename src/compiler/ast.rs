@@ -320,8 +320,12 @@ pub struct Zone {
     pub kind: ZoneKind,
     /// WORKS 名称（仅 ZoneKind::Works 时有）
     pub name: Option<String>,
-    /// 区域体语句
+    /// 区域体语句（TOOLS/WORKS/TASK/OUT 区的主要语句）
     pub body: Vec<Stmt>,
+    /// INPUT 区的数据源声明
+    pub source_decls: Vec<SourceDecl>,
+    /// OUT 区的数据交付声明
+    pub target_decls: Vec<TargetDecl>,
 }
 
 // ─── WORKS 模板 ────────────────────────────────────────

@@ -69,6 +69,25 @@ pub fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
         stmt::compile_stmts(&mut emit, &mut pool, &zone_info.body);
     }
 
+    // 编译单态化函数体（在符号表中以 "func::type" 命名）
+    for sym in analyzer.symbols.functions() {
+        if sym.name.contains("::") {
+            if let Some(func_def) = &sym.func_def {
+                // 为单态化函数生成标签和指令
+                emit.emit_label(&sym.name);
+                // 为参数分配虚拟寄存器（简化实现）
+                for param in &func_def.params {
+                    let _ = crate::compiler::codegen::expr::alloc_vreg();
+                    let _ = param;
+                }
+                stmt::compile_stmts(&mut emit, &mut pool, &func_def.body);
+                // 函数末尾隐式 return
+                emit.emit_r1i(crate::base::isa::opcode::JMPR,
+                    crate::base::isa::reg::RA as u8, 0);
+            }
+        }
+    }
+
     emit.resolve_all();
 
     // 5. 优化（O1 级别，含常量折叠 + 死代码消除）
@@ -160,5 +179,37 @@ mod tests {
         let source = "";
         let (_, _) = compile(source);
         // 空程序不会崩溃即可
+    }
+
+    #[test]
+    fn end_to_end_with_generic_function() {
+        let source = r#"TOOLS : {
+            fn identity<T>(x : T) : T { x }
+        }
+        TASK : {
+            CALL identity(42) => result
+        }"#;
+        let (bytes, errors) = compile(source);
+        assert!(errors.is_empty(), "{:?}", errors);
+        assert!(!bytes.is_empty());
+        // 验证 .atxe 可解码
+        let decoded = crate::base::ir::AtxeBinary::from_bytes(&bytes);
+        assert!(decoded.is_some());
+        let binary = decoded.unwrap();
+        assert!(binary.text.len() > 0);
+    }
+
+    #[test]
+    fn end_to_end_generic_multiple_types() {
+        let source = r#"TOOLS : {
+            fn identity<T>(x : T) : T { x }
+        }
+        TASK : {
+            CALL identity(42) => a
+            CALL identity("hello") => b
+        }"#;
+        let (bytes, errors) = compile(source);
+        assert!(errors.is_empty(), "{:?}", errors);
+        assert!(!bytes.is_empty());
     }
 }
