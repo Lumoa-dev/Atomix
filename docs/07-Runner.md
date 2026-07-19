@@ -3,9 +3,7 @@
 > 架构版本: v0.3（全面修订）
 > 最后更新: 2026-07-20
 > 状态: **设计冻结 — 待仿真验证后进入实现**
->
-> 本文件整合并替代原 `07-执行器设计.md`、`08-运行时架构.md`、`11-策略模块.md`
-> 三份文档的全部内容。是本项目的 Runner 执行引擎唯一权威设计文档。
+> 文档中涉及到的算法已经在 /sim/ 下完成仿真
 
 ---
 
@@ -1091,6 +1089,212 @@ match phase {
 
 ---
 
+## 11. 仿真验证
+
+仿真框架位于 [`sim/`](../sim/)，用离散时间步进模拟 Runner 的完整任务生命周期，对比 9 种算法变体在 10 个场景下的表现。算法变体涵盖不同的因子平滑方法、合并策略、OOM 反馈和滑道策略组合。
+
+### 算法变体
+
+| 变体 | 平滑 | 合并 | OOM 反馈 | 滑道 |
+|------|------|------|----------|------|
+| Baseline | Discrete | Mul | Hard | 1.5x |
+| Sigmoid Only | Sigmoid | Mul | Hard | 1.5x |
+| MinBottleneck | Discrete | Min | Hard | 1.5x |
+| AIMD+Hysteresis | Discrete | Mul | AIMD+Hys | 1.5x |
+| Sig+AimdH | Sigmoid | Mul | AIMD+Hys | 1.5x |
+| Lin+WGM+AimdH | Linear | WGM | AIMD+Hys | Dynamic |
+| FullOpt | Sigmoid | WGM | AIMD+Hys | Dynamic |
+| FullAdaptive | Adaptive | WGM | AIMD+Hys | P95 |
+| FullOpt_v0.3 | Sigmoid | WGM | AIMD+Hys | Dynamic |
+
+### 场景概览
+
+各场景的完整报告（含图表）位于 `sim/reports/`，以下为关键结果汇总。
+
+---
+
+#### ① 稳态混合负载
+
+恒定速率 15 tasks/s 到达的 4 象限混合任务，测试基准吞吐量和稳定性。
+
+![吞吐量对比](../sim/reports/稳态混合负载/throughput_comparison.png)
+![热力图](../sim/reports/稳态混合负载/heatmap.png)
+![帕累托前沿](../sim/reports/稳态混合负载/pareto_frontier.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 12.4/s | 0.00% | 2971ms | 16532ms | 10.6 |
+| FullOpt | 12.7/s | 0.00% | 2391ms | 19468ms | 10.6 |
+| FullAdaptive | 13.0/s | 0.00% | 2769ms | 29210ms | 10.5 |
+| Lin+WGM+AimdH | **13.6/s** | 0.00% | 3190ms | 30041ms | 8.9 |
+
+> 稳态下各变体差异不大。Lin+WGM（线性插值 + 加权几何平均）有最高吞吐量但延迟方差较大。
+
+---
+
+#### ② 突发冲击
+
+10s 处突发 5× 任务涌入持续 15s，测试积压处理能力。
+
+![吞吐量对比](../sim/reports/突发冲击/throughput_comparison.png)
+![帕累托前沿](../sim/reports/突发冲击/pareto_frontier.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 14.0/s | 0.00% | 2208ms | 14097ms | 11.3 |
+| FullOpt | 14.1/s | 0.00% | 2029ms | 14709ms | 11.4 |
+| FullAdaptive | 14.3/s | 0.00% | 2022ms | 14424ms | 11.3 |
+| Lin+WGM+AimdH | **15.2/s** | 0.00% | 3209ms | 30342ms | 9.8 |
+
+> 突发场景下 Lin+WGM 吞吐领先 8%，但以更高延迟为代价。AIMD+Hysteresis 在突发前后的恢复较平滑。
+
+---
+
+#### ③ 内存压力
+
+80% 任务为大内存类型（100-800MB），测试 OOM 反馈回路和滑道效果。
+
+![吞吐量对比](../sim/reports/内存压力/throughput_comparison.png)
+![时间序列](../sim/reports/内存压力/time_series.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 3.9/s | 0.00% | 19289ms | 84008ms | 5.6 |
+| FullOpt | **4.1/s** | 0.00% | 20182ms | 89084ms | 5.6 |
+| Lin+WGM+AimdH | 2.9/s | 0.00% | 21914ms | 84151ms | 5.2 |
+
+> 内存压力下吞吐量大幅下降（因大任务排队）。FullOpt 通过加权几何平均略微提升。Lin+WGM 的保守策略在此场景下过度收缩 N_batch。
+
+---
+
+#### ④ CPU 压力
+
+大量 CPU 密集型任务（60% 小快 + 25% 小慢），测试槽位利用率和吞吐量上限。
+
+![吞吐量对比](../sim/reports/CPU压力/throughput_comparison.png)
+![热力图](../sim/reports/CPU压力/heatmap.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 27.8/s | 0.00% | 1749ms | 8424ms | 19.9 |
+| FullOpt | 27.7/s | 0.00% | 1666ms | 8113ms | 19.9 |
+| Lin+WGM+AimdH | **28.5/s** | 0.00% | 2104ms | 17133ms | 18.1 |
+
+> CPU 场景下 N_batch 接近硬件上限（~20），所有变体吞吐量接近。CPU 是硬瓶颈时算法差异被压缩。
+
+---
+
+#### ⑤ 震荡测试
+
+负载在轻重之间快速切换，测试算法稳定性和振荡抑制。
+
+![吞吐量对比](../sim/reports/震荡测试/throughput_comparison.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 16.8/s | 0.00% | 4391ms | 17168ms | 7.4 |
+| FullAdaptive | **17.7/s** | 0.00% | 4290ms | 55957ms | 7.2 |
+| Lin+WGM+AimdH | 17.5/s | 0.00% | 4509ms | 23413ms | 5.8 |
+
+> 震荡场景下 FullAdaptive（自适应平滑）吞吐最高，自适应陡峭度调节在此场景发挥了作用。但 P99 方差极大。
+
+---
+
+#### ⑥ 长跑稳定性
+
+模拟长时间运行（300s），检测漂移/退化。
+
+![吞吐量对比](../sim/reports/长跑稳定性/throughput_comparison.png)
+![时间序列](../sim/reports/长跑稳定性/time_series.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 10.6/s | 0.00% | 4738ms | 53682ms | 8.7 |
+| FullAdaptive | 10.9/s | 0.00% | 3208ms | 28977ms | 8.3 |
+| Lin+WGM+AimdH | **11.3/s** | 0.00% | 4710ms | 31205ms | 7.1 |
+
+> 长跑场景所有变体均无退化/漂移，算法稳定性通过。Lin+WGM 吞吐最高。
+
+---
+
+#### ⑦ 不平衡负载
+
+任务执行时间差异极大（10ms-20000ms），测试负载均衡效果。
+
+![吞吐量对比](../sim/reports/不平衡负载/throughput_comparison.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 18.4/s | 0.00% | 2818ms | 22495ms | 13.6 |
+| Lin+WGM+AimdH | **18.8/s** | 0.00% | 3376ms | 37764ms | 12.1 |
+
+> 不平衡负载下 Lin+WGM 有微小优势。各变体差异不大，负载均衡器在此场景起了主要作用。
+
+---
+
+#### ⑧ 冷启动预测误差
+
+编译器预测初始不准确（偏差 2-3×），测试冷启动协议适应性。
+
+![吞吐量对比](../sim/reports/冷启动预测误差/throughput_comparison.png)
+![因子分解](../sim/reports/冷启动预测误差/factor_decomposition.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 3.9/s | 0.00% | 4746ms | 58885ms | 6.6 |
+| FullAdaptive | **4.1/s** | 0.00% | 4666ms | 59350ms | 6.1 |
+| Lin+WGM+AimdH | **4.3/s** | 0.00% | 5911ms | 59811ms | 5.2 |
+
+> 冷启动场景下 FullAdaptive 和 Lin+WGM 的保守策略有助于减少预测误差的影响。总体吞吐较低因回归模型需积累样本。
+
+---
+
+#### ⑨ 高碎片回收
+
+高内存压力 + 频繁 OOM，测试死区碎片回收与 ROI 评估。
+
+![吞吐量对比](../sim/reports/高碎片回收/throughput_comparison.png)
+![帕累托前沿](../sim/reports/高碎片回收/pareto_frontier.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| Baseline | 5.5/s | 0.00% | 10058ms | 57017ms | 4.3 |
+| FullOpt | 5.9/s | 0.00% | 14346ms | 83658ms | 4.2 |
+| FullAdaptive | **6.4/s** | 0.00% | 12683ms | 71254ms | 4.1 |
+
+> 高碎片场景 FullAdaptive 吞吐领先（+16%），自适应平滑在此场景最能适应碎片变化。N_batch 普遍较低反映了内存紧张。
+
+---
+
+#### ⑩ 大批量小任务预载
+
+极高到达率（50 tasks/s），任务极小（1-50ms CPU），测试预载调度器。
+
+![吞吐量对比](../sim/reports/大批量小任务预载/throughput_comparison.png)
+
+| 变体 | 吞吐量 | OOM% | 平均延迟 | P99 | N_batch |
+|------|--------|------|---------|-----|---------|
+| **全部** | **51.1/s** | 0.00% | **36ms** | **77ms** | **~46** |
+
+> 小任务场景下所有变体表现完全一致。任务极小（1-50ms），预载调度器始终能提前就绪，延迟极低（36ms）。N_batch 接近硬件上限（~46）。
+
+---
+
+### 综合结论
+
+| 场景 | 推荐变体 | 理由 |
+|------|---------|------|
+| 稳态/CPU/不平衡 | Lin+WGM+AimdH | 最高吞吐，CPU 瓶颈时延迟可接受 |
+| 内存压力/高碎片 | FullOpt / FullAdaptive | 自适应平滑在内存紧张时更优 |
+| 突发/震荡 | FullAdaptive | 自适应陡峭度调节抑制振荡 |
+| 冷启动 | FullOpt + 回归模型 | 回归模型积累后逐步改善 |
+| 预载密集型 | 任意变体 | 任务过小时算法差异消失 |
+
+**总体推荐**：`FullOpt`（Sigmoid + WGM + AIMD+Hysteresis + Dynamic）覆盖大部分场景，`FullAdaptive` 在内存紧张和振荡场景有额外增益。
+
+> 完整报告数据位于 [`sim/reports/`](../sim/reports/)，包含各场景的原始 CSV、JSON 汇总和所有图表。
+> 仿真框架位于 [`sim/`](../sim/)，运行 `python -m sim.main --quick` 快速验证。
+
+---
+
 > **本文件是 Runner 架构的唯一权威设计文档。**
-> 
-> 下一步：更新仿真代码（`docs/sim/`），加入新算法和新场景，全参数跑验证，输出 CSV 原始数据 + 图表。
