@@ -5,10 +5,14 @@
 pub mod decode;
 pub mod execute;
 pub mod memory;
+pub mod task;
+pub mod pool;
+pub mod loader;
+pub mod sched;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{reg, Profile};
-use crate::vm::memory::SandboxMemory;
+use crate::runner::memory::SandboxMemory;
 
 // ─── VM 状态 ───────────────────────────────────────────
 
@@ -37,6 +41,8 @@ pub struct VmState {
     pub quantum: u32,
     /// 当前任务 ID。
     pub task_id: u16,
+    /// TASK_JOIN 目标子任务 ID（调度器使用，None=未等待）。
+    pub join_waiting_for: Option<u16>,
 }
 
 /// VM 运行状态。
@@ -100,6 +106,7 @@ impl VmState {
             profile,
             quantum: 0,
             task_id: 0,
+            join_waiting_for: None,
         };
 
         // 初始化 SP（栈顶，向下增长）

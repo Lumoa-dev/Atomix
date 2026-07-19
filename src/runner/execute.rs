@@ -3,13 +3,13 @@
 //! 覆盖 02-指令集规范.md §3 的全部指令行为。
 
 use crate::base::isa::{self, opcode, reg};
-use crate::vm::decode;
-use crate::vm::VmState;
+use crate::runner::decode;
+use crate::runner::VmState;
 
 /// 执行单条指令。返回 true 表示继续执行，false 表示需要让出/停止。
 pub fn execute_instruction(vm: &mut VmState) -> bool {
     if vm.pc >= vm.text.len() {
-        vm.state = crate::vm::VmStateKind::Error("pc 越界".into());
+        vm.state = crate::runner::VmStateKind::Error("pc 越界".into());
         return false;
     }
 
@@ -26,7 +26,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         opcode::TRAP => {
             match ops.imm {
-                0 => { vm.state = crate::vm::VmStateKind::Halted; return false; }
+                0 => { vm.state = crate::runner::VmStateKind::Halted; return false; }
                 1 => { /* DEBUG: NOP for now */ }
                 _ => {}
             }
@@ -36,7 +36,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             let exc_val = vm.read_reg(ops.rd as usize);
             // 查 .exn 表（简化版：在 execute.rs 底部实现）
             if !handle_exception(vm, exc_val) {
-                vm.state = crate::vm::VmStateKind::Error(format!("未捕获的异常: {}", exc_val));
+                vm.state = crate::runner::VmStateKind::Error(format!("未捕获的异常: {}", exc_val));
                 return false;
             }
         }
@@ -60,7 +60,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             if let Some(val) = load_from_memory(vm, addr) {
                 vm.write_reg(ops.rd as usize, val);
             } else {
-                vm.state = crate::vm::VmStateKind::Error(format!("LOAD 越界: addr={:#x}", addr));
+                vm.state = crate::runner::VmStateKind::Error(format!("LOAD 越界: addr={:#x}", addr));
                 return false;
             }
         }
@@ -69,7 +69,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             let addr = vm.read_reg(ops.rd as usize).wrapping_add(ops.imm as u64);
             let val = vm.read_reg(ops.rs1 as usize);
             if !store_to_memory(vm, addr, val) {
-                vm.state = crate::vm::VmStateKind::Error(format!("STORE 越界: addr={:#x}", addr));
+                vm.state = crate::runner::VmStateKind::Error(format!("STORE 越界: addr={:#x}", addr));
                 return false;
             }
         }
@@ -98,7 +98,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         opcode::DIV => {
             let divisor = vm.read_reg(ops.rs2 as usize);
             if divisor == 0 {
-                vm.state = crate::vm::VmStateKind::Error("除零异常".into());
+                vm.state = crate::runner::VmStateKind::Error("除零异常".into());
                 return false;
             }
             let r = (vm.read_reg(ops.rs1 as usize) as i64).wrapping_div(divisor as i64) as u64;
@@ -108,7 +108,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         opcode::DIVU => {
             let divisor = vm.read_reg(ops.rs2 as usize);
             if divisor == 0 {
-                vm.state = crate::vm::VmStateKind::Error("除零异常".into());
+                vm.state = crate::runner::VmStateKind::Error("除零异常".into());
                 return false;
             }
             vm.write_reg(ops.rd as usize, vm.read_reg(ops.rs1 as usize).wrapping_div(divisor));
@@ -117,7 +117,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         opcode::REM => {
             let divisor = vm.read_reg(ops.rs2 as usize);
             if divisor == 0 {
-                vm.state = crate::vm::VmStateKind::Error("除零异常".into());
+                vm.state = crate::runner::VmStateKind::Error("除零异常".into());
                 return false;
             }
             let r = (vm.read_reg(ops.rs1 as usize) as i64).wrapping_rem(divisor as i64) as u64;
@@ -333,7 +333,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             // 结束当前任务，rd 的值作为返回值
             let retval = vm.read_reg(ops.rd as usize);
             vm.write_reg(reg::A0, retval);
-            vm.state = crate::vm::VmStateKind::Halted;
+            vm.state = crate::runner::VmStateKind::Halted;
             return false;
         }
 
@@ -353,7 +353,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             if (result as i64) < 0 {
                 let exc_val = result.wrapping_neg() as u64;
                 if !handle_exception(vm, exc_val) {
-                    vm.state = crate::vm::VmStateKind::Error(
+                    vm.state = crate::runner::VmStateKind::Error(
                         format!("ECALL 错误: syscall={}", syscall)
                     );
                     return false;
@@ -371,11 +371,11 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             for i in 0..len {
                 if let Some(byte) = load_byte_from_memory(vm, src + i as u64) {
                     if !store_byte_to_memory(vm, dst + i as u64, byte) {
-                        vm.state = crate::vm::VmStateKind::Error("MCPY 越界".into());
+                        vm.state = crate::runner::VmStateKind::Error("MCPY 越界".into());
                         return false;
                     }
                 } else {
-                    vm.state = crate::vm::VmStateKind::Error("MCPY 越界".into());
+                    vm.state = crate::runner::VmStateKind::Error("MCPY 越界".into());
                     return false;
                 }
             }
@@ -388,7 +388,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
             let len = vm.read_reg(ops.rs2 as usize) as usize;
             for i in 0..len {
                 if !store_byte_to_memory(vm, dst + i as u64, val) {
-                    vm.state = crate::vm::VmStateKind::Error("MSET 越界".into());
+                    vm.state = crate::runner::VmStateKind::Error("MSET 越界".into());
                     return false;
                 }
             }
@@ -421,7 +421,7 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         // ── Illegal opcode ────────────────────
         _ => {
-            vm.state = crate::vm::VmStateKind::Error(format!("非法指令: opcode={:#04x}", op));
+            vm.state = crate::runner::VmStateKind::Error(format!("非法指令: opcode={:#04x}", op));
             return false;
         }
     }
@@ -526,8 +526,8 @@ pub fn run_vm(vm: &mut VmState) -> &str {
         }
     }
     match &vm.state {
-        crate::vm::VmStateKind::Halted => "halted",
-        crate::vm::VmStateKind::Error(e) => {
+        crate::runner::VmStateKind::Halted => "halted",
+        crate::runner::VmStateKind::Error(e) => {
             // Store error in return
             Box::leak(format!("error: {}", e).into_boxed_str())
         }
@@ -666,7 +666,7 @@ mod tests {
         while vm.is_running() {
             execute_instruction(&mut vm);
         }
-        assert!(matches!(vm.state, crate::vm::VmStateKind::Error(_)));
+        assert!(matches!(vm.state, crate::runner::VmStateKind::Error(_)));
     }
 
     #[test]
@@ -724,7 +724,7 @@ mod tests {
             execute_instruction(&mut vm);
         }
         assert_eq!(vm.regs[reg::A0], 42);
-        assert!(matches!(vm.state, crate::vm::VmStateKind::Halted));
+        assert!(matches!(vm.state, crate::runner::VmStateKind::Halted));
     }
 
     #[test]
@@ -854,7 +854,7 @@ mod tests {
         while vm.is_running() {
             execute_instruction(&mut vm);
         }
-        assert!(matches!(vm.state, crate::vm::VmStateKind::Error(_)));
+        assert!(matches!(vm.state, crate::runner::VmStateKind::Error(_)));
     }
 
     #[test]

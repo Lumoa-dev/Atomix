@@ -5,22 +5,19 @@
 # 运行: atomix run demo.atxe
 #
 # 完整语法参考: docs/语法设计/
-# ──────────────────────────────────────────────
 
-# ── 外部依赖 ─────────────────────────────────────
+
 USE : "std/csv"
 USE : "std/validate"
-
-# ── 常量 ─────────────────────────────────────────
 CONST LIMIT : int = 5000
 CONST TIMEOUT : int = 3000
 
-# ── 数据源 ───────────────────────────────────────
+
 INPUT : {
     CSV : "data/orders.csv" [header] => orders : list[dict]
 }
 
-# ── 工具函数 ─────────────────────────────────────
+
 TOOLS : {
     fn classify(row : dict) : dict {
         return {
@@ -31,7 +28,7 @@ TOOLS : {
     }
 }
 
-# ── 可复用任务模板 ────────────────────────────────
+
 WORKS ReportBuilder {
     HEADER : str
     DATA   : list[dict]
@@ -47,7 +44,7 @@ WORKS ReportBuilder {
     }
 }
 
-# ── 任务编排 ─────────────────────────────────────
+
 TASK : {
     # 管道模式: $ 接收 classify 的返回 (KV 结构)
     CALL classify(orders[0]) $
@@ -79,7 +76,7 @@ TASK : {
     }
 }
 
-# ── 产出交付 ─────────────────────────────────────
+
 OUT : {
     summary => HTTP : "https://api.example.com/demo" (post)
 }

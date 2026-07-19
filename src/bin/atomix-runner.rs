@@ -1,7 +1,7 @@
 //! atomix-runner — 独立运行时执行器。
 //!
-//! 加载 .atxe 并执行任务。支持开发模式单次执行和生产模式常驻。
-//! Phase 2 实现完整 VM 执行逻辑。
+//! 加载 .atxe 并使用调度器执行所有任务。
+//! 支持开发模式单次执行和生产模式常驻。
 
 use clap::Parser;
 use std::fs;
@@ -12,10 +12,6 @@ use std::path::PathBuf;
 struct Args {
     /// .atxe 文件路径
     file: PathBuf,
-
-    /// 最大执行指令数（0 = 无限制）
-    #[arg(long = "max-instr", default_value = "100000")]
-    max_instr: u64,
 }
 
 fn main() {
@@ -30,39 +26,56 @@ fn main() {
         }
     };
 
-    // 加载到 VM
-    let mut vm = match atomix::vm::VmState::load_atxe(&bytes) {
-        Ok(vm) => {
-            println!("VM 已加载: {} 条指令, entry={}", vm.text.len(), vm.pc);
-            vm
+    // 解码 .atxe
+    let binary = match atomix::base::ir::AtxeBinary::from_bytes(&bytes) {
+        Some(b) => {
+            println!(
+                "已加载: {} 条指令, {} 个 section, .task 段 {} 字节",
+                b.header.total_instrs,
+                b.sections.len(),
+                b.task_table.len(),
+            );
+            b
         }
-        Err(e) => {
-            eprintln!("错误: 加载 .atxe 失败: {}", e);
+        None => {
+            eprintln!("错误: 无效的 .atxe 文件");
             std::process::exit(1);
         }
     };
 
-    // 执行
-    let mut instr_count = 0u64;
-    let max_instr = if args.max_instr == 0 { u64::MAX } else { args.max_instr };
-
-    while vm.is_running() && instr_count < max_instr {
-        atomix::vm::execute::execute_instruction(&mut vm);
-        instr_count += 1;
-    }
-
-    // 输出结果
-    match &vm.state {
-        atomix::vm::VmStateKind::Halted => {
-            println!("执行完成: {} 条指令", instr_count);
-            println!("R4 (返回值): {}", vm.read_reg(4));
-        }
-        atomix::vm::VmStateKind::Error(e) => {
-            eprintln!("执行错误: {} ({} 条指令后)", e, instr_count);
+    // 创建调度器
+    let mut scheduler = match atomix::runner::sched::Scheduler::from_atxe(&binary) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("错误: 创建调度器失败: {}", e);
             std::process::exit(1);
         }
-        _ => {
-            println!("执行停止: {} 条指令 (状态: {:?})", instr_count, vm.state);
+    };
+
+    println!(
+        "调度器已初始化: {} 个任务, quantum={}",
+        scheduler.pool.len(),
+        scheduler.quantum,
+    );
+
+    // 运行所有任务
+    match scheduler.run_all() {
+        Ok(()) => {
+            println!("\n执行完成: 总计 {} 条指令", scheduler.total_instrs);
+            println!("任务结果:");
+            for (id, status, retval, instrs) in scheduler.pool.results() {
+                let status_str = match status {
+                    atomix::runner::task::TaskStatus::Done => "完成",
+                    atomix::runner::task::TaskStatus::Error => "出错",
+                    _ => "其他",
+                };
+                println!("  Task {}: {} ({} 条指令, 返回值: {})",
+                    id, status_str, instrs, retval);
+            }
+        }
+        Err(e) => {
+            eprintln!("\n执行错误: {}", e);
+            std::process::exit(1);
         }
     }
 }
