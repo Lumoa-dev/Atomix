@@ -4,6 +4,7 @@
 
 pub mod decode;
 pub mod execute;
+pub mod memory;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{self, reg, Profile};
