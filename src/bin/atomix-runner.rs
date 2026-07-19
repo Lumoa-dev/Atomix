@@ -1,7 +1,7 @@
 //! atomix-runner — 独立运行时执行器。
 //!
 //! 加载 .atxe 并使用 Runtime 执行所有任务。
-//! 支持开发模式单次执行和生产模式常驻。
+//! 支持从 runner.toml 加载配置。
 
 use clap::Parser;
 use std::fs;
@@ -15,6 +15,10 @@ use std::path::PathBuf;
 struct Args {
     /// .atxe 文件路径
     file: PathBuf,
+
+    /// 配置文件路径（可选，默认使用环境变量或内置默认值）
+    #[arg(short, long)]
+    config: Option<PathBuf>,
 }
 
 fn main() {
@@ -46,13 +50,33 @@ fn main() {
         }
     };
 
-    // 创建 Runtime
-    let mut runtime = match atomix::runner::runtime::Runtime::from_atxe(&binary) {
+    // 加载配置（可选）
+    let config = args.config.as_ref().and_then(|p| {
+        let path = p.to_str().unwrap_or("");
+        match atomix::runner::config::RunnerConfig::load(Some(path)) {
+            Ok(cfg) => {
+                println!("已加载配置: {}", path);
+                Some(cfg)
+            }
+            Err(e) => {
+                eprintln!("警告: 配置加载失败 ({}), 使用默认配置", e);
+                None
+            }
+        }
+    });
+
+    // 创建 Runtime（使用配置或默认值）
+    let mut runtime = match atomix::runner::runtime::Runtime::from_atxe(
+        &binary,
+        config.as_ref(),
+        None,
+    ) {
         Ok(rt) => {
             println!(
-                "Runtime 已初始化: {} 个任务, N_batch={}",
+                "Runtime 已初始化: {} 个任务, N_batch={}, quantum={}",
                 rt.pool.len(),
                 rt.executors.len(),
+                rt.quantum,
             );
             rt
         }

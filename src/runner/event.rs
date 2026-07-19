@@ -79,8 +79,20 @@ fn decode_event(raw: u64) -> ExecutorEvent {
 /// - Executor[i] 只写 `events[i]`（`store(Release)`）
 /// - Runtime 只读 `events[0..N-1]`（`load(Acquire)`）
 /// - 不存在两个线程竞争同一个地址。
+#[derive(Debug)]
 pub struct EventChannel {
     events: Vec<AtomicU64>,
+}
+
+impl Clone for EventChannel {
+    fn clone(&self) -> Self {
+        let events: Vec<AtomicU64> = self
+            .events
+            .iter()
+            .map(|a| AtomicU64::new(a.load(Ordering::Relaxed)))
+            .collect();
+        Self { events }
+    }
 }
 
 impl EventChannel {

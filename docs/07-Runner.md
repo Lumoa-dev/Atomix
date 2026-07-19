@@ -59,7 +59,7 @@ Executor {
     Quantum 计数器: u32                   
     状态: Running / Suspended / Halted    
     事件上报点: &AtomicU64 (Runtime分配)    
-   任务元信息: task_id, slot_id           
+    任务元信息: task_id, slot_id           
 }
 ```
 

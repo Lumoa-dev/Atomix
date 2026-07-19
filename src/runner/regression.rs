@@ -155,7 +155,10 @@ impl RegressionModel {
             if v.fract() == 0.0 {
                 format!("{:.1}", v)
             } else {
-                format!("{:.6}", v).trim_end_matches('0').trim_end_matches('.').to_string()
+                format!("{:.6}", v)
+                    .trim_end_matches('0')
+                    .trim_end_matches('.')
+                    .to_string()
             }
         }
         format!(
@@ -166,6 +169,49 @@ impl RegressionModel {
             self.sample_count,
             self.last_trained_at
         )
+    }
+
+    /// 保存模型到 JSON 文件。
+    pub fn save_to_file(&self, path: &str) -> Result<(), String> {
+        let json = self.to_json();
+        std::fs::write(path, &json)
+            .map_err(|e| format!("保存回归模型失败: {}", e))
+    }
+
+    /// 从 JSON 文件加载模型。
+    pub fn load_from_file(path: &str) -> Option<Self> {
+        let content = std::fs::read_to_string(path).ok()?;
+        // 手动解析简单 JSON
+        let alpha = Self::parse_json_f64(&content, "alpha")?;
+        let beta = Self::parse_json_f64(&content, "beta")?;
+        let r_squared = Self::parse_json_f64(&content, "r_squared")?;
+        let sample_count = Self::parse_json_u64(&content, "sample_count")?;
+        let last_trained_at = Self::parse_json_u64(&content, "last_trained_at")?;
+        Some(Self {
+            alpha,
+            beta,
+            r_squared,
+            sample_count,
+            last_trained_at,
+        })
+    }
+
+    /// 从 JSON 字符串中解析 f64 字段。
+    fn parse_json_f64(json: &str, key: &str) -> Option<f64> {
+        let pattern = format!("\"{}\":", key);
+        let start = json.find(&pattern)?;
+        let rest = &json[start + pattern.len()..];
+        let end = rest.find(|c: char| c == ',' || c == '}' || c == ']')?;
+        rest[..end].trim().parse().ok()
+    }
+
+    /// 从 JSON 字符串中解析 u64 字段。
+    fn parse_json_u64(json: &str, key: &str) -> Option<u64> {
+        let pattern = format!("\"{}\":", key);
+        let start = json.find(&pattern)?;
+        let rest = &json[start + pattern.len()..];
+        let end = rest.find(|c: char| c == ',' || c == '}' || c == ']')?;
+        rest[..end].trim().parse().ok()
     }
 }
 
@@ -299,5 +345,36 @@ compiler_peak,actual_peak
         let samples: Vec<(f64, f64)> = (0..100).map(|_| (42.0, 100.0)).collect();
         model.train(&samples); // 不应 panic
         assert!(!model.is_ready()); // r² = 0
+    }
+
+    #[test]
+    fn regression_save_load_roundtrip() {
+        let tmp = std::env::temp_dir().join("_test_regression.json");
+        let path = tmp.to_str().unwrap().to_string();
+
+        // 保存
+        let mut model = RegressionModel::default();
+        model.alpha = 1.25;
+        model.beta = 3.0;
+        model.r_squared = 0.88;
+        model.sample_count = 100;
+        model.last_trained_at = 100;
+        model.save_to_file(&path).unwrap();
+
+        // 加载
+        let loaded = RegressionModel::load_from_file(&path).unwrap();
+        assert!((loaded.alpha - 1.25).abs() < 0.001);
+        assert!((loaded.beta - 3.0).abs() < 0.001);
+        assert!((loaded.r_squared - 0.88).abs() < 0.001);
+        assert_eq!(loaded.sample_count, 100);
+
+        // 清理
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn regression_load_nonexistent() {
+        let loaded = RegressionModel::load_from_file("/nonexistent/path.json");
+        assert!(loaded.is_none());
     }
 }
