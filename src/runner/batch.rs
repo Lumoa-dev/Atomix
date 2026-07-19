@@ -3,6 +3,8 @@
 //! 覆盖 P3-BM-001~BM-008, BM-011 全部需求。
 //! 公式原文见 docs/11-策略模块.md。
 
+use crate::runner::regression::RegressionModel;
+
 // ─── OOM 反馈状态机 ──────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -60,6 +62,8 @@ pub struct BatchManager {
     pub sigma_t: f64,
     /// 积压深度（就绪 + 运行中任务数）。
     pub pool_depth: f64,
+    /// 当前编译器预测峰值（MB）的滑动平均。
+    pub compiler_peak_current: f64,
 
     // ── OOM 反馈 ──
     pub oom_count: u32,
@@ -67,11 +71,16 @@ pub struct BatchManager {
     pub initial_alpha_mem: f64,
     pub oom_state: OomState,
 
-    // ── 因子权重 ──
+    // ── 因子权重（v0.3: 增加 θ 置信因子） ──
     pub w_beta: f64,
     pub w_lambda: f64,
     pub w_sigma: f64,
     pub w_gamma: f64,
+    pub w_theta: f64,   // 置信因子权重
+
+    // ── 回归模型 ──
+    /// 线性回归模型（编译器预测 → 实际峰值修正）。
+    pub regression: RegressionModel,
 
     // ── 安全参数 ──
     pub safety_margin: f64,
@@ -95,14 +104,17 @@ impl BatchManager {
             mu_m: 16.0,     // 初始猜测 16MB
             sigma_t: 250.0, // 初始猜测
             pool_depth: 1.0,
+            compiler_peak_current: 16.0,
             oom_count: 0,
             alpha_mem_current: alpha_mem,
             initial_alpha_mem: alpha_mem,
             oom_state: OomState::Increase,
-            w_beta: 0.25,
-            w_lambda: 0.25,
-            w_sigma: 0.25,
-            w_gamma: 0.25,
+            w_beta: 0.20,
+            w_lambda: 0.20,
+            w_sigma: 0.20,
+            w_gamma: 0.15,
+            w_theta: 0.25,
+            regression: RegressionModel::default(),
             safety_margin: 0.15,
             slipway_base: 1.5,
         }
@@ -156,18 +168,31 @@ impl BatchManager {
         0.50 + 0.55 / (1.0 + f64::exp(5.0 * (v_t - 0.5)))
     }
 
+    /// 置信因子 θ(r²)：r²→0 → 0.70，r²→1 → 1.00
+    ///
+    /// v0.3 新增。θ 获得最高权重 0.25，
+    /// 因为内存精度直接影响 OOM 风险。
+    pub fn factor_theta(&self) -> f64 {
+        0.70 + 0.30 * self.regression.r_squared.min(1.0).max(0.0)
+    }
+
     // ═══════════════════════════════════════════════
     //  合并
     // ═══════════════════════════════════════════════
 
-    /// 加权几何平均合并四个因子。
+    /// 加权几何平均合并五个因子（v0.3：增加 θ）。
     pub fn merge_factors(&self) -> f64 {
         let beta = self.factor_beta();
         let lambda = self.factor_lambda();
         let sigma = self.factor_sigma();
         let gamma = self.factor_gamma();
+        let theta = self.factor_theta();
 
-        let total_w = self.w_beta + self.w_lambda + self.w_sigma + self.w_gamma;
+        let total_w = self.w_beta
+            + self.w_lambda
+            + self.w_sigma
+            + self.w_gamma
+            + self.w_theta;
         if total_w <= 0.0 {
             return 1.0;
         }
@@ -175,7 +200,8 @@ impl BatchManager {
         let log_merged = self.w_beta * beta.ln()
             + self.w_lambda * lambda.ln()
             + self.w_sigma * sigma.ln()
-            + self.w_gamma * gamma.ln();
+            + self.w_gamma * gamma.ln()
+            + self.w_theta * theta.ln();
 
         (log_merged / total_w).exp()
     }
@@ -185,6 +211,10 @@ impl BatchManager {
     // ═══════════════════════════════════════════════
 
     /// 完整计算 N_batch。
+    ///
+    /// v0.3 修订：MEM_per_task_effective 使用回归模型动态校正：
+    ///   if regression.ready:  α × compiler_peak_mb + β
+    ///   else:                 compiler_peak_mb × 1.5（冷启动保守估计）
     pub fn compute_decision(&mut self) -> ControlDecision {
         let h = self.compute_hard_ceiling();
         let merged = self.merge_factors();
@@ -209,16 +239,45 @@ impl BatchManager {
         }
     }
 
+    /// 计算动态的每任务内存估计（使用回归模型修正）。
+    ///
+    /// 回归就绪时：MEM = α × compiler_peak + β
+    /// 否则：MEM = compiler_peak × 1.5
+    pub fn effective_mem_per_task(&self, compiler_peak_mb: f64) -> f64 {
+        if self.regression.is_ready() {
+            self.regression.predict(compiler_peak_mb)
+        } else {
+            compiler_peak_mb * 1.5
+        }
+    }
+
     // ═══════════════════════════════════════════════
     //  统计更新
     // ═══════════════════════════════════════════════
 
     /// 用任务完成数据更新运行时统计（EMA，α=0.3）。
-    pub fn update_stats(&mut self, task_time_ms: f64, task_mem_mb: f64) {
+    ///
+    /// 参数：
+    /// - `task_time_ms`: 任务执行耗时（ms）
+    /// - `task_mem_mb`: 任务实际峰值内存（MB）
+    /// - `compiler_peak_mb`: 编译器预测峰值（MB），用于回归模型
+    pub fn update_stats(&mut self, task_time_ms: f64, task_mem_mb: f64, compiler_peak_mb: f64) {
         let alpha = 0.3;
         self.mu_t = self.mu_t * (1.0 - alpha) + task_time_ms * alpha;
         self.sigma_t = self.sigma_t * (1.0 - alpha) + (task_time_ms - self.mu_t).abs() * alpha;
         self.mu_m = self.mu_m * (1.0 - alpha) + task_mem_mb * alpha;
+
+        // 更新编译器峰值滑动平均
+        if compiler_peak_mb > 0.0 {
+            self.compiler_peak_current = self.compiler_peak_current * (1.0 - alpha)
+                + compiler_peak_mb * alpha;
+        }
+
+        // 收集回归样本并触发训练
+        if compiler_peak_mb > 0.0 && task_mem_mb > 0.0 {
+            self.regression.last_trained_at = self.regression.sample_count;
+            // 此处只更新计数，实际样本由外部收集并调用 regression.train()
+        }
     }
 
     /// 设置积压深度。
@@ -377,7 +436,7 @@ mod tests {
         let old_mu_t = bm.mu_t;
         let old_mu_m = bm.mu_m;
 
-        bm.update_stats(100.0, 32.0);
+        bm.update_stats(100.0, 32.0, 30.0);
 
         // mu_t 应该向 100 偏移
         assert!(bm.mu_t < old_mu_t, "mu_t should decrease toward 100");

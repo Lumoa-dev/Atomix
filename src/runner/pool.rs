@@ -91,10 +91,13 @@ impl TaskPool {
     /// 唤醒所有等待指定任务完成的 Suspended 任务。
     pub fn wake_joiners(&mut self, done_id: TaskId, return_value: u64) {
         for task in self.tasks.iter_mut() {
-            if task.status == TaskStatus::Suspended && task.vm.join_waiting_for == Some(done_id) {
-                task.vm.join_waiting_for = None;
-                task.vm.state = crate::runner::VmStateKind::Running;
-                task.vm.write_reg(crate::base::isa::reg::A0, return_value);
+            if task.status == TaskStatus::Suspended && task.join_waiting_for == Some(done_id) {
+                task.join_waiting_for = None;
+                // 如果 VmState 在任务手中（Suspended 时必然在），更新状态
+                if let Some(ref mut vm) = task.vm {
+                    vm.state = crate::runner::VmStateKind::Running;
+                    vm.write_reg(crate::base::isa::reg::A0, return_value);
+                }
                 task.status = TaskStatus::Ready;
             }
         }
@@ -200,10 +203,11 @@ mod tests {
             entry_offset: 0,
             status,
             deps,
-            vm: mock_vm(),
+            vm: Some(mock_vm()),
             return_value: 0,
             total_instrs: 0,
             quantum_instrs: 0,
+            join_waiting_for: None,
         }
     }
 

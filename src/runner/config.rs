@@ -15,6 +15,14 @@ pub struct RunnerConfig {
     pub coefficients: CoefficientSection,
     #[serde(default)]
     pub per_task: PerTaskSection,
+    #[serde(default)]
+    pub executor: ExecutorSection,
+    #[serde(default)]
+    pub memory: MemorySection,
+    #[serde(default)]
+    pub regression: RegressionSection,
+    #[serde(default)]
+    pub scheduler: SchedulerSection,
 }
 
 /// `[runner]` 段。
@@ -149,6 +157,164 @@ fn default_net_per_task() -> f64 {
     1.0
 }
 
+// ─── Executor 配置 ──────────────────────────────────
+
+/// `[executor]` 段。
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExecutorSection {
+    /// 每个时间片的指令数。
+    #[serde(default = "default_quantum_size")]
+    pub quantum_size: u32,
+    /// 心跳间隔（quantum 数，0 = 禁用）。
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval: u32,
+}
+
+impl Default for ExecutorSection {
+    fn default() -> Self {
+        Self {
+            quantum_size: default_quantum_size(),
+            heartbeat_interval: default_heartbeat_interval(),
+        }
+    }
+}
+
+fn default_quantum_size() -> u32 {
+    1000
+}
+fn default_heartbeat_interval() -> u32 {
+    0 // 默认禁用
+}
+
+// ─── 内存配置 ──────────────────────────────────────
+
+/// `[memory]` 段。
+#[derive(Debug, Clone, Deserialize)]
+pub struct MemorySection {
+    /// 安全冗余比例。
+    #[serde(default = "default_safety_margin")]
+    pub safety_margin: f64,
+    /// 滑道倍数。
+    #[serde(default = "default_slipway_multiplier")]
+    pub slipway_multiplier: f64,
+    /// 死区合并碎片率阈值（低于此不合并）。
+    #[serde(default = "default_defrag_threshold")]
+    pub defrag_threshold: f64,
+}
+
+impl Default for MemorySection {
+    fn default() -> Self {
+        Self {
+            safety_margin: default_safety_margin(),
+            slipway_multiplier: default_slipway_multiplier(),
+            defrag_threshold: default_defrag_threshold(),
+        }
+    }
+}
+
+fn default_safety_margin() -> f64 {
+    0.15
+}
+fn default_slipway_multiplier() -> f64 {
+    1.5
+}
+fn default_defrag_threshold() -> f64 {
+    0.30
+}
+
+// ─── 回归模型配置 ─────────────────────────────────
+
+/// `[regression]` 段。
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegressionSection {
+    /// 最小样本数。
+    #[serde(default = "default_min_samples")]
+    pub min_samples: u64,
+    /// 最小 r²。
+    #[serde(default = "default_min_r_squared")]
+    pub min_r_squared: f64,
+    /// 重新训练间隔（样本数）。
+    #[serde(default = "default_retrain_interval")]
+    pub retrain_interval: u64,
+    /// 安全乘数（回归不可用时的退守值）。
+    #[serde(default = "default_safety_multiplier")]
+    pub safety_multiplier: f64,
+}
+
+impl Default for RegressionSection {
+    fn default() -> Self {
+        Self {
+            min_samples: default_min_samples(),
+            min_r_squared: default_min_r_squared(),
+            retrain_interval: default_retrain_interval(),
+            safety_multiplier: default_safety_multiplier(),
+        }
+    }
+}
+
+fn default_min_samples() -> u64 {
+    50
+}
+fn default_min_r_squared() -> f64 {
+    0.6
+}
+fn default_retrain_interval() -> u64 {
+    200
+}
+fn default_safety_multiplier() -> f64 {
+    1.5
+}
+
+// ─── 调度器配置 ────────────────────────────────────
+
+/// `[scheduler]` 段。
+#[derive(Debug, Clone, Deserialize)]
+pub struct SchedulerSection {
+    /// 预载阈值（剩余时间 > 网络延迟 × 倍数时触发）。
+    #[serde(default = "default_prefetch_threshold")]
+    pub prefetch_threshold: f64,
+    /// 负载均衡启用。
+    #[serde(default = "default_load_balance_enabled")]
+    pub load_balance_enabled: bool,
+    /// 冷启动 Bootstrap 阶段 N_batch。
+    #[serde(default = "default_cold_start_bootstrap")]
+    pub cold_start_bootstrap: u32,
+    /// 冷启动 WarmUp 阶段任务数阈值。
+    #[serde(default = "default_cold_start_warmup_threshold")]
+    pub cold_start_warmup_threshold: u32,
+    /// 冷启动 Accumulate 阶段任务数阈值。
+    #[serde(default = "default_cold_start_accumulate_threshold")]
+    pub cold_start_accumulate_threshold: u32,
+}
+
+impl Default for SchedulerSection {
+    fn default() -> Self {
+        Self {
+            prefetch_threshold: default_prefetch_threshold(),
+            load_balance_enabled: default_load_balance_enabled(),
+            cold_start_bootstrap: default_cold_start_bootstrap(),
+            cold_start_warmup_threshold: default_cold_start_warmup_threshold(),
+            cold_start_accumulate_threshold: default_cold_start_accumulate_threshold(),
+        }
+    }
+}
+
+fn default_prefetch_threshold() -> f64 {
+    1.5
+}
+fn default_load_balance_enabled() -> bool {
+    true
+}
+fn default_cold_start_bootstrap() -> u32 {
+    1
+}
+fn default_cold_start_warmup_threshold() -> u32 {
+    5
+}
+fn default_cold_start_accumulate_threshold() -> u32 {
+    50
+}
+
 impl RunnerConfig {
     /// 加载配置文件。path 为 None 时使用默认值。
     pub fn load(path: Option<&str>) -> Result<Self, String> {
@@ -195,6 +361,15 @@ mod tests {
         assert_eq!(config.runner.listen, "0.0.0.0:9000");
         assert_eq!(config.coefficients.alpha_cpu, 0.75);
         assert_eq!(config.per_task.memory, 16.0);
+        // 新配置段默认值
+        assert_eq!(config.executor.quantum_size, 1000);
+        assert_eq!(config.executor.heartbeat_interval, 0);
+        assert!((config.memory.safety_margin - 0.15).abs() < 0.001);
+        assert!((config.memory.defrag_threshold - 0.30).abs() < 0.001);
+        assert_eq!(config.regression.min_samples, 50);
+        assert!((config.regression.min_r_squared - 0.6).abs() < 0.001);
+        assert_eq!(config.scheduler.cold_start_bootstrap, 1);
+        assert_eq!(config.scheduler.cold_start_warmup_threshold, 5);
     }
 
     #[test]

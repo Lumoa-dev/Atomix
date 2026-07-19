@@ -5,14 +5,21 @@
 pub mod batch;
 pub mod config;
 pub mod decode;
+pub mod event;
 pub mod execute;
+pub mod executor;
 pub mod hwinfo;
+pub mod load_balancer;
 pub mod loader;
 pub mod memory;
 pub mod pool;
+pub mod prefetch;
+pub mod regression;
+pub mod runtime;
 pub mod sched;
 pub mod slot;
 pub mod task;
+pub mod task_meta;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{Profile, reg};

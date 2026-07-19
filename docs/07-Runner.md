@@ -49,19 +49,17 @@ Runner 由四个核心模块构成，分三层部署：
 
 ```
 Executor {
-  ┌──────────────────────────────────────┐
-  │ 寄存器文件: [u64; 16]                │
-  │ PC: usize                            │
-  │ SandboxMemory: Vec<u8>               │
-  │   ├── .text (从 .atxe 加载)          │
-  │   ├── .rodata (从 .atxe 加载)        │
-  │   ├── 堆区 (运行时按需增长)           │
-  │   └── 栈区 (运行时按需增长)           │
-  │ Quantum 计数器: u32                   │
-  │ 状态: Running / Suspended / Halted    │
-  │ 事件上报点: &AtomicU64 (Runtime分配)  │
-  │ 任务元信息: task_id, slot_id          │
-  └──────────────────────────────────────┘
+    寄存器文件: [u64; 16]                 
+    PC: usize                            
+    SandboxMemory: Vec<u8>               
+      ├── .text (从 .atxe 加载)           
+      ├── .rodata (从 .atxe 加载)         
+      ├── 堆区 (运行时按需增长)             
+      └── 栈区 (运行时按需增长)             
+    Quantum 计数器: u32                   
+    状态: Running / Suspended / Halted    
+    事件上报点: &AtomicU64 (Runtime分配)    
+   任务元信息: task_id, slot_id           
 }
 ```
 
@@ -801,7 +799,7 @@ match phase {
 	    if completed_count - last_train_count >= 200: try_train_regression()
 	    }
 	}
-	```
+```
 
 ### 8.6 仿真验证
 

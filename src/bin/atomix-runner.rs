@@ -1,6 +1,6 @@
 //! atomix-runner — 独立运行时执行器。
 //!
-//! 加载 .atxe 并使用调度器执行所有任务。
+//! 加载 .atxe 并使用 Runtime 执行所有任务。
 //! 支持开发模式单次执行和生产模式常驻。
 
 use clap::Parser;
@@ -46,27 +46,28 @@ fn main() {
         }
     };
 
-    // 创建调度器
-    let mut scheduler = match atomix::runner::sched::Scheduler::from_atxe(&binary) {
-        Ok(s) => s,
+    // 创建 Runtime
+    let mut runtime = match atomix::runner::runtime::Runtime::from_atxe(&binary) {
+        Ok(rt) => {
+            println!(
+                "Runtime 已初始化: {} 个任务, N_batch={}",
+                rt.pool.len(),
+                rt.executors.len(),
+            );
+            rt
+        }
         Err(e) => {
-            eprintln!("错误: 创建调度器失败: {}", e);
+            eprintln!("错误: 创建 Runtime 失败: {}", e);
             std::process::exit(1);
         }
     };
 
-    println!(
-        "调度器已初始化: {} 个任务, quantum={}",
-        scheduler.pool.len(),
-        scheduler.quantum,
-    );
-
     // 运行所有任务
-    match scheduler.run_all() {
+    match runtime.run() {
         Ok(()) => {
-            println!("\n执行完成: 总计 {} 条指令", scheduler.total_instrs);
+            println!("\n执行完成: 总计 {} 条指令", runtime.total_instrs);
             println!("任务结果:");
-            for (id, status, retval, instrs) in scheduler.pool.results() {
+            for (id, status, retval, instrs) in runtime.results() {
                 let status_str = match status {
                     atomix::runner::task::TaskStatus::Done => "完成",
                     atomix::runner::task::TaskStatus::Error => "出错",

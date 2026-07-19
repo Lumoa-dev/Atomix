@@ -41,12 +41,19 @@ pub struct Task {
     pub status: TaskStatus,
     /// 依赖的父任务 ID 列表（这些任务完成后本任务才可执行）。
     pub deps: Vec<TaskId>,
-    /// 任务私有的 VM 状态（寄存器、PC、内存等）。
-    pub vm: VmState,
+    /// 任务私有的 VM 状态。
+    ///
+    /// - `Some(vm)`: VmState 在任务手中（空闲/就绪/挂起/完成）
+    /// - `None`: VmState 已被 Executor 取走（正在执行中）
+    pub vm: Option<VmState>,
     /// TASK_RET 的返回值（当 status == Done 时有效）。
     pub return_value: u64,
     /// 已执行的总指令数。
     pub total_instrs: u64,
     /// 当前时间片内已执行的指令数。
     pub quantum_instrs: u64,
+    /// TASK_JOIN 等待的子任务 ID（None = 未等待）。
+    ///
+    /// 从 VmState 同步而来，确保即使 VmState 在 Executor 中也能查询。
+    pub join_waiting_for: Option<TaskId>,
 }

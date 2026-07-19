@@ -5,10 +5,19 @@
 use std::collections::HashMap;
 
 /// 沙箱内存。提供带边界检查的读写操作。
+///
+/// 支持物理内存按需分配（设计文档 §4.5）：
+/// - 初始容量 = 编译预测峰值 × 修正系数
+/// - 运行时超出则触发 OOM 流程
+/// - `physical_size` 跟踪实际分配的物理内存
 #[derive(Debug, Clone)]
 pub struct SandboxMemory {
     /// 线性地址空间。
     pub data: Vec<u8>,
+    /// 已分配的物理内存大小（字节）。等于 data.len()。
+    pub physical_size: u64,
+    /// 最大可扩展大小（字节）。
+    pub max_size: u64,
     /// 可执行区域起始（.text 映射）。
     pub text_start: u64,
     /// 可执行区域大小。
@@ -29,12 +38,16 @@ pub struct SandboxMemory {
 
 impl SandboxMemory {
     /// 创建指定大小的沙箱内存，默认 heap_base = 64（跳过零地址防止混淆 OOM）。
+    ///
+    /// 物理内存初始分配 size 大小。如需惰性分配，使用 `reserve`。
     pub fn new(size: usize) -> Self {
         let effective = std::cmp::max(size, 8192);
         let stack = std::cmp::min(4096, effective / 4);
         let stack_base = (effective as u64) - stack as u64;
         Self {
             data: vec![0u8; effective],
+            physical_size: effective as u64,
+            max_size: effective as u64,
             text_start: 0,
             text_size: 0,
             stack_base,
@@ -44,6 +57,45 @@ impl SandboxMemory {
             watermark_high: (effective as u64) * 75 / 100,
             usage: 0,
         }
+    }
+
+    /// 惰性分配：初始只保留必要空间，按需扩展。
+    ///
+    /// 参数：
+    /// - `initial_mb`: 初始分配大小（MB），通常 = compiler_peak × 修正系数
+    /// - `max_mb`: 最大可扩展大小（MB），通常 = slot_size
+    pub fn reserve(initial_mb: f64, max_mb: f64) -> Self {
+        let initial = (initial_mb.max(1.0) * 1024.0 * 1024.0) as usize;
+        let max = (max_mb.max(1.0) * 1024.0 * 1024.0) as usize;
+        let effective = initial.max(8192);
+        let stack = std::cmp::min(4096, effective / 4);
+        let stack_base = (effective as u64) - stack as u64;
+        Self {
+            data: vec![0u8; effective],
+            physical_size: effective as u64,
+            max_size: max as u64,
+            text_start: 0,
+            text_size: 0,
+            stack_base,
+            stack_size: stack as u64,
+            heap_base: 64,
+            allocations: HashMap::new(),
+            watermark_high: (effective as u64) * 75 / 100,
+            usage: 0,
+        }
+    }
+
+    /// 扩展物理内存（触发 OOM 流程前调用）。
+    /// 返回 true 表示扩展成功，false 表示达到上限（OOM）。
+    pub fn grow(&mut self, additional: u64) -> bool {
+        let new_size = self.data.len().saturating_add(additional as usize);
+        if new_size as u64 > self.max_size {
+            return false; // 达到上限
+        }
+        self.data.resize(new_size, 0);
+        self.physical_size = new_size as u64;
+        self.watermark_high = (new_size as u64) * 75 / 100;
+        true
     }
 
     /// 从指定地址读取 64 位值。

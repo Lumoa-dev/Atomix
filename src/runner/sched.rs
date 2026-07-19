@@ -7,7 +7,7 @@ use crate::base::ir::AtxeBinary;
 use crate::base::isa::reg;
 use crate::runner::VmState;
 use crate::runner::batch::BatchManager;
-use crate::runner::execute;
+use crate::runner::executor::Executor;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
 use crate::runner::slot::SlotManager;
@@ -46,10 +46,11 @@ impl Scheduler {
                 entry_offset: vm.pc,
                 status: TaskStatus::Ready,
                 deps: Vec::new(),
-                vm,
+                vm: Some(vm),
                 return_value: 0,
                 total_instrs: 0,
                 quantum_instrs: 0,
+                join_waiting_for: None,
             };
             let mut batch = BatchManager::new(4.0, 1024.0);
             let n_batch = batch.compute_decision().n_batch;
@@ -83,10 +84,11 @@ impl Scheduler {
                 entry_offset: entry.entry_offset as usize,
                 status,
                 deps: entry.dep_list.clone(),
-                vm,
+                vm: Some(vm),
                 return_value: 0,
                 total_instrs: 0,
                 quantum_instrs: 0,
+                join_waiting_for: None,
             });
         }
 
@@ -191,7 +193,12 @@ impl Scheduler {
         for (id, status, _, _) in self.pool.results() {
             if status == TaskStatus::Error {
                 let task = self.pool.get(id).unwrap();
-                return Err(format!("任务 {} 执行出错: {:?}", id, task.vm.state));
+                let msg = task
+                    .vm
+                    .as_ref()
+                    .map(|vm| format!("{:?}", vm.state))
+                    .unwrap_or_else(|| "unknown".into());
+                return Err(format!("任务 {} 执行出错: {}", id, msg));
             }
         }
 
@@ -206,90 +213,60 @@ impl Scheduler {
             .pool
             .all_tasks()
             .iter()
-            .filter(|t| t.status == TaskStatus::Suspended && t.vm.join_waiting_for.is_none())
+            .filter(|t| t.status == TaskStatus::Suspended && t.join_waiting_for.is_none())
             .map(|t| t.id)
             .collect();
 
         for id in oom_tasks {
             if let Some(task) = self.pool.get_mut(id) {
-                // 扩容 1.5 倍
-                let old_size = task.vm.memory.data.len();
-                let new_size =
-                    (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
-                task.vm.memory.data.resize(new_size, 0);
-                task.vm.memory.watermark_high = (new_size as u64) * 75 / 100;
-                task.vm.memory.usage = task
-                    .vm
-                    .memory
-                    .usage
-                    .min((new_size as u64).saturating_sub(task.vm.memory.heap_base) * 50 / 100);
-                task.vm.state = crate::runner::VmStateKind::Running;
+                if let Some(ref mut vm) = task.vm {
+                    // 扩容 1.5 倍
+                    let old_size = vm.memory.data.len();
+                    let new_size =
+                        (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
+                    vm.memory.data.resize(new_size, 0);
+                    vm.memory.watermark_high = (new_size as u64) * 75 / 100;
+                    vm.memory.usage = vm
+                        .memory
+                        .usage
+                        .min((new_size as u64).saturating_sub(vm.memory.heap_base) * 50 / 100);
+                    vm.state = crate::runner::VmStateKind::Running;
+                }
                 task.status = TaskStatus::Ready;
             }
         }
     }
 
     /// 执行一个任务的一个时间片。
+    ///
+    /// 内部使用 `Executor::load/run_quantum/unload` 模式。
     fn execute_quantum(&mut self, task_id: TaskId) {
-        // 先提取所需数据再释放 task 借用，避免与 self.pool 的方法冲突
-        let (completed_id, retval, pending_child) = {
+        let pending_child = {
             let task = self.pool.get_mut(task_id).unwrap();
             if task.status != TaskStatus::Ready {
                 return;
             }
-            task.status = TaskStatus::Running;
-            task.quantum_instrs = 0;
 
-            // 执行最多 quantum 条指令
-            let budget = self.quantum;
-            for _ in 0..budget {
-                let was_running = task.vm.is_running();
-                if !was_running {
-                    break;
-                }
-                let should_continue = execute::execute_instruction(&mut task.vm);
-                task.total_instrs += 1;
-                task.quantum_instrs += 1;
-                self.total_instrs += 1;
-                if !should_continue {
-                    break;
-                }
-            }
+            // 将任务加载到 Executor（vm 移入 executor）
+            let mut executor = Executor::new(0);
+            executor.load(task);
 
-            // 检查执行结果
-            let completed = match &task.vm.state {
-                crate::runner::VmStateKind::Halted => {
-                    task.status = TaskStatus::Done;
-                    task.return_value = task.vm.read_reg(reg::A0);
-                    Some(task.id)
-                }
-                crate::runner::VmStateKind::Error(_) => {
-                    task.status = TaskStatus::Error;
-                    Some(task.id)
-                }
-                crate::runner::VmStateKind::Suspended => {
-                    task.status = TaskStatus::Suspended;
-                    None
-                }
-                _ => {
-                    task.status = TaskStatus::Ready;
-                    None
-                }
-            };
-            let ret = task.return_value;
-            let child = task.vm.pending_child.take();
-            (completed, ret, child)
+            // 执行一个时间片
+            let (instr_count, _event) = executor.run_quantum(self.quantum);
+
+            // 同步统计
+            task.total_instrs += instr_count;
+            task.quantum_instrs += instr_count;
+            self.total_instrs += instr_count;
+
+            // 取走 pending_child（TASK_FORK 产生）
+            let child = executor.take_pending_child();
+
+            // 卸回 VmState（自动同步 join_waiting_for 和任务状态）
+            executor.unload(task);
+
+            child
         }; // task borrow dropped here
-
-        // 唤醒 joiners + 更新批次统计 + 冷启动计数
-        if let Some(done_id) = completed_id {
-            self.pool.wake_joiners(done_id, retval);
-            // 更新运行时统计（估算 wall_time 和 peak_mem）
-            self.batch.update_stats(self.quantum as f64 * 0.001, 16.0);
-            if self.cold_start {
-                self.cold_start_count += 1;
-            }
-        }
 
         // 处理 pending_child（box deref）
         if let Some(child_vm) = pending_child {
@@ -299,14 +276,30 @@ impl Scheduler {
                 entry_offset: child_vm.pc,
                 status: TaskStatus::Ready,
                 deps: Vec::new(),
-                vm: *child_vm,
+                vm: Some(*child_vm),
                 return_value: 0,
                 total_instrs: 0,
                 quantum_instrs: 0,
+                join_waiting_for: None,
             };
             self.pool.add_task(new_task);
             if child_id >= self.next_task_id {
                 self.next_task_id = child_id.wrapping_add(1);
+            }
+        }
+
+        // 处理完成任务（task 已被 unload，status 已更新）
+        let (is_done, retval) = {
+            let task = self.pool.get(task_id).unwrap();
+            (task.status == TaskStatus::Done || task.status == TaskStatus::Error, task.return_value)
+        };
+
+        if is_done {
+            self.pool.wake_joiners(task_id, retval);
+            let wall_time_ms = (self.quantum as f64) * 0.001;
+            self.batch.update_stats(wall_time_ms, 16.0, 0.0);
+            if self.cold_start {
+                self.cold_start_count += 1;
             }
         }
     }
