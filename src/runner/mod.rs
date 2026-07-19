@@ -43,6 +43,8 @@ pub struct VmState {
     pub task_id: u16,
     /// TASK_JOIN 目标子任务 ID（调度器使用，None=未等待）。
     pub join_waiting_for: Option<u16>,
+    /// TASK_FORK 产生的子任务 VmState（调度器取走入队，None=无待处理 fork）。
+    pub pending_child: Option<Box<Self>>,
 }
 
 /// VM 运行状态。
@@ -107,6 +109,7 @@ impl VmState {
             quantum: 0,
             task_id: 0,
             join_waiting_for: None,
+            pending_child: None,
         };
 
         // 初始化 SP（栈顶，向下增长）

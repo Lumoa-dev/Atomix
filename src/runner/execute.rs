@@ -311,22 +311,24 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
 
         // ── Concurrency / Task Management ────────
         opcode::TASK_FORK => {
-            // 创建子任务：复制当前 VM 状态，子任务从指定 entry 开始
+            // 创建子任务，存到 pending_child 由调度器取走入队
             let task_id = ops.imm as u16;
-            let mut child = vm.clone();
+            let mut child = Box::new(vm.clone());
             child.task_id = task_id;
-            // 子任务 entry 从 .task 段查找（简化：使用当前 pc + 1）
             child.pc = vm.pc + 1;
-            // R4-R7 已自动通过 clone 复制
-            // 实际应该从 .task 段读取 entry_offset，简化实现直接传回 handle
+            child.join_waiting_for = None;
+            child.pending_child = None;
+            child.quantum = 0;
+            vm.pending_child = Some(child);
             vm.write_reg(ops.rd as usize, task_id as u64);
-            // 注：完整实现需要将 child 加入调度队列
         }
 
         opcode::TASK_JOIN => {
-            // 等待子任务完成。简化实现：直接返回 0（成功）
-            let _handle = vm.read_reg(ops.rs1 as usize);
-            vm.write_reg(ops.rd as usize, 0);
+            let handle = vm.read_reg(ops.rs1 as usize);
+            // 设置阻塞等待，由调度器在子任务完成时唤醒
+            vm.join_waiting_for = Some(handle as u16);
+            vm.state = crate::runner::VmStateKind::Suspended;
+            return false;
         }
 
         opcode::TASK_RET => {

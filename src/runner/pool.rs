@@ -67,6 +67,36 @@ impl TaskPool {
         self.tasks.iter().all(|t| t.status.is_terminal())
     }
 
+    /// 动态添加任务（用于 TASK_FORK）。
+    pub fn add_task(&mut self, task: Task) {
+        self.tasks.push(task);
+    }
+
+    /// 检查指定任务是否已完成（Done 或 Error）。
+    pub fn task_is_done(&self, id: TaskId) -> bool {
+        self.tasks.iter()
+            .any(|t| t.id == id && t.status.is_terminal())
+    }
+
+    /// 是否存在 Suspended 状态的任务。
+    pub fn has_suspended(&self) -> bool {
+        self.tasks.iter().any(|t| t.status == TaskStatus::Suspended)
+    }
+
+    /// 唤醒所有等待指定任务完成的 Suspended 任务。
+    pub fn wake_joiners(&mut self, done_id: TaskId, return_value: u64) {
+        for task in self.tasks.iter_mut() {
+            if task.status == TaskStatus::Suspended
+                && task.vm.join_waiting_for == Some(done_id)
+            {
+                task.vm.join_waiting_for = None;
+                task.vm.state = crate::runner::VmStateKind::Running;
+                task.vm.write_reg(crate::base::isa::reg::A0, return_value);
+                task.status = TaskStatus::Ready;
+            }
+        }
+    }
+
     /// 获取任务总数。
     pub fn len(&self) -> usize {
         self.tasks.len()
