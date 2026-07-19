@@ -7,7 +7,7 @@ use crate::base::isa::Profile;
 
 pub const ATMX_MAGIC: u32 = 0x584D5441; // "ATMX" LE
 
-// ─── Header ───────────────────────────────────────────────────────
+// ─── Header + Memory Profile ────────────────────────────────────
 //
 // Offset  Size  Field
 // 0x00    4B    magic       "ATMX"
@@ -16,11 +16,22 @@ pub const ATMX_MAGIC: u32 = 0x584D5441; // "ATMX" LE
 // 0x08    4B    entry       root task entry instruction offset
 // 0x0C    4B    total_instrs total .text instruction count
 // 0x10    2B    section_count
-// 0x12    2B    padding     0x0000
+// 0x12    2B    flags_ext
 // ─────────────────────────────────
 // Total: 0x14 (20) bytes
 
 pub const HEADER_SIZE: usize = 20;
+pub const MEMORY_PROFILE_SIZE: usize = 20;
+
+/// 编译器内存预测（P3-CS-002）。
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryProfile {
+    pub code_mb: f32,
+    pub rodata_mb: f32,
+    pub stack_mb: f32,
+    pub heap_mb: f32,
+    pub peak_mb: f32,
+}
 
 #[derive(Debug, Clone)]
 pub struct Header {
@@ -29,6 +40,7 @@ pub struct Header {
     pub entry: u32,
     pub total_instrs: u32,
     pub section_count: u16,
+    pub memory_profile: Option<MemoryProfile>,
 }
 
 impl Header {
@@ -39,7 +51,24 @@ impl Header {
             entry,
             total_instrs: 0,
             section_count,
+            memory_profile: None,
         }
+    }
+
+    /// 从 .text 和 .rodata 大小计算内存预测。
+    pub fn compute_memory_profile(&mut self, text_bytes: usize, rodata_bytes: usize) {
+        let code_mb = (text_bytes as f32) / (1024.0 * 1024.0);
+        let rodata_mb = (rodata_bytes as f32) / (1024.0 * 1024.0);
+        let stack_mb: f32 = 1.0; // 保守估计 1MB
+        let heap_mb: f32 = 4.0;  // 保守估计 4MB
+        let peak_mb = code_mb + rodata_mb + stack_mb.max(heap_mb);
+        self.memory_profile = Some(MemoryProfile {
+            code_mb,
+            rodata_mb,
+            stack_mb,
+            heap_mb,
+            peak_mb,
+        });
     }
 
     pub fn debug_mode(&self) -> bool {
@@ -75,15 +104,25 @@ impl Header {
     }
 
     /// Serialize header to bytes (little-endian).
+    /// 如果 memory_profile 存在，追加 20 字节到 header 之后。
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(HEADER_SIZE);
+        let has_profile = self.memory_profile.is_some();
+        let size = if has_profile { HEADER_SIZE + MEMORY_PROFILE_SIZE } else { HEADER_SIZE };
+        let mut buf = Vec::with_capacity(size);
         buf.extend_from_slice(&ATMX_MAGIC.to_le_bytes());
         buf.extend_from_slice(&self.version.to_le_bytes());
         buf.extend_from_slice(&self.flags.to_le_bytes());
         buf.extend_from_slice(&self.entry.to_le_bytes());
         buf.extend_from_slice(&self.total_instrs.to_le_bytes());
         buf.extend_from_slice(&self.section_count.to_le_bytes());
-        buf.extend_from_slice(&0u16.to_le_bytes()); // padding
+        buf.extend_from_slice(&(if has_profile { 1u16 } else { 0u16 }).to_le_bytes()); // flags_ext
+        if let Some(mp) = &self.memory_profile {
+            buf.extend_from_slice(&mp.code_mb.to_le_bytes());
+            buf.extend_from_slice(&mp.rodata_mb.to_le_bytes());
+            buf.extend_from_slice(&mp.stack_mb.to_le_bytes());
+            buf.extend_from_slice(&mp.heap_mb.to_le_bytes());
+            buf.extend_from_slice(&mp.peak_mb.to_le_bytes());
+        }
         buf
     }
 
@@ -96,12 +135,29 @@ impl Header {
         if magic != ATMX_MAGIC {
             return None;
         }
+        let flags_ext = u16::from_le_bytes([data[18], data[19]]);
+        let has_profile = flags_ext & 0x01 != 0;
+
+        let memory_profile = if has_profile && data.len() >= HEADER_SIZE + MEMORY_PROFILE_SIZE {
+            let off = HEADER_SIZE;
+            Some(MemoryProfile {
+                code_mb: f32::from_le_bytes([data[off], data[off+1], data[off+2], data[off+3]]),
+                rodata_mb: f32::from_le_bytes([data[off+4], data[off+5], data[off+6], data[off+7]]),
+                stack_mb: f32::from_le_bytes([data[off+8], data[off+9], data[off+10], data[off+11]]),
+                heap_mb: f32::from_le_bytes([data[off+12], data[off+13], data[off+14], data[off+15]]),
+                peak_mb: f32::from_le_bytes([data[off+16], data[off+17], data[off+18], data[off+19]]),
+            })
+        } else {
+            None
+        };
+
         Some(Self {
             version: u16::from_le_bytes([data[4], data[5]]),
             flags: u16::from_le_bytes([data[6], data[7]]),
             entry: u32::from_le_bytes([data[8], data[9], data[10], data[11]]),
             total_instrs: u32::from_le_bytes([data[12], data[13], data[14], data[15]]),
             section_count: u16::from_le_bytes([data[16], data[17]]),
+            memory_profile,
         })
     }
 }
@@ -202,6 +258,13 @@ pub struct AtxeBinary {
     pub zones: Vec<u8>,
 }
 
+impl Header {
+    /// 返回序列化后的 header 实际字节数（含可选的 memory profile）。
+    pub fn serialized_size(&self) -> usize {
+        HEADER_SIZE + if self.memory_profile.is_some() { MEMORY_PROFILE_SIZE } else { 0 }
+    }
+}
+
 impl AtxeBinary {
     /// Serialize to complete .atxe file bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -211,7 +274,8 @@ impl AtxeBinary {
 
         // build section table
         let mut sections = Vec::new();
-        let mut data_offset = HEADER_SIZE as u32 + (6 * SECTION_ENTRY_SIZE) as u32;
+        let header_size = header.serialized_size() as u32;
+        let mut data_offset = header_size + (6 * SECTION_ENTRY_SIZE) as u32;
 
         // helper: push a section
         let mut push_section = |ty: SectionType, data: &[u8], sections: &mut Vec<SectionEntry>| {
@@ -268,10 +332,17 @@ impl AtxeBinary {
         if data.len() < HEADER_SIZE {
             return None;
         }
-        let header = Header::from_bytes(&data[..HEADER_SIZE])?;
+        // 从 flags_ext 判断是否有 memory profile 扩展
+        let flags_ext = u16::from_le_bytes([data[18], data[19]]);
+        let has_profile = flags_ext & 0x01 != 0;
+        let total_header_size = HEADER_SIZE + if has_profile { MEMORY_PROFILE_SIZE } else { 0 };
+        if data.len() < total_header_size {
+            return None;
+        }
+        let header = Header::from_bytes(&data[..total_header_size])?;
 
         let sec_count = header.section_count as usize;
-        let sec_start = HEADER_SIZE;
+        let sec_start = total_header_size;
         let sec_end = sec_start + sec_count * SECTION_ENTRY_SIZE;
         if data.len() < sec_end {
             return None;

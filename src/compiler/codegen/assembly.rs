@@ -34,6 +34,7 @@ pub fn assemble(
 ) -> Vec<u8> {
     let mut header = Header::new(entry, 6);
     header.total_instrs = emit.text.len() as u32;
+    header.compute_memory_profile(emit.text.len() * 4, rodata.len());
 
     let binary = AtxeBinary {
         header,

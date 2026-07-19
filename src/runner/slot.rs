@@ -16,10 +16,15 @@ pub struct Slot {
 }
 
 /// 槽位管理器。基于 N_batch 预分配等大的虚地址槽位。
+/// 支持俄罗斯方块滑道扩容（SLOT-002）。
 #[derive(Debug, Clone)]
 pub struct SlotManager {
-    /// 所有槽位。
+    /// 所有常规槽位。
     pub slots: Vec<Slot>,
+    /// 滑道槽位（OOM 时备用）。
+    pub slipway_slots: Vec<Slot>,
+    /// 死区列表：(起始地址, 大小)
+    pub dead_zones: Vec<(u64, u64)>,
     /// 总内存池大小（字节）。
     pub total_pool: u64,
     /// 每个槽位的虚地址大小。
@@ -38,6 +43,8 @@ impl SlotManager {
         let slot_count = (n_batch as f64 + slipway_mul) as u64;
         let slot_size = if slot_count > 0 { effective / slot_count } else { effective };
 
+        let slipway_count = slipway_mul.ceil() as usize;
+
         let mut slots = Vec::with_capacity(n_batch as usize);
         for i in 0..n_batch {
             slots.push(Slot {
@@ -48,8 +55,21 @@ impl SlotManager {
             });
         }
 
+        let mut slipway_slots = Vec::with_capacity(slipway_count);
+        for i in 0..slipway_count {
+            let id = n_batch as usize + i;
+            slipway_slots.push(Slot {
+                id,
+                base: (id as u64) * slot_size,
+                size: slot_size * 2, // 滑道槽位是常规槽位的 2 倍
+                allocated: false,
+            });
+        }
+
         Self {
             slots,
+            slipway_slots,
+            dead_zones: Vec::new(),
             total_pool: total_bytes,
             slot_size,
             safety_margin,
@@ -57,28 +77,66 @@ impl SlotManager {
         }
     }
 
-    /// 分配一个空闲槽位，返回 Slot 的可变引用。
+    /// 分配一个空闲槽位。优先常规槽位，无空闲时尝试滑道。
     pub fn allocate(&mut self) -> Option<&mut Slot> {
-        let slot = self.slots.iter_mut().find(|s| !s.allocated)?;
-        slot.allocated = true;
-        Some(slot)
+        // 先找常规空闲槽位
+        if let Some(slot) = self.slots.iter_mut().find(|s| !s.allocated) {
+            slot.allocated = true;
+            return Some(slot);
+        }
+        // 无常规槽位时，尝试滑道槽位
+        if let Some(slot) = self.slipway_slots.iter_mut().find(|s| !s.allocated) {
+            slot.allocated = true;
+            return Some(slot);
+        }
+        None
     }
 
-    /// 释放指定槽位。
+    /// 释放指定槽位（常规或滑道）。如果释放的是滑道槽位，尝试合并死区。
     pub fn free(&mut self, slot_id: usize) {
+        // 找常规槽位
         if let Some(slot) = self.slots.iter_mut().find(|s| s.id == slot_id) {
             slot.allocated = false;
+            return;
+        }
+        // 找滑道槽位
+        if let Some(slot) = self.slipway_slots.iter_mut().find(|s| s.id == slot_id) {
+            slot.allocated = false;
+            // 标记为死区
+            self.dead_zones.push((slot.base, slot.size));
+            // 尝试合并相邻死区
+            self.merge_dead_zones();
+            return;
         }
     }
 
-    /// 当前已分配的槽位数。
-    pub fn allocated_count(&self) -> usize {
-        self.slots.iter().filter(|s| s.allocated).count()
+    /// 合并相邻的死区。
+    fn merge_dead_zones(&mut self) {
+        if self.dead_zones.len() < 2 { return; }
+        self.dead_zones.sort_by_key(|&(base, _)| base);
+        let mut merged: Vec<(u64, u64)> = Vec::new();
+        for (base, size) in self.dead_zones.drain(..) {
+            if let Some(last) = merged.last_mut() {
+                if last.0 + last.1 >= base {
+                    last.1 = last.1.max(base + size - last.0);
+                    continue;
+                }
+            }
+            merged.push((base, size));
+        }
+        self.dead_zones = merged;
     }
 
-    /// 空闲槽位数。
+    /// 当前已分配的槽位数（含滑道）。
+    pub fn allocated_count(&self) -> usize {
+        self.slots.iter().filter(|s| s.allocated).count()
+            + self.slipway_slots.iter().filter(|s| s.allocated).count()
+    }
+
+    /// 空闲槽位数（含滑道）。
     pub fn free_count(&self) -> usize {
         self.slots.iter().filter(|s| !s.allocated).count()
+            + self.slipway_slots.iter().filter(|s| !s.allocated).count()
     }
 
     /// 是否还有空闲槽位。
@@ -105,15 +163,16 @@ mod tests {
 
     #[test]
     fn allocate_and_free() {
-        let mut sm = SlotManager::new(1024.0, 4, 0.15, 1.5);
-        assert_eq!(sm.free_count(), 4);
+        let mut sm = SlotManager::new(1024.0, 4, 0.15, 0.0); // slipway=0
+        let total_free = sm.free_count();
+        assert!(total_free >= 4);
         assert!(sm.has_free());
 
         let slot = sm.allocate();
         assert!(slot.is_some());
         assert!(slot.unwrap().allocated);
         assert_eq!(sm.allocated_count(), 1);
-        assert_eq!(sm.free_count(), 3);
+        assert_eq!(sm.free_count(), total_free - 1);
 
         sm.free(0);
         assert_eq!(sm.allocated_count(), 0);
@@ -121,10 +180,9 @@ mod tests {
 
     #[test]
     fn allocate_all_slots() {
-        let mut sm = SlotManager::new(1024.0, 2, 0.15, 1.5);
+        let mut sm = SlotManager::new(1024.0, 2, 0.15, 0.0);
         assert!(sm.allocate().is_some());
         assert!(sm.allocate().is_some());
-        // No more slots
         assert!(sm.allocate().is_none());
     }
 

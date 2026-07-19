@@ -97,6 +97,52 @@ impl TaskPool {
         }
     }
 
+    /// 计算拓扑层级。返回 (level, task_ids) 按 level 升序排列。
+    /// level 0 = 无依赖（最深），level N = 根（最浅）。
+    pub fn compute_levels(&self) -> Vec<(u32, Vec<TaskId>)> {
+        let n = self.tasks.len();
+        if n == 0 {
+            return Vec::new();
+        }
+
+        // 每个任务的 deps 集合
+        let dep_sets: Vec<HashSet<TaskId>> = self.tasks.iter()
+            .map(|t| t.deps.iter().copied().collect())
+            .collect();
+
+        // 从无依赖的任务开始，逐层移除
+        let mut removed: HashSet<TaskId> = HashSet::new();
+        let mut levels: Vec<(u32, Vec<TaskId>)> = Vec::new();
+
+        loop {
+            // 找出当前层所有依赖都已移除的任务
+            let mut current: Vec<TaskId> = Vec::new();
+            for task in &self.tasks {
+                if removed.contains(&task.id) {
+                    continue;
+                }
+                let deps_removed = dep_sets[task.id as usize]
+                    .iter()
+                    .all(|dep| removed.contains(dep));
+                if deps_removed {
+                    current.push(task.id);
+                }
+            }
+
+            if current.is_empty() {
+                break;
+            }
+
+            let level = levels.len() as u32;
+            for &id in &current {
+                removed.insert(id);
+            }
+            levels.push((level, current));
+        }
+
+        levels
+    }
+
     /// 获取任务总数。
     pub fn len(&self) -> usize {
         self.tasks.len()
@@ -105,6 +151,11 @@ impl TaskPool {
     /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
+    }
+
+    /// 获取所有任务的迭代器。
+    pub fn all_tasks(&self) -> &[Task] {
+        &self.tasks
     }
 
     /// 获取所有已完成的条目及其返回值。

@@ -106,46 +106,79 @@ impl Scheduler {
     }
 
     /// 运行所有任务直到全部完成或出错。
-    /// 返回成功时是所有任务完成，返回错误是某个任务出错。
+    /// 使用依赖图层级调度：按拓扑层级从深到浅分批执行。
     pub fn run_all(&mut self) -> Result<(), String> {
-        loop {
-            if self.pool.all_done() {
-                break;
-            }
+        // 计算拓扑层级
+        let levels = self.pool.compute_levels();
+        if levels.is_empty() {
+            return Ok(());
+        }
 
-            // 激活依赖已满足的 Init 任务
+        for (level, task_ids) in &levels {
+            // 激活当前层级所有任务
             self.pool.activate_ready_tasks();
 
-            // 更新积压深度并计算 N_batch
-            let n_ready = self.pool.ready_tasks().len() as f64;
+            // 更新 N_batch
+            let n_ready = task_ids.len() as f64;
             self.batch.set_pool_depth(n_ready + self.pool.len() as f64 * 0.5);
             let decision = self.batch.compute_decision();
-
-            // 冷启动：前 8 个任务 N_batch=2，然后逐步爬坡到正常值
             let n_batch = if self.cold_start {
                 if self.cold_start_count >= 8 {
                     self.cold_start = false;
                     decision.n_batch as usize
-                } else {
-                    2usize
-                }
-            } else {
-                decision.n_batch as usize
-            };
+                } else { 2 }
+            } else { decision.n_batch as usize };
 
-            let ready = self.pool.ready_tasks();
-            if ready.is_empty() {
-                if self.pool.all_done() {
-                    break;
+            // 将当前层级所有任务设为 Ready
+            for &id in task_ids {
+                if let Some(task) = self.pool.get_mut(id) {
+                    if task.status == TaskStatus::Init {
+                        task.status = TaskStatus::Ready;
+                    }
                 }
-                if !self.pool.has_suspended() {
-                    break;
-                }
-                continue;
             }
 
-            // 同批次最多执行 N_batch 个任务
-            for task_id in ready.iter().take(n_batch) {
+            // 循环执行当前层级任务直到全部完成
+            let level_complete = |pool: &TaskPool, ids: &[TaskId]| -> bool {
+                ids.iter().all(|id| {
+                    pool.get(*id).map_or(false, |t| t.status.is_terminal())
+                })
+            };
+
+            while !level_complete(&self.pool, task_ids) {
+                // 检查 OOM-Suspended 任务并扩容
+                self.recover_oom_tasks();
+
+                let ready = self.pool.ready_tasks();
+                if ready.is_empty() {
+                    if self.pool.has_suspended() {
+                        continue;
+                    }
+                    break;
+                }
+
+                for task_id in ready.iter().take(n_batch) {
+                    self.execute_quantum(*task_id);
+                }
+            }
+        }
+
+        // 处理动态创建的任务（TASK_FORK 产生的非层级任务）
+        // 使用传统的 flat ready-task 循环
+        loop {
+            self.pool.activate_ready_tasks();
+            self.recover_oom_tasks();
+            if self.pool.all_done() {
+                break;
+            }
+            let ready = self.pool.ready_tasks();
+            if ready.is_empty() {
+                if self.pool.has_suspended() {
+                    continue;
+                }
+                break;
+            }
+            for task_id in ready.iter().take(4) {
                 self.execute_quantum(*task_id);
             }
         }
@@ -159,6 +192,34 @@ impl Scheduler {
         }
 
         Ok(())
+    }
+
+    /// 检查所有 Suspended 状态的任务，如果是因为 OOM（join_waiting_for == None），
+    /// 则扩容内存后恢复为 Ready。
+    fn recover_oom_tasks(&mut self) {
+        // 收集所有 OOM-Suspended 任务的 ID
+        let oom_tasks: Vec<TaskId> = self.pool.all_tasks().iter()
+            .filter(|t| {
+                t.status == TaskStatus::Suspended
+                    && t.vm.join_waiting_for.is_none()
+            })
+            .map(|t| t.id)
+            .collect();
+
+        for id in oom_tasks {
+            if let Some(task) = self.pool.get_mut(id) {
+                // 扩容 1.5 倍
+                let old_size = task.vm.memory.data.len();
+                let new_size = (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
+                task.vm.memory.data.resize(new_size, 0);
+                task.vm.memory.watermark_high = (new_size as u64) * 75 / 100;
+                task.vm.memory.usage = task.vm.memory.usage.min(
+                    (new_size as u64).saturating_sub(task.vm.memory.heap_base) * 50 / 100
+                );
+                task.vm.state = crate::runner::VmStateKind::Running;
+                task.status = TaskStatus::Ready;
+            }
+        }
     }
 
     /// 执行一个任务的一个时间片。
@@ -499,5 +560,49 @@ mod tests {
         // Parent's return value should equal child's return value
         // (parent does MOV a0, t2 where t2 = TASK_JOIN return value)
         assert_eq!(parent.2, 77, "parent should read child's return value");
+    }
+
+    // ── 层级调度测试 ──────────────────────────
+
+    #[test]
+    fn level_scheduling_three_levels() {
+        // 3 层依赖的任务：
+        // Level 0: task 0 (no deps), task 1 (no deps)
+        // Level 1: task 2 (deps: 0, 1)
+        // Level 2: task 3 (deps: 2)
+        let t0 = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 10),
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
+        ];
+        let t1 = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 20),
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
+        ];
+        let t2 = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 30),
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
+        ];
+        let t3 = vec![
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 40),
+            isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
+        ];
+        let bytes = make_multi_task_atxe(
+            vec![t0, t1, t2, t3],
+            vec![(0, 0, vec![]), (1, 2, vec![]), (2, 4, vec![0, 1]), (3, 6, vec![2])],
+        );
+        let binary = AtxeBinary::from_bytes(&bytes).unwrap();
+        let mut sched = Scheduler::from_atxe(&binary).unwrap();
+        sched.run_all().unwrap();
+
+        let results = sched.pool.results();
+        assert_eq!(results.len(), 4);
+        for (_, status, _, _) in &results {
+            assert_eq!(*status, TaskStatus::Done);
+        }
+        // Verify values
+        assert_eq!(results.iter().find(|(id,..)| *id==0).unwrap().2, 10);
+        assert_eq!(results.iter().find(|(id,..)| *id==1).unwrap().2, 20);
+        assert_eq!(results.iter().find(|(id,..)| *id==2).unwrap().2, 30);
+        assert_eq!(results.iter().find(|(id,..)| *id==3).unwrap().2, 40);
     }
 }
