@@ -9,6 +9,7 @@ use crate::runner::batch::BatchManager;
 use crate::runner::execute;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
+use crate::runner::slot::SlotManager;
 use crate::runner::task::{Task, TaskId, TaskStatus};
 use crate::runner::VmState;
 
@@ -24,6 +25,12 @@ pub struct Scheduler {
     pub next_task_id: u16,
     /// 批次管理器。
     pub batch: BatchManager,
+    /// 槽位管理器。
+    pub slot_manager: SlotManager,
+    /// 冷启动模式（N_batch 从 2 开始爬坡）。
+    pub cold_start: bool,
+    /// 冷启动计数器。
+    pub cold_start_count: u32,
 }
 
 impl Scheduler {
@@ -44,12 +51,17 @@ impl Scheduler {
                 total_instrs: 0,
                 quantum_instrs: 0,
             };
+            let mut batch = BatchManager::new(4.0, 1024.0);
+            let n_batch = batch.compute_decision().n_batch;
             return Ok(Self {
                 pool: TaskPool::new(vec![task]),
                 quantum: 1000,
                 total_instrs: 0,
                 next_task_id: 1,
-                batch: BatchManager::new(4.0, 1024.0),
+                batch,
+                slot_manager: SlotManager::new(1024.0, n_batch.max(2), 0.15, 1.5),
+                cold_start: true,
+                cold_start_count: 0,
             });
         }
 
@@ -79,12 +91,17 @@ impl Scheduler {
         }
 
         let max_id = tasks.iter().map(|t| t.id).max().unwrap_or(0);
+        let mut batch = BatchManager::new(4.0, 1024.0);
+        let n_batch = batch.compute_decision().n_batch;
         Ok(Self {
             pool: TaskPool::new(tasks),
             quantum: 1000,
             total_instrs: 0,
             next_task_id: max_id + 1,
-            batch: BatchManager::new(4.0, 1024.0),
+            batch,
+            slot_manager: SlotManager::new(1024.0, n_batch.max(2), 0.15, 1.5),
+            cold_start: true,
+            cold_start_count: 0,
         })
     }
 
@@ -103,7 +120,18 @@ impl Scheduler {
             let n_ready = self.pool.ready_tasks().len() as f64;
             self.batch.set_pool_depth(n_ready + self.pool.len() as f64 * 0.5);
             let decision = self.batch.compute_decision();
-            let n_batch = decision.n_batch as usize;
+
+            // 冷启动：前 8 个任务 N_batch=2，然后逐步爬坡到正常值
+            let n_batch = if self.cold_start {
+                if self.cold_start_count >= 8 {
+                    self.cold_start = false;
+                    decision.n_batch as usize
+                } else {
+                    2usize
+                }
+            } else {
+                decision.n_batch as usize
+            };
 
             let ready = self.pool.ready_tasks();
             if ready.is_empty() {
@@ -185,14 +213,17 @@ impl Scheduler {
             (completed, ret, child)
         }; // task borrow dropped here
 
-        // 唤醒 joiners + 更新批次统计
+        // 唤醒 joiners + 更新批次统计 + 冷启动计数
         if let Some(done_id) = completed_id {
             self.pool.wake_joiners(done_id, retval);
             // 更新运行时统计（估算 wall_time 和 peak_mem）
             self.batch.update_stats(
-                self.quantum as f64 * 0.001, // 粗略估算：quantum × 1μs/指令
-                16.0,                          // 粗略估算：16MB 峰值内存
+                self.quantum as f64 * 0.001,
+                16.0,
             );
+            if self.cold_start {
+                self.cold_start_count += 1;
+            }
         }
 
         // 处理 pending_child（box deref）

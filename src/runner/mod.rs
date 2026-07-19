@@ -10,6 +10,9 @@ pub mod pool;
 pub mod loader;
 pub mod sched;
 pub mod batch;
+pub mod config;
+pub mod hwinfo;
+pub mod slot;
 
 use crate::base::ir::AtxeBinary;
 use crate::base::isa::{reg, Profile};

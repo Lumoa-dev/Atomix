@@ -495,6 +495,11 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64)
         crate::base::isa::ecall::ALLOC => {
             let size = arg1;
             if size == 0 { return 0; }
+            // 水位线检查：超过警戒线时触发 OOM 暂停
+            if vm.memory.is_over_watermark() {
+                vm.state = crate::runner::VmStateKind::Suspended;
+                return u64::MAX; // OOM 信号
+            }
             vm.memory.alloc(size)
         }
         crate::base::isa::ecall::FREE => {
