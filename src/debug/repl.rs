@@ -29,6 +29,8 @@ pub struct DebugSession {
     pub vm: VmState,
     /// 断点表：地址 → 原始指令字。
     pub breakpoints: HashMap<usize, u32>,
+    /// 条件断点：地址 → 条件表达式（空字符串 = 无条件）。
+    pub conditional_breakpoints: HashMap<usize, String>,
     /// .debug 段解析后的行号映射。
     pub debug_map: Option<crate::debug::debug_segment::DebugMap>,
     /// 源文件路径（用于源码视图）。
@@ -43,6 +45,7 @@ impl DebugSession {
         Self {
             vm,
             breakpoints: HashMap::new(),
+            conditional_breakpoints: HashMap::new(),
             debug_map: None,
             source_path: None,
             source_lines: Vec::new(),
@@ -120,9 +123,16 @@ impl DebugSession {
             }
             "break" | "b" => {
                 if let Some(addr) = parts.get(1).and_then(|s| parse_addr(s)) {
-                    self.cmd_break(addr);
+                    // 检查是否有 if 条件
+                    let condition = if parts.len() > 2 && parts[2].to_lowercase() == "if" {
+                        Some(parts[3..].join(" "))
+                    } else {
+                        None
+                    };
+                    self.cmd_break(addr, condition.as_deref());
                 } else {
-                    println!("用法: break <addr>");
+                    // 列出所有断点
+                    self.list_breakpoints();
                 }
                 true
             }
@@ -172,7 +182,8 @@ impl DebugSession {
         println!("  regs        显示所有 16 个寄存器");
         println!("  disasm [addr] [n]  反汇编 n 条指令（默认 PC, 8 条）");
         println!("  mem <addr> [bytes]  hexdump 内存");
-        println!("  break <addr>        设置断点");
+        println!("  break <addr>        设置断点（无参 = 列出断点）");
+        println!("  break <addr> if <expr>  设置条件断点");
         println!("  continue    运行到断点或结束");
         println!("  eval <expr>  计算表达式（如 a0 + 42, *0x1000）");
         println!("  print <expr> 打印表达式值（寄存器/表达式）");
@@ -256,20 +267,52 @@ impl DebugSession {
         }
     }
 
-    fn cmd_break(&mut self, addr: usize) {
+    fn cmd_break(&mut self, addr: usize, condition: Option<&str>) {
         if addr >= self.vm.text.len() {
             println!("地址 {:#06x} 超出 .text 段", addr);
             return;
         }
         if self.breakpoints.contains_key(&addr) {
-            println!("断点已存在于 {:#06x}", addr);
+            // 如果已有断点，可能只是更新条件
+            if let Some(cond) = condition {
+                self.conditional_breakpoints.insert(addr, cond.to_string());
+                println!("条件断点已更新于 {:#06x}: if {}", addr, cond);
+            } else {
+                println!("断点已存在于 {:#06x}", addr);
+            }
             return;
         }
         // 保存原指令，写入 TRAP
         let original = self.vm.text[addr];
         self.breakpoints.insert(addr, original);
+        if let Some(cond) = condition {
+            self.conditional_breakpoints.insert(addr, cond.to_string());
+        }
         self.vm.text[addr] = isa::encode_ji(opcode::TRAP, 0);
-        println!("断点已设置于 {:#06x}", addr);
+        match condition {
+            Some(cond) => println!("条件断点已设置于 {:#06x}: if {}", addr, cond),
+            None => println!("断点已设置于 {:#06x}", addr),
+        }
+    }
+
+    fn list_breakpoints(&self) {
+        if self.breakpoints.is_empty() {
+            println!("（无断点）");
+            return;
+        }
+        println!("断点列表:");
+        for (&addr, _orig) in &self.breakpoints {
+            let cond = self.conditional_breakpoints.get(&addr)
+                .map(|c| format!(" if {}", c))
+                .unwrap_or_default();
+            let instr_desc = if addr < self.vm.text.len() {
+                let s = disassemble::format_instruction(addr, self.vm.text[addr]);
+                format!("  ({})", s)
+            } else {
+                String::new()
+            };
+            println!("  {:#06x}{}{}", addr, cond, instr_desc);
+        }
     }
 
     fn cmd_continue(&mut self) {
@@ -283,18 +326,43 @@ impl DebugSession {
             // 检查是否命中 TRAP（可能是断点或 halt）
             if !self.vm.is_running() || self.vm.state == VmStateKind::Halted {
                 if self.breakpoints.contains_key(&pc_before) {
-                    // 命中断点：恢复指令
+                    // 检查条件断点：如果条件不满足，跳过恢复的单步后继续执行
+                    let mut condition_skipped = false;
+
+                    if let Some(cond) = self.conditional_breakpoints.get(&pc_before) {
+                        if !cond.is_empty() {
+                            match crate::debug::eval::eval_expr(cond, &self.vm) {
+                                Ok(val) if val == 0 => {
+                                    // 条件不满足：恢复指令，单步，重新设断点，继续
+                                    if let Some(&orig) = self.breakpoints.get(&pc_before) {
+                                        self.vm.text[pc_before] = orig;
+                                        self.vm.pc = pc_before;
+                                        self.vm.state = VmStateKind::Running; // 恢复状态
+                                        execute_instruction(&mut self.vm);
+                                        self.vm.text[pc_before] = isa::encode_ji(opcode::TRAP, 0);
+                                    }
+                                    condition_skipped = true;
+                                }
+                                Ok(_) => {} // 条件满足，停
+                                Err(e) => {
+                                    println!("⚠ 条件求值错误 ({}): 继续执行", e);
+                                }
+                            }
+                        }
+                    }
+
+                    if condition_skipped {
+                        continue; // 继续执行主循环
+                    }
+
+                    // 命中断点：先把状态恢复为 Running 再单步
                     println!("⏸ 命中断点于 {:#06x}", pc_before);
-                    // 恢复原指令，单步执行，重新设断点
                     if let Some(&orig) = self.breakpoints.get(&pc_before) {
                         self.vm.text[pc_before] = orig;
-                        // 回滚 PC 到断点地址
                         self.vm.pc = pc_before;
-                        // 单步执行原指令
+                        self.vm.state = VmStateKind::Running; // 恢复状态
                         execute_instruction(&mut self.vm);
-                        // 重新设置断点
                         self.vm.text[pc_before] = isa::encode_ji(opcode::TRAP, 0);
-                        // 显示当前状态
                         if self.vm.pc < self.vm.text.len() && self.vm.is_running() {
                             let s = disassemble::format_instruction(
                                 self.vm.pc,
