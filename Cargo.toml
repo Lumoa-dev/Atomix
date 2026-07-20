@@ -37,3 +37,11 @@ toml = "0.8"
 
 # 调试器（REPL 行编辑）
 rustyline = "14"
+
+# 远程 ATXP 协议
+prost = "0.13"
+tokio = { version = "1", features = ["rt", "net", "io-util", "sync", "time"] }
+
+[build-dependencies]
+prost-build = "0.13"
+protoc-bin-vendored = "3"
