@@ -51,6 +51,23 @@ enum Command {
         #[arg(long)]
         origin: Option<String>,
     },
+    /// 远程连接管理
+    Origin {
+        #[arg(long)]
+        add: Option<String>,
+        #[arg(long = "ip")]
+        ip: Option<String>,
+        #[arg(long = "as")]
+        as_name: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
+        #[arg(long)]
+        list: bool,
+        #[arg(long)]
+        remove: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -86,6 +103,26 @@ fn main() {
             RunnerAction::Stop => cmd_runner_stop(),
         },
         Command::Task { name, origin } => cmd_task(&name, origin.as_deref()),
+        Command::Origin { add, ip, as_name, port, list, remove, status } => {
+            if list { cmd_origin_list(); }
+            else if let Some(alias) = remove { cmd_origin_remove(&alias); }
+            else if let Some(alias) = status { cmd_origin_status(&alias); }
+            else if let Some(alias) = add {
+                let addr = ip.unwrap_or_else(|| {
+                    eprintln!("错误: --add 需要 --ip <地址>");
+                    std::process::exit(1);
+                });
+                let port = port.unwrap_or(9000);
+                let name = as_name.unwrap_or_else(|| alias.clone());
+                cmd_origin_add(&name, &addr, port);
+            } else {
+                eprintln!("用法: atomix origin --add -ip <地址> -as <别名> [--port <端口>]");
+                eprintln!("       atomix origin --list");
+                eprintln!("       atomix origin --remove <别名>");
+                eprintln!("       atomix origin --status <别名>");
+                std::process::exit(1);
+            }
+        }
     }
 }
 
@@ -255,6 +292,70 @@ fn cmd_runner_status() {
 fn cmd_runner_stop() {
     println!("Runner 停止: (本地模式)");
     println!("  TODO: 实现 stop 端点");
+}
+
+// ─── Origin（远程连接管理）────────────────────────────
+
+fn cmd_origin_add(alias: &str, address: &str, port: u16) {
+    let mut config = atomix::origin::OriginConfig::load();
+    config.upsert(atomix::origin::OriginEntry {
+        alias: alias.to_string(),
+        address: address.to_string(),
+        port,
+    });
+    if let Err(e) = config.save() {
+        eprintln!("保存配置失败: {}", e);
+        std::process::exit(1);
+    }
+    println!("远程连接已添加: {} = {}:{}", alias, address, port);
+}
+
+fn cmd_origin_list() {
+    let config = atomix::origin::OriginConfig::load();
+    if config.connection.is_empty() {
+        println!("（无远程连接）");
+        return;
+    }
+    println!("远程连接列表:");
+    for entry in &config.connection {
+        println!("  {} = {}:{}", entry.alias, entry.address, entry.port);
+    }
+}
+
+fn cmd_origin_remove(alias: &str) {
+    let mut config = atomix::origin::OriginConfig::load();
+    if config.remove(alias) {
+        if let Err(e) = config.save() {
+            eprintln!("保存配置失败: {}", e);
+            std::process::exit(1);
+        }
+        println!("远程连接已删除: {}", alias);
+    } else {
+        println!("未找到远程连接: {}", alias);
+    }
+}
+
+fn cmd_origin_status(alias: &str) {
+    let config = atomix::origin::OriginConfig::load();
+    match config.find(alias) {
+        Some(entry) => {
+            println!("正在连接 {}:{} ...", entry.address, entry.port);
+            match atomix::origin::check_status(entry) {
+                Ok(status) => {
+                    println!("远程状态:");
+                    println!("  {}", serde_json::to_string_pretty(&status).unwrap_or_default());
+                }
+                Err(e) => {
+                    eprintln!("连接失败: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        None => {
+            eprintln!("未找到远程连接: {}", alias);
+            std::process::exit(1);
+        }
+    }
 }
 
 // ─── Task（深度检查 / 本地 debug）────────────────────
