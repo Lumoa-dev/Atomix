@@ -3,6 +3,7 @@
 //! 详见 02-指令集规范.md、07-执行器设计.md、08-运行时架构.md
 
 pub mod batch;
+pub mod client;
 pub mod config;
 pub mod decode;
 pub mod event;

@@ -203,8 +203,19 @@ fn cmd_clean() {
 
 // ─── Runner ────────────────────────────────────────────
 
-fn cmd_runner_run(name: Option<&str>, _origin: Option<&str>) {
-    // 暂时只支持本地直接跑（无 --origin）
+fn cmd_runner_run(name: Option<&str>, origin: Option<&str>) {
+    if let Some(origin_alias) = origin {
+        // 远程模式
+        let task_name = name.unwrap_or("");
+        if task_name.is_empty() {
+            eprintln!("用法: atomix runner run <name> --origin <别名>");
+            std::process::exit(1);
+        }
+        cmd_runner_run_remote(task_name, origin_alias);
+        return;
+    }
+
+    // 本地模式
     if let Some(task_name) = name {
         // 检查是指定的 .atxe 还是 .atx
         let path = Path::new(task_name);
@@ -360,14 +371,132 @@ fn cmd_origin_status(alias: &str) {
 
 // ─── Task（深度检查 / 本地 debug）────────────────────
 
+/// 远程执行任务：编译 → ATXP Submit → 远程执行 → 显示状态。
+fn cmd_runner_run_remote(task_name: &str, alias: &str) {
+    // 编译 .atx → .atxe
+    let path = Path::new(task_name);
+    let binary = if path.extension().is_some_and(|e| e == "atxe") {
+        match fs::read(path) {
+            Ok(b) => b,
+            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+        }
+    } else {
+        let source = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+        };
+        let (bin, errors) = atomix::compiler::compile(&source, "0");
+        if !errors.is_empty() {
+            for e in &errors { eprintln!("{}", e); }
+            if bin.is_empty() { std::process::exit(1); }
+        }
+        println!("编译成功: {} 字节", bin.len());
+        bin
+    };
+
+    // 连接远程 runner
+    println!("正在连接远程: {} ...", alias);
+    let mut client = match atomix::runner::client::AtxpClient::connect_by_alias(alias) {
+        Ok(c) => c,
+        Err(e) => { eprintln!("连接失败: {}", e); std::process::exit(1); }
+    };
+
+    // 查询远程状态
+    match client.query_status() {
+        Ok(status) => println!("远程状态: {}", serde_json::to_string_pretty(&status).unwrap_or_default()),
+        Err(e) => eprintln!("查询状态失败: {}", e),
+    }
+
+    // 提交任务
+    println!("正在提交任务 ...");
+    match client.submit_task(&binary) {
+        Ok(task_id) => println!("任务已提交, ID: {}", task_id),
+        Err(e) => { eprintln!("提交失败: {}", e); std::process::exit(1); }
+    }
+
+    // 查询任务列表
+    match client.query_tasks() {
+        Ok(tasks) => {
+            println!("\n任务列表:");
+            for t in &tasks {
+                println!("  {}", serde_json::to_string_pretty(t).unwrap_or_default());
+            }
+        }
+        Err(e) => eprintln!("查询任务失败: {}", e),
+    }
+
+    println!("\n远程执行完成。");
+}
+
+/// 远程任务监控：连接远程 runner，查询任务状态。
+fn cmd_task_remote(task_name: &str, alias: &str) {
+    let path = Path::new(task_name);
+
+    // 编译 .atx → .atxe（为了获取任务信息）
+    let binary = if path.extension().is_some_and(|e| e == "atxe") {
+        match fs::read(path) {
+            Ok(b) => b,
+            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+        }
+    } else {
+        let source = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+        };
+        let (bin, errors) = atomix::compiler::compile(&source, "0");
+        if !errors.is_empty() {
+            for e in &errors { eprintln!("{}", e); }
+            if bin.is_empty() { std::process::exit(1); }
+        }
+        bin
+    };
+
+    // 解码获取任务信息
+    let atxe = atomix::base::ir::AtxeBinary::from_bytes(&binary)
+        .unwrap_or_else(|| { eprintln!("编译产物无效"); std::process::exit(1); });
+
+    println!("任务: {} ({} 条指令)", task_name, atxe.header.total_instrs);
+
+    // 连接远程 runner
+    println!("正在连接远程: {} ...", alias);
+    let mut client = match atomix::runner::client::AtxpClient::connect_by_alias(alias) {
+        Ok(c) => c,
+        Err(e) => { eprintln!("连接失败: {}", e); std::process::exit(1); }
+    };
+
+    // 查询远程状态
+    match client.query_status() {
+        Ok(status) => {
+            println!("\n远程 runner 状态:");
+            println!("  {}", serde_json::to_string_pretty(&status).unwrap_or_default());
+        }
+        Err(e) => eprintln!("查询状态失败: {}", e),
+    }
+
+    // 提交任务（远程执行）
+    match client.submit_task(&binary) {
+        Ok(task_id) => println!("\n任务已提交, 远程 ID: {}", task_id),
+        Err(e) => eprintln!("提交任务失败: {}", e),
+    }
+
+    // 查询任务列表
+    match client.query_tasks() {
+        Ok(tasks) => {
+            println!("\n远程任务:");
+            for t in &tasks {
+                println!("  {}", serde_json::to_string_pretty(t).unwrap_or_default());
+            }
+        }
+        Err(e) => eprintln!("查询任务失败: {}", e),
+    }
+}
+
 fn cmd_task(name: &str, origin: Option<&str>) {
     let path = Path::new(name);
 
-    if let Some(_remote) = origin {
-        // 远程监控模式：通过 ATXP 协议连接远程 runner
-        // 当前未实现，占位
-        eprintln!("远程检查模式尚未实现（需要通过 ATXP 协议连接远程 runner）");
-        std::process::exit(1);
+    if let Some(origin_alias) = origin {
+        cmd_task_remote(name, origin_alias);
+        return;
     }
 
     // 本地深度检查（debug）模式
