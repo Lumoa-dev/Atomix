@@ -16,6 +16,7 @@ pub mod pool;
 pub mod prefetch;
 pub mod regression;
 pub mod runtime;
+pub mod server;
 pub(crate) mod sched;
 pub mod slot;
 pub mod task;
