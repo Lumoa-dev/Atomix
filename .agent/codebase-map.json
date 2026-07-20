@@ -1,0 +1,2822 @@
+{
+  "generated_at": "2026-07-20 19:54:47 UTC",
+  "project": "Atomix",
+  "stats": {
+    "dir_count": 16,
+    "file_count": 104,
+    "total_code_lines": 27844,
+    "total_lines": 38196,
+    "total_tests": 444
+  },
+  "tree": {
+    "children": {
+      "docs": {
+        "children": {
+          "01-总纲与哲学.md": {
+            "info": {
+              "code_lines": 180,
+              "content_hash": "08dc297585cde74f",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 设计总纲与哲学",
+                "> 架构版本: v0.1 (设计阶段)",
+                "> 最后更新: 2026-07-14",
+                "---",
+                "## 1. 项目背景与定位"
+              ],
+              "lines": 306,
+              "modified": "t=1784226162",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "01-总纲与哲学.md",
+            "path": "docs/01-总纲与哲学.md",
+            "type": "file"
+          },
+          "02-指令集规范.md": {
+            "info": {
+              "code_lines": 539,
+              "content_hash": "2940745b781c4430",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 指令集规范 (ISA)",
+                "> 架构版本: v0.3 (新增原子指令 + Profile 语义矩阵)",
+                "> 最后更新: 2026-07-17",
+                "> 指令总数: **54 条**",
+                "> Opcode 空间: 256 (已用 54, 保留 202)"
+              ],
+              "lines": 755,
+              "modified": "t=1784537472",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "02-指令集规范.md",
+            "path": "docs/02-指令集规范.md",
+            "type": "file"
+          },
+          "03-编译行为.md": {
+            "info": {
+              "code_lines": 192,
+              "content_hash": "0c589caef32e52bf",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 编译行为",
+                "> 架构版本: v0.1 (设计阶段)",
+                "> 最后更新: 2026-07-15",
+                "---",
+                "## 1. 五区结构"
+              ],
+              "lines": 309,
+              "modified": "t=1784144178",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "03-编译行为.md",
+            "path": "docs/03-编译行为.md",
+            "type": "file"
+          },
+          "04-编译管线.md": {
+            "info": {
+              "code_lines": 471,
+              "content_hash": "7645345a665c5b13",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 编译管线",
+                "> 架构版本: v0.1 (设计阶段)",
+                "> 配套文档: 详见 01-总纲与哲学.md、02-指令集规范.md、编译行为.md",
+                "---",
+                "## 1. 总览"
+              ],
+              "lines": 670,
+              "modified": "t=1784226232",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "04-编译管线.md",
+            "path": "docs/04-编译管线.md",
+            "type": "file"
+          },
+          "05-通信协议.md": {
+            "info": {
+              "code_lines": 1967,
+              "content_hash": "2aa23ea279e13158",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 通信协议 (ATXP)",
+                "> 架构版本: v0.4 (提交/产出协议 + Debug 扩展)",
+                "> 最后更新: 2026-07-16",
+                "> 设计原则: 统一报文层 + 可插拔传输层",
+                "> 序列化方案: 固定帧头 (16B, 含 CRC-16-CCITT checksum) + Protobuf 载荷 + 紧凑二进制流"
+              ],
+              "lines": 2506,
+              "modified": "t=1784202954",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "05-通信协议.md",
+            "path": "docs/05-通信协议.md",
+            "type": "file"
+          },
+          "06-外围工具.md": {
+            "info": {
+              "code_lines": 128,
+              "content_hash": "7a48e51040ea2045",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 外围工具",
+                "> 架构版本: v0.2 (设计阶段)",
+                "> 最后更新: 2026-07-16",
+                "> 设计哲学: **简单 · 自动 · 智能**",
+                "> 配套文档: 详见 命令行规范.md（完整命令树与参数表）"
+              ],
+              "lines": 184,
+              "modified": "t=1784224788",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "06-外围工具.md",
+            "path": "docs/06-外围工具.md",
+            "type": "file"
+          },
+          "07-Runner.md": {
+            "info": {
+              "code_lines": 586,
+              "content_hash": "14ae2010084a8e2d",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix Runner 完整架构设计",
+                "> 架构版本: v0.3（全面修订）",
+                "> 最后更新: 2026-07-20",
+                "> 状态: **设计冻结 — 待仿真验证后进入实现**",
+                "> 文档中涉及到的算法已经在 /sim/ 下完成仿真"
+              ],
+              "lines": 899,
+              "modified": "t=1784486005",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "07-Runner.md",
+            "path": "docs/07-Runner.md",
+            "type": "file"
+          },
+          "09-配置设计.md": {
+            "info": {
+              "code_lines": 93,
+              "content_hash": "1280af3101886457",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 资源配置",
+                "> 架构版本: v0.1 (设计阶段)",
+                "> 配套文档: 详见 运行时架构.md §4、外围工具.md",
+                "---",
+                "## 1. 设计原则"
+              ],
+              "lines": 161,
+              "modified": "t=1784226303",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "09-配置设计.md",
+            "path": "docs/09-配置设计.md",
+            "type": "file"
+          },
+          "10-命令行规范.md": {
+            "info": {
+              "code_lines": 312,
+              "content_hash": "166900ea9d1cde65",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 命令行规范",
+                "> 架构版本: v0.2",
+                "> 最后更新: 2026-07-16",
+                "> 设计哲学: **简单 · 自动 · 智能**",
+                "> 配套文档: 参见 外围工具.md（高层概览）"
+              ],
+              "lines": 471,
+              "modified": "t=1784197966",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "10-命令行规范.md",
+            "path": "docs/10-命令行规范.md",
+            "type": "file"
+          },
+          "12-debugger-设计.md": {
+            "info": {
+              "code_lines": 454,
+              "content_hash": "5db25038ea86bb79",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix Debugger 设计文档 (atomix-debug)",
+                "> 版本: v0.1 (需求框架)",
+                "> 最后更新: 2026-07-16",
+                "> 依赖: ATXP 协议 v0.3 (`docs/通信协议.md`)",
+                "> 配套文档: 外围工具.md, 命令行规范.md"
+              ],
+              "lines": 654,
+              "modified": "t=1784200728",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "12-debugger-设计.md",
+            "path": "docs/12-debugger-设计.md",
+            "type": "file"
+          },
+          "13-sdk-设计.md": {
+            "info": {
+              "code_lines": 492,
+              "content_hash": "70307ea8663542e2",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix SDK 设计文档",
+                "> 版本: v0.1 (需求框架)",
+                "> 最后更新: 2026-07-16",
+                "> 依赖: ATXP 协议 v0.4 (`docs/通信协议.md`)",
+                "> 交付: `atomix-sdk` (Rust crate) + `atomix-sdk` (Python package)"
+              ],
+              "lines": 734,
+              "modified": "t=1784202676",
+              "pub_decls": [
+                "pub struct AtomixClient ",
+                "pub fn task(&self, task_id: &str) -> TaskHandle ",
+                "pub struct SubmitRequest ",
+                "pub enum OutputMode ",
+                "pub struct TaskHandle ",
+                "pub fn task_id(&self) -> &str ",
+                "pub struct TaskOutput ",
+                "pub enum OutputStatus ",
+                "pub enum AtomixError "
+              ],
+              "tests": 0
+            },
+            "name": "13-sdk-设计.md",
+            "path": "docs/13-sdk-设计.md",
+            "type": "file"
+          },
+          "14-Atomix-Rust-实现任务文档.md": {
+            "info": {
+              "code_lines": 1352,
+              "content_hash": "b02a28f56467d6cf",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix Rust 实现任务文档",
+                "> **文档版本**: v0.3",
+                "> **最后更新**: 2026-07-21",
+                "> **实现语言**: Rust (stable) / edition 2024",
+                "> **目标平台**: Linux x86_64 / macOS arm64 / Windows x86_64"
+              ],
+              "lines": 2007,
+              "modified": "t=1784575269",
+              "pub_decls": [],
+              "tests": 1
+            },
+            "name": "14-Atomix-Rust-实现任务文档.md",
+            "path": "docs/14-Atomix-Rust-实现任务文档.md",
+            "type": "file"
+          },
+          "AEP": {
+            "children": {
+              "000-模板.md": {
+                "info": {
+                  "code_lines": 17,
+                  "content_hash": "1a07d2cbc9847cca",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-{NNN}: {标题}",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft / Accepted / Implemented / Deferred |"
+                  ],
+                  "lines": 38,
+                  "modified": "t=1784441496",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "000-模板.md",
+                "path": "docs/AEP/000-模板.md",
+                "type": "file"
+              },
+              "001-装饰器统一规范.md": {
+                "info": {
+                  "code_lines": 66,
+                  "content_hash": "fa5841ceede21d75",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-001: 装饰器统一规范",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft |"
+                  ],
+                  "lines": 107,
+                  "modified": "t=1784441496",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "001-装饰器统一规范.md",
+                "path": "docs/AEP/001-装饰器统一规范.md",
+                "type": "file"
+              },
+              "002-增量编译.md": {
+                "info": {
+                  "code_lines": 95,
+                  "content_hash": "95ae588b0b921447",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-002: 增量编译",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft |"
+                  ],
+                  "lines": 143,
+                  "modified": "t=1784472754",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "002-增量编译.md",
+                "path": "docs/AEP/002-增量编译.md",
+                "type": "file"
+              },
+              "003-指令优化策略.md": {
+                "info": {
+                  "code_lines": 103,
+                  "content_hash": "c594ee152630f247",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-003: 指令优化策略",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft |"
+                  ],
+                  "lines": 171,
+                  "modified": "t=1784482321",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "003-指令优化策略.md",
+                "path": "docs/AEP/003-指令优化策略.md",
+                "type": "file"
+              },
+              "004-LLVM后端兼容性-BETA.md": {
+                "info": {
+                  "code_lines": 74,
+                  "content_hash": "7c4d8a7ea339835e",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-004 (BETA): LLVM 后端兼容性",
+                    "Atomix Enhancement Proposal — 试验性提案",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft (Beta) |"
+                  ],
+                  "lines": 117,
+                  "modified": "t=1784472800",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "004-LLVM后端兼容性-BETA.md",
+                "path": "docs/AEP/004-LLVM后端兼容性-BETA.md",
+                "type": "file"
+              },
+              "005-装饰器系统增强——一切皆可装饰器.md": {
+                "info": {
+                  "code_lines": 170,
+                  "content_hash": "2f5474306fca37ec",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-005: 装饰器系统增强——一切皆可装饰器",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft |"
+                  ],
+                  "lines": 275,
+                  "modified": "t=1784555691",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "005-装饰器系统增强——一切皆可装饰器.md",
+                "path": "docs/AEP/005-装饰器系统增强——一切皆可装饰器.md",
+                "type": "file"
+              },
+              "006-keyword元装饰器——关键字声明与注册.md": {
+                "info": {
+                  "code_lines": 185,
+                  "content_hash": "7a59e16194d0b8ec",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# AEP-006: `#[keyword]` 元装饰器——关键字声明与注册",
+                    "Atomix Enhancement Proposal",
+                    "| 字段 | 内容 |",
+                    "|------|------|",
+                    "| **状态** | Draft |"
+                  ],
+                  "lines": 327,
+                  "modified": "t=1784555727",
+                  "pub_decls": [
+                    "pub fn is_source_target_keyword(&self) -> bool ",
+                    "pub fn is_source_target_keyword(tok: &TokenKind, symbol_table: &SymbolTable) -> bool "
+                  ],
+                  "tests": 0
+                },
+                "name": "006-keyword元装饰器——关键字声明与注册.md",
+                "path": "docs/AEP/006-keyword元装饰器——关键字声明与注册.md",
+                "type": "file"
+              },
+              "README.md": {
+                "info": {
+                  "code_lines": 14,
+                  "content_hash": "9eced9fff6f5ea9f",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix Enhancement Proposals (AEP)",
+                    "AEP 是 Atomix 语言和运行时的设计扩展提案系统。",
+                    "每个 AEP 编号递增，以 Draft 状态提交，经评审后推进到 Accepted / Implemented / Deferred。",
+                    "## 提案流程",
+                    "1. 发现问题或设计缺口"
+                  ],
+                  "lines": 22,
+                  "modified": "t=1784472810",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "README.md",
+                "path": "docs/AEP/README.md",
+                "type": "file"
+              }
+            },
+            "name": "AEP",
+            "path": "docs/AEP",
+            "type": "dir"
+          },
+          "atxp.proto": {
+            "info": {
+              "code_lines": 765,
+              "content_hash": "761c0d902f28c639",
+              "ext": "proto",
+              "header_snapshot": [
+                "// ATXP Protocol Buffers Schema",
+                "// Version: 0.4 (extended — submission/output protocol)",
+                "// Usage: protoc --proto_path=. --rust_out=crates/atxp/src/ atxp.proto",
+                "//   Or via prost-build in build.rs",
+                "syntax = \"proto3\";"
+              ],
+              "lines": 978,
+              "modified": "t=1784202637",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "atxp.proto",
+            "path": "docs/atxp.proto",
+            "type": "file"
+          },
+          "index.md": {
+            "info": {
+              "code_lines": 137,
+              "content_hash": "1620839f96ce4e01",
+              "ext": "md",
+              "header_snapshot": [
+                "# Atomix 项目索引",
+                "> 📝 此文件由 `scripts/gen-index.py` 自动生成。",
+                "> 增删文件后执行 `python scripts/gen-index.py` 更新。",
+                "## 项目概览",
+                "| 文件 | 说明 |"
+              ],
+              "lines": 185,
+              "modified": "t=1784483167",
+              "pub_decls": [],
+              "tests": 0
+            },
+            "name": "index.md",
+            "path": "docs/index.md",
+            "type": "file"
+          },
+          "语法设计": {
+            "children": {
+              "INPUT语法.md": {
+                "info": {
+                  "code_lines": 179,
+                  "content_hash": "f44f76b190d7987b",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix INPUT 语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: INPUT 语法域",
+                    "> 配套文档: 详见 01-总纲与哲学.md、通用语法.md",
+                    "---"
+                  ],
+                  "lines": 298,
+                  "modified": "t=1784146155",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "INPUT语法.md",
+                "path": "docs/语法设计/INPUT语法.md",
+                "type": "file"
+              },
+              "OUT语法.md": {
+                "info": {
+                  "code_lines": 95,
+                  "content_hash": "ff5fc4927240e283",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix OUT 语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: OUT 语法域",
+                    "> 配套文档: 详见 01-总纲与哲学.md、通用语法.md、INPUT语法.md",
+                    "---"
+                  ],
+                  "lines": 159,
+                  "modified": "t=1784146148",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "OUT语法.md",
+                "path": "docs/语法设计/OUT语法.md",
+                "type": "file"
+              },
+              "TASK语法.md": {
+                "info": {
+                  "code_lines": 165,
+                  "content_hash": "1fb6c4f78a74b3a1",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix TASK 语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: TASK 语法域",
+                    "> 配套文档: 详见 01-总纲与哲学.md、通用语法.md",
+                    "---"
+                  ],
+                  "lines": 284,
+                  "modified": "t=1784146148",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "TASK语法.md",
+                "path": "docs/语法设计/TASK语法.md",
+                "type": "file"
+              },
+              "TOOLS语法.md": {
+                "info": {
+                  "code_lines": 30,
+                  "content_hash": "723b8e3aa0ab5098",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix TOOLS 语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: TOOLS 语法域",
+                    "> 配套文档: 详见 通用语法.md",
+                    "---"
+                  ],
+                  "lines": 54,
+                  "modified": "t=1784146155",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "TOOLS语法.md",
+                "path": "docs/语法设计/TOOLS语法.md",
+                "type": "file"
+              },
+              "WORKS语法.md": {
+                "info": {
+                  "code_lines": 171,
+                  "content_hash": "f0786dadc654829b",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix WORKS 语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: WORKS 语法域",
+                    "> 配套文档: 详见 01-总纲与哲学.md、通用语法.md",
+                    "---"
+                  ],
+                  "lines": 277,
+                  "modified": "t=1784226116",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "WORKS语法.md",
+                "path": "docs/语法设计/WORKS语法.md",
+                "type": "file"
+              },
+              "关键字参考.md": {
+                "info": {
+                  "code_lines": 72,
+                  "content_hash": "22ee80855be29e23",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 关键字参考",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: 所有语法域",
+                    "> 字母序排列，大小写不敏感",
+                    "---"
+                  ],
+                  "lines": 101,
+                  "modified": "t=1784146155",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "关键字参考.md",
+                "path": "docs/语法设计/关键字参考.md",
+                "type": "file"
+              },
+              "内置函数.md": {
+                "info": {
+                  "code_lines": 36,
+                  "content_hash": "36518f3002405e95",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 内置函数",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: 所有语法域，无需导入即可使用",
+                    "---",
+                    "## 1. 设计原则"
+                  ],
+                  "lines": 61,
+                  "modified": "t=1784124471",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "内置函数.md",
+                "path": "docs/语法设计/内置函数.md",
+                "type": "file"
+              },
+              "包管理.md": {
+                "info": {
+                  "code_lines": 229,
+                  "content_hash": "2addbf26ea64a6e3",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 包管理",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 最后更新: 2026-07-16",
+                    "---",
+                    "## 1. 设计原则"
+                  ],
+                  "lines": 327,
+                  "modified": "t=1784198168",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "包管理.md",
+                "path": "docs/语法设计/包管理.md",
+                "type": "file"
+              },
+              "区外语法.md": {
+                "info": {
+                  "code_lines": 257,
+                  "content_hash": "6774b11d6abab6ca",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 区外语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: 文件级（不属于任何语法域）",
+                    "> 配套文档: 详见 通用语法.md",
+                    "---"
+                  ],
+                  "lines": 398,
+                  "modified": "t=1784144365",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "区外语法.md",
+                "path": "docs/语法设计/区外语法.md",
+                "type": "file"
+              },
+              "标准库.md": {
+                "info": {
+                  "code_lines": 99,
+                  "content_hash": "c6bf2cb5dc37f3df",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 标准库",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: 所有语法域（按模块分别导入）",
+                    "> 配套文档: 详见 包管理.md、内置函数.md",
+                    "---"
+                  ],
+                  "lines": 145,
+                  "modified": "t=1784146155",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "标准库.md",
+                "path": "docs/语法设计/标准库.md",
+                "type": "file"
+              },
+              "类型系统.md": {
+                "info": {
+                  "code_lines": 159,
+                  "content_hash": "637cab3edbe4e546",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 类型系统",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 适用范围: 所有语法域",
+                    "> 配套文档: 详见 通用语法.md、02-指令集规范.md",
+                    "---"
+                  ],
+                  "lines": 266,
+                  "modified": "t=1784146186",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "类型系统.md",
+                "path": "docs/语法设计/类型系统.md",
+                "type": "file"
+              },
+              "通用语法.md": {
+                "info": {
+                  "code_lines": 622,
+                  "content_hash": "1773a0af10846acd",
+                  "ext": "md",
+                  "header_snapshot": [
+                    "# Atomix 通用语法",
+                    "> 架构版本: v0.1 (设计阶段)",
+                    "> 最后更新: 2026-07-15",
+                    "> 适用范围: 所有语法域",
+                    "> 配套文档: 详见 01-总纲与哲学.md"
+                  ],
+                  "lines": 984,
+                  "modified": "t=1784226129",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "通用语法.md",
+                "path": "docs/语法设计/通用语法.md",
+                "type": "file"
+              },
+              "附录": {
+                "children": {
+                  "数据源地址与参数速查.md": {
+                    "info": {
+                      "code_lines": 111,
+                      "content_hash": "63969105f54dcc9f",
+                      "ext": "md",
+                      "header_snapshot": [
+                        "# 附录 A：数据源地址与参数速查",
+                        "> 配套文档: 详见 INPUT语法.md",
+                        "---",
+                        "## A.1 WEBS（网络基础）",
+                        "| 项目 | 说明 |"
+                      ],
+                      "lines": 169,
+                      "modified": "t=1784129497",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "数据源地址与参数速查.md",
+                    "path": "docs/语法设计/附录/数据源地址与参数速查.md",
+                    "type": "file"
+                  },
+                  "钩子与IS值参考.md": {
+                    "info": {
+                      "code_lines": 176,
+                      "content_hash": "87c1863ac181d7da",
+                      "ext": "md",
+                      "header_snapshot": [
+                        "# 附录 C：钩子与 IS\\* 值参考",
+                        "> 配套文档: 详见 WORKS语法.md、通用语法.md",
+                        "---",
+                        "## 实现层级说明",
+                        "钩子系统按实现层级分为三类，不同层级对应不同的实现复杂度和 VM 侵入性："
+                      ],
+                      "lines": 248,
+                      "modified": "t=1784146208",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "钩子与IS值参考.md",
+                    "path": "docs/语法设计/附录/钩子与IS值参考.md",
+                    "type": "file"
+                  },
+                  "默认装饰器参考.md": {
+                    "info": {
+                      "code_lines": 47,
+                      "content_hash": "408201e0398c1edb",
+                      "ext": "md",
+                      "header_snapshot": [
+                        "# 附录 B：默认装饰器参考",
+                        "> 装饰器是挂接在数据流箭头 `=>` 上的函数，处理流经的数据。",
+                        "> 装饰器是**通用设施**——不限定区域，能用处自然能用。此处仅列出默认提供的装饰器。",
+                        "> 默认装饰器由 TOOLS 区预定义，用户可直接使用，无需额外声明。",
+                        "> 配套文档: 详见 INPUT语法.md、通用语法.md"
+                      ],
+                      "lines": 70,
+                      "modified": "t=1784129503",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "默认装饰器参考.md",
+                    "path": "docs/语法设计/附录/默认装饰器参考.md",
+                    "type": "file"
+                  }
+                },
+                "name": "附录",
+                "path": "docs/语法设计/附录",
+                "type": "dir"
+              }
+            },
+            "name": "语法设计",
+            "path": "docs/语法设计",
+            "type": "dir"
+          }
+        },
+        "name": "docs",
+        "path": "docs",
+        "type": "dir"
+      },
+      "src": {
+        "children": {
+          "base": {
+            "children": {
+              "atxp.rs": {
+                "info": {
+                  "code_lines": 210,
+                  "content_hash": "bf25b561954388ff",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! ATXP 协议帧层 — 16 字节帧头 + Protobuf 载荷。",
+                    "//!",
+                    "//! 协议细节见 docs/05-通信协议.md 和 docs/atxp.proto。",
+                    "//!",
+                    "//! # 帧格式"
+                  ],
+                  "lines": 284,
+                  "modified": "t=1784561084",
+                  "pub_decls": [
+                    "pub enum MsgType ",
+                    "pub fn from_u8(v: u8) -> Option<Self> ",
+                    "pub mod flags ",
+                    "pub struct FrameHeader ",
+                    "pub fn new(msg_type: u8, seq_id: u32, payload: &[u8]) -> Self ",
+                    "pub fn as_response(&mut self, req_type: u8) ",
+                    "pub fn compute_checksum(&self, payload: &[u8]) -> u16 ",
+                    "pub fn encode_header(hdr: &FrameHeader) -> [u8; FRAME_HEADER_SIZE] ",
+                    "pub fn decode_header(bytes: &[u8; FRAME_HEADER_SIZE]) -> Option<FrameHeader> ",
+                    "pub fn encode_frame(msg_type: u8, seq_id: u32, payload: &[u8]) -> Vec<u8> ",
+                    "pub fn decode_frame(data: &[u8]) -> Option<(FrameHeader, Vec<u8>, &[u8])> ",
+                    "pub mod proto "
+                  ],
+                  "tests": 8
+                },
+                "name": "atxp.rs",
+                "path": "src/base/atxp.rs",
+                "type": "file"
+              },
+              "error.rs": {
+                "info": {
+                  "code_lines": 133,
+                  "content_hash": "ad181b9158675569",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Unified error types for all Atomix crates.",
+                    "use std::fmt;",
+                    "// ─── Error Codes ──────────────────────────────────────────────────",
+                    "/// Numeric error codes as defined in ATXP §7.",
+                    "#[derive(Debug, Clone, Copy, PartialEq, Eq)]"
+                  ],
+                  "lines": 171,
+                  "modified": "t=1784467101",
+                  "pub_decls": [
+                    "pub enum ErrorCode ",
+                    "pub fn from_u32(v: u32) -> Self ",
+                    "pub fn name(&self) -> &'static str ",
+                    "pub struct AtomixError ",
+                    "pub fn new(code: ErrorCode, message: impl Into<String>) -> Self ",
+                    "pub fn with_endpoint(mut self, ep: impl Into<String>) -> Self ",
+                    "pub fn not_found(msg: impl Into<String>) -> Self ",
+                    "pub fn not_supported(msg: impl Into<String>) -> Self ",
+                    "pub fn forbidden(msg: impl Into<String>) -> Self ",
+                    "pub fn unauthorized(msg: impl Into<String>) -> Self ",
+                    "pub fn timeout(msg: impl Into<String>) -> Self ",
+                    "pub fn internal(msg: impl Into<String>) -> Self ",
+                    "pub fn checksum(msg: impl Into<String>) -> Self ",
+                    "pub fn payload_too_large(msg: impl Into<String>) -> Self "
+                  ],
+                  "tests": 3
+                },
+                "name": "error.rs",
+                "path": "src/base/error.rs",
+                "type": "file"
+              },
+              "ir.rs": {
+                "info": {
+                  "code_lines": 380,
+                  "content_hash": "b2617c7a71b405d3",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! .atxe binary format: header, section table, serialization.",
+                    "//! Used by compiler (write) and runtime (read).",
+                    "use crate::base::isa::Profile;",
+                    "// ─── Magic ────────────────────────────────────────────────────────",
+                    "pub const ATMX_MAGIC: u32 = 0x584D5441; // \"ATMX\" LE"
+                  ],
+                  "lines": 476,
+                  "modified": "t=1784467101",
+                  "pub_decls": [
+                    "pub struct MemoryProfile ",
+                    "pub struct Header ",
+                    "pub fn new(entry: u32, section_count: u16) -> Self ",
+                    "pub fn compute_memory_profile(&mut self, text_bytes: usize, rodata_bytes: usize) ",
+                    "pub fn debug_mode(&self) -> bool ",
+                    "pub fn set_debug_mode(&mut self, on: bool) ",
+                    "pub fn sandbox_enabled(&self) -> bool ",
+                    "pub fn set_sandbox(&mut self, on: bool) ",
+                    "pub fn profile(&self) -> Profile ",
+                    "pub fn set_profile(&mut self, p: Profile) ",
+                    "pub fn to_bytes(&self) -> Vec<u8> ",
+                    "pub fn from_bytes(data: &[u8]) -> Option<Self> ",
+                    "pub enum SectionType ",
+                    "pub fn from_u16(v: u16) -> Option<Self> ",
+                    "pub fn name(&self) -> &'static str ",
+                    "pub struct SectionEntry ",
+                    "pub fn to_bytes(&self) -> Vec<u8> ",
+                    "pub fn from_bytes(data: &[u8]) -> Option<Self> ",
+                    "pub struct AtxeBinary ",
+                    "pub fn serialized_size(&self) -> usize ",
+                    "pub fn to_bytes(&self) -> Vec<u8> ",
+                    "pub fn from_bytes(data: &[u8]) -> Option<Self> "
+                  ],
+                  "tests": 4
+                },
+                "name": "ir.rs",
+                "path": "src/base/ir.rs",
+                "type": "file"
+              },
+              "isa.rs": {
+                "info": {
+                  "code_lines": 217,
+                  "content_hash": "051678977a9363b9",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix ISA — opcode constants, encoding templates, register model.",
+                    "//! Source of truth shared by compiler, VM, debugger, disassembler.",
+                    "// ─── Opcodes ──────────────────────────────────────────────────────",
+                    "pub mod opcode {",
+                    "    // System / Control (0x00–0x0F)"
+                  ],
+                  "lines": 314,
+                  "modified": "t=1784470144",
+                  "pub_decls": [
+                    "pub mod opcode ",
+                    "pub enum EncTemplate ",
+                    "pub mod reg ",
+                    "pub fn reg_name(r: usize) -> &'static str ",
+                    "pub fn encode_r3(opcode: u8, rd: u8, rs1: u8, rs2: u8, funct: u16) -> u32 ",
+                    "pub fn decode_r3(instr: u32) -> (u8, u8, u8, u16) ",
+                    "pub fn encode_r2i(opcode: u8, rd: u8, rs1: u8, imm: u16) -> u32 ",
+                    "pub fn decode_r2i(instr: u32) -> (u8, u8, u16) ",
+                    "pub fn encode_r1i(opcode: u8, rd: u8, imm: u32) -> u32 ",
+                    "pub fn decode_r1i(instr: u32) -> (u8, u32) ",
+                    "pub fn encode_ji(opcode: u8, offset: u32) -> u32 ",
+                    "pub fn decode_ji(instr: u32) -> i32 ",
+                    "pub enum Profile ",
+                    "pub fn from_flags(flags: u16) -> Self ",
+                    "pub fn to_flags_bits(self) -> u16 ",
+                    "pub mod fence ",
+                    "pub mod ecall "
+                  ],
+                  "tests": 5
+                },
+                "name": "isa.rs",
+                "path": "src/base/isa.rs",
+                "type": "file"
+              },
+              "mod.rs": {
+                "info": {
+                  "code_lines": 4,
+                  "content_hash": "522c4f5ef5ae1f8a",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "pub mod atxp;",
+                    "pub mod error;",
+                    "pub mod ir;",
+                    "pub mod isa;"
+                  ],
+                  "lines": 4,
+                  "modified": "t=1784561269",
+                  "pub_decls": [
+                    "pub mod atxp;",
+                    "pub mod error;",
+                    "pub mod ir;",
+                    "pub mod isa;"
+                  ],
+                  "tests": 0
+                },
+                "name": "mod.rs",
+                "path": "src/base/mod.rs",
+                "type": "file"
+              }
+            },
+            "name": "base",
+            "path": "src/base",
+            "type": "dir"
+          },
+          "bin": {
+            "children": {
+              "atomix-build.rs": {
+                "info": {
+                  "code_lines": 45,
+                  "content_hash": "0980c726c9d2ae97",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! atomix-build — 独立编译器二进制。",
+                    "//!",
+                    "//! 最小部署包可只包含此二进制 + 执行器，不含完整 CLI。",
+                    "//! 用法: atomix-build <源文件> [--opt <级别>]",
+                    "use clap::Parser;"
+                  ],
+                  "lines": 67,
+                  "modified": "t=1784469157",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "atomix-build.rs",
+                "path": "src/bin/atomix-build.rs",
+                "type": "file"
+              },
+              "atomix-debug.rs": {
+                "info": {
+                  "code_lines": 39,
+                  "content_hash": "5b993837901b6ad3",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 调试器 — 独立入口。",
+                    "//!",
+                    "//! 用法:",
+                    "//!   atomix-debug <file.atxe>",
+                    "//!"
+                  ],
+                  "lines": 62,
+                  "modified": "t=1784555406",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "atomix-debug.rs",
+                "path": "src/bin/atomix-debug.rs",
+                "type": "file"
+              },
+              "atomix-runner.rs": {
+                "info": {
+                  "code_lines": 117,
+                  "content_hash": "030515171bd56e7a",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! atomix-runner — 独立运行时执行器。",
+                    "//!",
+                    "//! 子命令:",
+                    "//!   run <file.atxe>    加载并执行 .atxe（默认行为）",
+                    "//!   daemon             启动 ATXP 服务器，常驻等待远程任务"
+                  ],
+                  "lines": 164,
+                  "modified": "t=1784571934",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "atomix-runner.rs",
+                "path": "src/bin/atomix-runner.rs",
+                "type": "file"
+              },
+              "atomix.rs": {
+                "info": {
+                  "code_lines": 454,
+                  "content_hash": "8079dd7e1b1970a5",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix CLI — 统一用户入口。",
+                    "//!",
+                    "//! 按子命令派发到对应的后端逻辑（编译、执行、深度检查等）。",
+                    "//! 所有后端逻辑共享同一套库代码（src/lib.rs）。",
+                    "use clap::{Parser, Subcommand};"
+                  ],
+                  "lines": 572,
+                  "modified": "t=1784572077",
+                  "pub_decls": [],
+                  "tests": 0
+                },
+                "name": "atomix.rs",
+                "path": "src/bin/atomix.rs",
+                "type": "file"
+              }
+            },
+            "name": "bin",
+            "path": "src/bin",
+            "type": "dir"
+          },
+          "compiler": {
+            "children": {
+              "ast.rs": {
+                "info": {
+                  "code_lines": 235,
+                  "content_hash": "4f4f80b1634fb465",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 抽象语法树 (AST) 节点定义。",
+                    "//!",
+                    "//! 完整覆盖编译管线.md §3.2 的全部节点类型。",
+                    "//! **AST 节点不存储类型信息**——类型标注和推导结果在语义分析阶段",
+                    "//! 填充到符号表和单独的类型映射结构中。"
+                  ],
+                  "lines": 396,
+                  "modified": "t=1784555233",
+                  "pub_decls": [
+                    "pub enum TypeNode ",
+                    "pub enum Expr ",
+                    "pub enum FStringFragment ",
+                    "pub enum BinOp ",
+                    "pub enum UnOp ",
+                    "pub struct FuncParam ",
+                    "pub enum Stmt ",
+                    "pub struct TryHandler ",
+                    "pub enum TryFilter ",
+                    "pub struct FuncDef ",
+                    "pub struct MetaBlock ",
+                    "pub struct UseDecl ",
+                    "pub struct FromDecl ",
+                    "pub struct ExceptionDef ",
+                    "pub struct EnumVariant ",
+                    "pub struct EnumDef ",
+                    "pub struct TypeAlias ",
+                    "pub enum ZoneKind ",
+                    "pub struct Zone ",
+                    "pub struct WorksAttr ",
+                    "pub struct HookChain ",
+                    "pub enum HookStep ",
+                    "pub struct WorksDef ",
+                    "pub struct SourceDecl ",
+                    "pub struct SourceTarget ",
+                    "pub struct TargetDecl ",
+                    "pub enum ArrowKind ",
+                    "pub struct FileAst ",
+                    "pub struct TestBlock "
+                  ],
+                  "tests": 0
+                },
+                "name": "ast.rs",
+                "path": "src/compiler/ast.rs",
+                "type": "file"
+              },
+              "builtins.rs": {
+                "info": {
+                  "code_lines": 134,
+                  "content_hash": "9410beb6e39c97de",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 内置函数注册表。",
+                    "//!",
+                    "//! 每个内置函数 = 一个名字 + 一个 IR 展开函数。",
+                    "//! 加新函数只需在 `all_builtins()` 加一行 + 写展开函数。",
+                    "//! 不改 lexer、parser、semantic、isa、execute。"
+                  ],
+                  "lines": 189,
+                  "modified": "t=1784470106",
+                  "pub_decls": [
+                    "pub struct BuiltinEntry ",
+                    "pub fn lookup(name: &str) -> Option<&'static BuiltinEntry> "
+                  ],
+                  "tests": 0
+                },
+                "name": "builtins.rs",
+                "path": "src/compiler/builtins.rs",
+                "type": "file"
+              },
+              "codegen": {
+                "children": {
+                  "assembly.rs": {
+                    "info": {
+                      "code_lines": 169,
+                      "content_hash": "2eafd53bdcf77d55",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! IR 汇编器 — 将 IR 各段组装为 .atxe 二进制产物。",
+                        "//!",
+                        "//! 覆盖 02-指令集规范.md §4 和 04-编译管线.md §7。",
+                        "use crate::base::ir::{AtxeBinary, Header};",
+                        "use crate::compiler::ast::ZoneKind;"
+                      ],
+                      "lines": 251,
+                      "modified": "t=1784555237",
+                      "pub_decls": [
+                        "pub fn assemble(",
+                        "pub struct ExnEntry ",
+                        "pub fn build_exn_section(entries: &[ExnEntry]) -> Vec<u8> ",
+                        "pub fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> ",
+                        "pub fn build_zones_section(zones: &[(ZoneKind, String, usize, usize)], _emit: &InstrEmitter) -> Vec<u8> ",
+                        "pub fn build_debug_section(emit: &InstrEmitter) -> Vec<u8> "
+                      ],
+                      "tests": 5
+                    },
+                    "name": "assembly.rs",
+                    "path": "src/compiler/codegen/assembly.rs",
+                    "type": "file"
+                  },
+                  "expr.rs": {
+                    "info": {
+                      "code_lines": 369,
+                      "content_hash": "93a055b19fbe59a1",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! 表达式编译 — AST 表达式 → IR 指令序列。",
+                        "//!",
+                        "//! 覆盖 04-编译管线.md §5.2 的表达式到 IR 映射规则。",
+                        "use crate::base::isa::{opcode, reg};",
+                        "use crate::compiler::ast::{BinOp, Expr, UnOp};"
+                      ],
+                      "lines": 478,
+                      "modified": "t=1784470136",
+                      "pub_decls": [
+                        "pub fn alloc_vreg() -> VReg ",
+                        "pub fn reset_vreg() ",
+                        "pub enum ConstEntry ",
+                        "pub struct ConstPool ",
+                        "pub fn new() -> Self ",
+                        "pub fn add_str(&mut self, s: &str) -> usize ",
+                        "pub fn add_float(&mut self, val: f64) -> usize ",
+                        "pub fn add_big_int(&mut self, val: i64) -> usize ",
+                        "pub fn len(&self) -> usize ",
+                        "pub fn is_empty(&self) -> bool ",
+                        "pub fn compile_expr(emit: &mut InstrEmitter, pool: &mut ConstPool, expr: &Expr) -> VReg "
+                      ],
+                      "tests": 14
+                    },
+                    "name": "expr.rs",
+                    "path": "src/compiler/codegen/expr.rs",
+                    "type": "file"
+                  },
+                  "instr.rs": {
+                    "info": {
+                      "code_lines": 221,
+                      "content_hash": "37e2d82199e7fb70",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! 指令发射器和标签管理。",
+                        "//!",
+                        "//! 封装 02-指令集规范.md 的指令编码，提供:",
+                        "//! - emit_opcode_* 系列方法",
+                        "//! - emit_label / resolve_labels 前向引用处理"
+                      ],
+                      "lines": 327,
+                      "modified": "t=1784555168",
+                      "pub_decls": [
+                        "pub struct InstrEmitter ",
+                        "pub fn new() -> Self ",
+                        "pub fn set_source_line(&mut self, line: u32) ",
+                        "pub fn instr_count(&self) -> usize ",
+                        "pub fn byte_offset(&self) -> usize ",
+                        "pub fn emit_label(&mut self, name: &str) ",
+                        "pub fn lookup_label(&self, name: &str) -> Option<usize> ",
+                        "pub fn is_label_defined(&self, name: &str) -> bool ",
+                        "pub fn emit_r3(&mut self, op: u8, rd: u8, rs1: u8, rs2: u8, funct: u16) ",
+                        "pub fn emit_r2i(&mut self, op: u8, rd: u8, rs1: u8, imm: u16) ",
+                        "pub fn emit_r1i(&mut self, op: u8, rd: u8, imm: u32) ",
+                        "pub fn emit_ji(&mut self, op: u8, offset: u32) ",
+                        "pub fn emit_jmp_to(&mut self, label: &str) ",
+                        "pub fn emit_jz_to(&mut self, rd: u8, label: &str) ",
+                        "pub fn emit_jnz_to(&mut self, rd: u8, label: &str) ",
+                        "pub fn emit_call_to(&mut self, target: usize) ",
+                        "pub fn emit_mov(&mut self, rd: u8, rs: u8) ",
+                        "pub fn emit_movi(&mut self, rd: u8, imm: u16) ",
+                        "pub fn emit_add(&mut self, rd: u8, rs1: u8, rs2: u8) ",
+                        "pub fn emit_nop(&mut self) ",
+                        "pub fn resolve_all(&mut self) ",
+                        "pub fn vreg_to_preg(vreg: VReg) -> PReg "
+                      ],
+                      "tests": 8
+                    },
+                    "name": "instr.rs",
+                    "path": "src/compiler/codegen/instr.rs",
+                    "type": "file"
+                  },
+                  "mod.rs": {
+                    "info": {
+                      "code_lines": 6,
+                      "content_hash": "fcfbf103d2d772b3",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! Atomix IR 代码生成器。",
+                        "//!",
+                        "//! 将语义分析后的 AST 编译为 .atxe 二进制格式的指令序列。",
+                        "//! 详见 docs/04-编译管线.md §5、docs/02-指令集规范.md §4。",
+                        "pub mod assembly;"
+                      ],
+                      "lines": 11,
+                      "modified": "t=1784467101",
+                      "pub_decls": [
+                        "pub mod assembly;",
+                        "pub mod expr;",
+                        "pub mod instr;",
+                        "pub mod optimizer;",
+                        "pub mod reg_alloc;",
+                        "pub mod stmt;"
+                      ],
+                      "tests": 0
+                    },
+                    "name": "mod.rs",
+                    "path": "src/compiler/codegen/mod.rs",
+                    "type": "file"
+                  },
+                  "optimizer.rs": {
+                    "info": {
+                      "code_lines": 435,
+                      "content_hash": "3ec1d384349afe9c",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! 多级优化器 — O0/O1/O2/Os。",
+                        "//!",
+                        "//! 覆盖 04-编译管线.md §6 的优化规范。",
+                        "use crate::base::isa::{self, opcode, reg};",
+                        "// ─── 优化级别 ──────────────────────────────────────────"
+                      ],
+                      "lines": 569,
+                      "modified": "t=1784467362",
+                      "pub_decls": [
+                        "pub enum OptLevel ",
+                        "pub struct Optimizer ",
+                        "pub struct OptStats ",
+                        "pub fn new(level: OptLevel) -> Self ",
+                        "pub fn stats(&self) -> &OptStats ",
+                        "pub fn optimize(&mut self, text: &[u32]) -> Vec<u32> "
+                      ],
+                      "tests": 10
+                    },
+                    "name": "optimizer.rs",
+                    "path": "src/compiler/codegen/optimizer.rs",
+                    "type": "file"
+                  },
+                  "reg_alloc.rs": {
+                    "info": {
+                      "code_lines": 231,
+                      "content_hash": "f22b88aa85de8c2f",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! 线性扫描寄存器分配器。",
+                        "//!",
+                        "//! 覆盖 04-编译管线.md §5.1 的寄存器分配规范。",
+                        "//! 16 个物理寄存器，6 个通用临时寄存器 (T0-T5)。",
+                        "//! 溢出到栈通过 sp 相对偏移的 LOAD/STORE 实现。"
+                      ],
+                      "lines": 323,
+                      "modified": "t=1784467373",
+                      "pub_decls": [
+                        "pub struct LiveInterval ",
+                        "pub struct RegAllocator ",
+                        "pub fn new() -> Self ",
+                        "pub fn allocate(&mut self, text: &[u32]) ",
+                        "pub fn insert_spill_code(&self, text: &[u32]) -> Vec<u32> "
+                      ],
+                      "tests": 7
+                    },
+                    "name": "reg_alloc.rs",
+                    "path": "src/compiler/codegen/reg_alloc.rs",
+                    "type": "file"
+                  },
+                  "stmt.rs": {
+                    "info": {
+                      "code_lines": 334,
+                      "content_hash": "e96fd639ee4361e3",
+                      "ext": "rs",
+                      "header_snapshot": [
+                        "//! 语句编译 — AST 语句 → IR 指令序列。",
+                        "//!",
+                        "//! 覆盖 04-编译管线.md §5.2 的语句到 IR 映射规则。",
+                        "use crate::base::isa::{opcode, reg};",
+                        "use crate::compiler::ast::{Stmt, TryFilter};"
+                      ],
+                      "lines": 424,
+                      "modified": "t=1784470164",
+                      "pub_decls": [
+                        "pub fn compile_stmts(",
+                        "pub fn compile_stmt("
+                      ],
+                      "tests": 9
+                    },
+                    "name": "stmt.rs",
+                    "path": "src/compiler/codegen/stmt.rs",
+                    "type": "file"
+                  }
+                },
+                "name": "codegen",
+                "path": "src/compiler/codegen",
+                "type": "dir"
+              },
+              "lexer.rs": {
+                "info": {
+                  "code_lines": 779,
+                  "content_hash": "f166b34e9ca7b523",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 词法分析器 (Lexer)。",
+                    "//!",
+                    "//! 完整覆盖编译管线.md §2 的所有词法规则。",
+                    "//! 特性：",
+                    "//! - UTF-8 输入 → Token 流"
+                  ],
+                  "lines": 1014,
+                  "modified": "t=1784471096",
+                  "pub_decls": [
+                    "pub struct LexError ",
+                    "pub fn new(message: impl Into<String>, span: Span) -> Self ",
+                    "pub struct Lexer ",
+                    "pub fn new(source: &str) -> Self ",
+                    "pub fn tokenize(mut self) -> (Vec<Token>, Vec<LexError>) ",
+                    "pub fn next_token(&mut self) -> Token "
+                  ],
+                  "tests": 29
+                },
+                "name": "lexer.rs",
+                "path": "src/compiler/lexer.rs",
+                "type": "file"
+              },
+              "linker.rs": {
+                "info": {
+                  "code_lines": 183,
+                  "content_hash": "60640eb1a452bbf2",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 链接器 — 段合并、符号解析、闭包修剪、.atxe 输出。",
+                    "//!",
+                    "//! 覆盖 04-编译管线.md §7 的链接规范。",
+                    "use crate::base::ir::{AtxeBinary, Header};",
+                    "use crate::base::isa::{self, opcode};"
+                  ],
+                  "lines": 245,
+                  "modified": "t=1784468716",
+                  "pub_decls": [
+                    "pub struct Linker ",
+                    "pub fn new() -> Self ",
+                    "pub fn define_symbol(&mut self, name: &str, offset: usize) ",
+                    "pub fn add_call_site(&mut self, instr_idx: usize, target: &str) ",
+                    "pub fn link("
+                  ],
+                  "tests": 5
+                },
+                "name": "linker.rs",
+                "path": "src/compiler/linker.rs",
+                "type": "file"
+              },
+              "mod.rs": {
+                "info": {
+                  "code_lines": 420,
+                  "content_hash": "68f5d1c3539a37ad",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 编译器。",
+                    "//!",
+                    "//! 完成 .atx 源码到 .atxe 二进制产物的完整编译管线：",
+                    "//!",
+                    "//! 词法分析 → 语法分析 → 语义分析 → IR 生成 → 优化 → 链接"
+                  ],
+                  "lines": 584,
+                  "modified": "t=1784555203",
+                  "pub_decls": [
+                    "pub mod ast;",
+                    "pub mod builtins;",
+                    "pub mod codegen;",
+                    "pub mod lexer;",
+                    "pub mod linker;",
+                    "pub mod parser;",
+                    "pub mod semantic;",
+                    "pub mod symbol;",
+                    "pub mod token;",
+                    "pub mod type_checker;",
+                    "pub fn compile(source: &str, opt_level: &str) -> (Vec<u8>, Vec<String>) "
+                  ],
+                  "tests": 15
+                },
+                "name": "mod.rs",
+                "path": "src/compiler/mod.rs",
+                "type": "file"
+              },
+              "parser.rs": {
+                "info": {
+                  "code_lines": 1960,
+                  "content_hash": "40f80489e1fa3ddd",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 递归下降语法分析器 (Parser)。",
+                    "//!",
+                    "//! 完整覆盖编译管线.md §3 的所有语法规则。",
+                    "//! - 递归下降 + Pratt 表达式解析",
+                    "//! - 恐慌模式错误恢复"
+                  ],
+                  "lines": 2273,
+                  "modified": "t=1784538281",
+                  "pub_decls": [
+                    "pub struct ParseError ",
+                    "pub fn new(message: impl Into<String>, span: Span) -> Self ",
+                    "pub struct Parser ",
+                    "pub fn new(tokens: Vec<Token>) -> Self ",
+                    "pub fn parse(mut self) -> (FileAst, Vec<ParseError>) ",
+                    "pub fn greet(name : str) "
+                  ],
+                  "tests": 26
+                },
+                "name": "parser.rs",
+                "path": "src/compiler/parser.rs",
+                "type": "file"
+              },
+              "semantic.rs": {
+                "info": {
+                  "code_lines": 1442,
+                  "content_hash": "07baddc5512d5604",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 语义分析器 — AST → 符号表 + 类型检查 + 约束验证。",
+                    "//!",
+                    "//! 完整覆盖 编译管线.md §4 的语义分析规范。",
+                    "//!",
+                    "//! 流程："
+                  ],
+                  "lines": 1807,
+                  "modified": "t=1784539129",
+                  "pub_decls": [
+                    "pub struct SemanticError ",
+                    "pub fn new(message: impl Into<String>) -> Self ",
+                    "pub fn at(message: impl Into<String>, span: Span) -> Self ",
+                    "pub struct SemanticAnalyzer ",
+                    "pub struct ZoneInfo ",
+                    "pub enum Lifecycle ",
+                    "pub fn new() -> Self ",
+                    "pub fn analyze(&mut self, file: FileAst) -> bool ",
+                    "pub fn monomorphize_name(func_name: &str, type_args: &[Type]) -> String ",
+                    "pub fn register_monomorphization("
+                  ],
+                  "tests": 33
+                },
+                "name": "semantic.rs",
+                "path": "src/compiler/semantic.rs",
+                "type": "file"
+              },
+              "symbol.rs": {
+                "info": {
+                  "code_lines": 201,
+                  "content_hash": "fe7f8f64f545d97c",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 符号表 — 分层栈式作用域管理。",
+                    "//!",
+                    "//! 完整覆盖 编译管线.md §4.1 的符号表规范。",
+                    "//!",
+                    "//! 层级:"
+                  ],
+                  "lines": 287,
+                  "modified": "t=1784470094",
+                  "pub_decls": [
+                    "pub enum SymbolKind ",
+                    "pub enum Type ",
+                    "pub fn resolve_type(node: &TypeNode) -> Type ",
+                    "pub struct Symbol ",
+                    "pub fn new(name: String, kind: SymbolKind) -> Self ",
+                    "pub fn with_type(mut self, t: Type) -> Self ",
+                    "pub fn with_public(mut self, pub_: bool) -> Self ",
+                    "pub fn with_func(mut self, f: FuncDef) -> Self ",
+                    "pub struct SymbolTable ",
+                    "pub fn new() -> Self ",
+                    "pub fn push_scope(&mut self) ",
+                    "pub fn pop_scope(&mut self) ",
+                    "pub fn declare(&mut self, symbol: Symbol) -> Result<(), String> ",
+                    "pub fn lookup(&self, name: &str) -> Option<&Symbol> ",
+                    "pub fn lookup_mut(&mut self, name: &str) -> Option<&mut Symbol> ",
+                    "pub fn contains_current(&self, name: &str) -> bool ",
+                    "pub fn contains(&self, name: &str) -> bool ",
+                    "pub fn current_scope(&self) -> impl Iterator<Item = (&String, &Symbol)> ",
+                    "pub fn functions(&self) -> Vec<&Symbol> "
+                  ],
+                  "tests": 7
+                },
+                "name": "symbol.rs",
+                "path": "src/compiler/symbol.rs",
+                "type": "file"
+              },
+              "token.rs": {
+                "info": {
+                  "code_lines": 473,
+                  "content_hash": "0b818f8d92e2f042",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix Token 类型定义。",
+                    "//!",
+                    "//! 完整覆盖编译管线.md §2.1 的全部 Token 类型。",
+                    "//! 标识符原始大小写保留在 Span 中，关键词匹配时大小写折叠。",
+                    "use std::fmt;"
+                  ],
+                  "lines": 579,
+                  "modified": "t=1784467101",
+                  "pub_decls": [
+                    "pub struct SourcePos ",
+                    "pub struct Span ",
+                    "pub fn new(start: SourcePos, end: SourcePos) -> Self ",
+                    "pub enum FStringPart ",
+                    "pub enum TokenKind ",
+                    "pub struct Token ",
+                    "pub fn new(kind: TokenKind, span: Span) -> Self ",
+                    "pub fn match_keyword(s: &str) -> Option<TokenKind> ",
+                    "pub fn is_file_level_keyword(&self) -> bool ",
+                    "pub fn is_zone_keyword(&self) -> bool ",
+                    "pub fn is_source_target_keyword(&self) -> bool ",
+                    "pub fn is_type_keyword(&self) -> bool ",
+                    "pub fn is_operator(&self) -> bool "
+                  ],
+                  "tests": 6
+                },
+                "name": "token.rs",
+                "path": "src/compiler/token.rs",
+                "type": "file"
+              },
+              "type_checker.rs": {
+                "info": {
+                  "code_lines": 363,
+                  "content_hash": "151d527332f2c8fc",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 类型检查引擎 — 自底向上类型合成。",
+                    "//!",
+                    "//! 覆盖 类型系统.md §4 和 编译管线.md §4.3 的类型检查规范。",
+                    "//!",
+                    "//! 核心算法：从表达式叶节点出发，按运算规则由子节点类型推导父节点类型。"
+                  ],
+                  "lines": 452,
+                  "modified": "t=1784467101",
+                  "pub_decls": [
+                    "pub struct TypeError ",
+                    "pub fn new(message: impl Into<String>) -> Self ",
+                    "pub struct TypeChecker ",
+                    "pub fn new() -> Self ",
+                    "pub fn infer_expr(&mut self, expr: &Expr, st: &SymbolTable) -> Type ",
+                    "pub fn is_compatible(&self, a: &Type, b: &Type) -> bool ",
+                    "pub fn check_annotation(&mut self, ann: &Type, value: &Type, name: &str) ",
+                    "pub fn check_return(&mut self, expected: &Type, actual: &Type, fn_name: &str) "
+                  ],
+                  "tests": 12
+                },
+                "name": "type_checker.rs",
+                "path": "src/compiler/type_checker.rs",
+                "type": "file"
+              }
+            },
+            "name": "compiler",
+            "path": "src/compiler",
+            "type": "dir"
+          },
+          "debug": {
+            "children": {
+              "debug_segment.rs": {
+                "info": {
+                  "code_lines": 127,
+                  "content_hash": "230f09e2f2dc4a51",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! .debug 段解析器 — 将 .atxe 中的 ADBG 格式调试信息解码为可用的映射表。",
+                    "//!",
+                    "//! 格式（兼容 docs/12-debugger-设计.md §9）：",
+                    "//! - Magic \"ADBG\" (4B)",
+                    "//! - version u16 LE (2B)"
+                  ],
+                  "lines": 187,
+                  "modified": "t=1784555281",
+                  "pub_decls": [
+                    "pub struct DebugEntry ",
+                    "pub struct DebugMap ",
+                    "pub fn from_bytes(bytes: &[u8]) -> Option<Self> ",
+                    "pub fn line_for_pc(&self, pc: usize) -> Option<u32> ",
+                    "pub fn line_entries(&self) -> Vec<&DebugEntry> ",
+                    "pub fn is_empty(&self) -> bool "
+                  ],
+                  "tests": 5
+                },
+                "name": "debug_segment.rs",
+                "path": "src/debug/debug_segment.rs",
+                "type": "file"
+              },
+              "disassemble.rs": {
+                "info": {
+                  "code_lines": 132,
+                  "content_hash": "4b5e08007109ce7e",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 反汇编器 — 将 .text 段的 32 位指令字解码为可读的汇编文本。",
+                    "//!",
+                    "//! 完全复用现有组件：",
+                    "//! - `runner::decode::dispatch_table()`  → opcode → (mnemonic, enc_template)",
+                    "//! - `runner::decode::decode(instr, enc)` → u32 → Operands"
+                  ],
+                  "lines": 189,
+                  "modified": "t=1784551677",
+                  "pub_decls": [
+                    "pub fn format_instruction(pc: usize, instr: u32) -> String ",
+                    "pub fn disassemble_range(text: &[u32], start: usize, count: usize) -> Vec<String> ",
+                    "pub fn disassemble_all(text: &[u32]) -> Vec<String> "
+                  ],
+                  "tests": 7
+                },
+                "name": "disassemble.rs",
+                "path": "src/debug/disassemble.rs",
+                "type": "file"
+              },
+              "eval.rs": {
+                "info": {
+                  "code_lines": 454,
+                  "content_hash": "be101d33c7c1fc6b",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 表达式求值器 — 在调试会话中解析并计算表达式。",
+                    "//!",
+                    "//! 语法 (递归下降):",
+                    "//!",
+                    "//! ```text"
+                  ],
+                  "lines": 537,
+                  "modified": "t=1784557042",
+                  "pub_decls": [
+                    "pub fn eval_expr(input: &str, vm: &VmState) -> Result<u64, String> ",
+                    "pub fn format_result(val: u64) -> String "
+                  ],
+                  "tests": 16
+                },
+                "name": "eval.rs",
+                "path": "src/debug/eval.rs",
+                "type": "file"
+              },
+              "mod.rs": {
+                "info": {
+                  "code_lines": 4,
+                  "content_hash": "cb50d716d92242be",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 调试器 — 原生派生调试工具。",
+                    "//!",
+                    "//! 复用 runner 内部的 VM/decode/execute 代码，提供交互式 REPL 调试体验。",
+                    "//!",
+                    "//! # 架构"
+                  ],
+                  "lines": 19,
+                  "modified": "t=1784556656",
+                  "pub_decls": [
+                    "pub mod debug_segment;",
+                    "pub mod disassemble;",
+                    "pub mod eval;",
+                    "pub mod repl;"
+                  ],
+                  "tests": 0
+                },
+                "name": "mod.rs",
+                "path": "src/debug/mod.rs",
+                "type": "file"
+              },
+              "repl.rs": {
+                "info": {
+                  "code_lines": 681,
+                  "content_hash": "2ad0b84fc440a377",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 调试 REPL — 交互式调试会话。",
+                    "//!",
+                    "//! # 命令",
+                    "//!",
+                    "//! | 命令           | 格式                    | 说明                     |"
+                  ],
+                  "lines": 836,
+                  "modified": "t=1784558151",
+                  "pub_decls": [
+                    "pub struct DebugSession ",
+                    "pub fn new(vm: VmState) -> Self ",
+                    "pub fn set_source(&mut self, path: &str) ",
+                    "pub fn set_debug_map_from_bytes(&mut self, bytes: &[u8]) ",
+                    "pub fn execute_command(&mut self, line: &str) -> bool ",
+                    "pub fn run_repl(session: &mut DebugSession) "
+                  ],
+                  "tests": 15
+                },
+                "name": "repl.rs",
+                "path": "src/debug/repl.rs",
+                "type": "file"
+              }
+            },
+            "name": "debug",
+            "path": "src/debug",
+            "type": "dir"
+          },
+          "lib.rs": {
+            "info": {
+              "code_lines": 5,
+              "content_hash": "01e8c3008c9eef13",
+              "ext": "rs",
+              "header_snapshot": [
+                "//! Atomix — 任务执行 DSL 的编译器与运行时。",
+                "//!",
+                "//! 核心架构：",
+                "//! - `base` — 基础设施：ISA 定义、IR 二进制格式、错误类型",
+                "//! - `compiler` — 编译管线：词法/语法/语义分析、IR 生成、优化、链接"
+              ],
+              "lines": 11,
+              "modified": "t=1784561079",
+              "pub_decls": [
+                "pub mod base;",
+                "pub mod compiler;",
+                "pub mod debug;",
+                "pub mod runner;",
+                "pub mod origin;"
+              ],
+              "tests": 0
+            },
+            "name": "lib.rs",
+            "path": "src/lib.rs",
+            "type": "file"
+          },
+          "origin.rs": {
+            "info": {
+              "code_lines": 95,
+              "content_hash": "0dd6b3979b148673",
+              "ext": "rs",
+              "header_snapshot": [
+                "//! 远程连接管理（origin）。",
+                "//!",
+                "//! 管理远程 runner 的连接别名：添加、列出、删除。",
+                "//! 配置持久化到 `atomix.toml` 的 `[origin]` 段。",
+                "//!"
+              ],
+              "lines": 140,
+              "modified": "t=1784561514",
+              "pub_decls": [
+                "pub struct OriginEntry ",
+                "pub struct OriginConfig ",
+                "pub fn load() -> Self ",
+                "pub fn save(&self) -> Result<(), String> ",
+                "pub fn upsert(&mut self, entry: OriginEntry) ",
+                "pub fn remove(&mut self, alias: &str) -> bool ",
+                "pub fn find(&self, alias: &str) -> Option<&OriginEntry> ",
+                "pub fn check_status(entry: &OriginEntry) -> Result<serde_json::Value, String> "
+              ],
+              "tests": 0
+            },
+            "name": "origin.rs",
+            "path": "src/origin.rs",
+            "type": "file"
+          },
+          "runner": {
+            "children": {
+              "batch.rs": {
+                "info": {
+                  "code_lines": 273,
+                  "content_hash": "a0a2850ba9b2bb00",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 批次管理器 — 动态计算 N_batch 并发额度。",
+                    "//!",
+                    "//! 覆盖 P3-BM-001~BM-008, BM-011 全部需求。",
+                    "//! 公式原文见 docs/11-策略模块.md。",
+                    "use crate::runner::regression::RegressionModel;"
+                  ],
+                  "lines": 461,
+                  "modified": "t=1784538268",
+                  "pub_decls": [
+                    "pub enum OomState ",
+                    "pub struct ControlDecision ",
+                    "pub struct BatchManager ",
+                    "pub fn new(cpu_limit: f64, mem_limit: f64) -> Self ",
+                    "pub fn compute_hard_ceiling(&self) -> f64 ",
+                    "pub fn factor_beta(&self) -> f64 ",
+                    "pub fn factor_lambda(&self) -> f64 ",
+                    "pub fn factor_sigma(&self) -> f64 ",
+                    "pub fn factor_gamma(&self) -> f64 ",
+                    "pub fn factor_theta(&self) -> f64 ",
+                    "pub fn merge_factors(&self) -> f64 ",
+                    "pub fn compute_decision(&mut self) -> ControlDecision ",
+                    "pub fn effective_mem_per_task(&self, compiler_peak_mb: f64) -> f64 ",
+                    "pub fn update_stats(&mut self, task_time_ms: f64, task_mem_mb: f64, compiler_peak_mb: f64) ",
+                    "pub fn set_pool_depth(&mut self, depth: f64) "
+                  ],
+                  "tests": 13
+                },
+                "name": "batch.rs",
+                "path": "src/runner/batch.rs",
+                "type": "file"
+              },
+              "client.rs": {
+                "info": {
+                  "code_lines": 95,
+                  "content_hash": "cf8a6758bc0670a3",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! ATXP 客户端 — 连接远程 runner，发送查询/提交/控制命令。",
+                    "//!",
+                    "//! 用于 `atomix runner run --origin` 和 `atomix task --origin`。",
+                    "use crate::base::atxp;",
+                    "use prost::Message;"
+                  ],
+                  "lines": 118,
+                  "modified": "t=1784572113",
+                  "pub_decls": [
+                    "pub struct AtxpClient ",
+                    "pub fn connect(addr: &str, port: u16) -> Result<Self, String> ",
+                    "pub fn connect_by_alias(alias: &str) -> Result<Self, String> ",
+                    "pub fn query_status(&mut self) -> Result<serde_json::Value, String> ",
+                    "pub fn query_tasks(&mut self) -> Result<Vec<serde_json::Value>, String> ",
+                    "pub fn submit_task(&mut self, binary: &[u8]) -> Result<String, String> ",
+                    "pub fn heartbeat(&mut self) -> Result<(), String> "
+                  ],
+                  "tests": 0
+                },
+                "name": "client.rs",
+                "path": "src/runner/client.rs",
+                "type": "file"
+              },
+              "config.rs": {
+                "info": {
+                  "code_lines": 280,
+                  "content_hash": "5ed089d6193aa1ba",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Runner 配置 — 加载 runner.toml / atomix.toml 中的运行时配置。",
+                    "//!",
+                    "//! 覆盖 P3-RUN-004。",
+                    "use serde::Deserialize;",
+                    "/// Runner 完整配置。"
+                  ],
+                  "lines": 406,
+                  "modified": "t=1784486761",
+                  "pub_decls": [
+                    "pub struct RunnerConfig ",
+                    "pub struct RunnerSection ",
+                    "pub struct ResourceSection ",
+                    "pub struct CoefficientSection ",
+                    "pub struct PerTaskSection ",
+                    "pub struct ExecutorSection ",
+                    "pub struct MemorySection ",
+                    "pub struct RegressionSection ",
+                    "pub struct SchedulerSection ",
+                    "pub fn load(path: Option<&str>) -> Result<Self, String> ",
+                    "pub fn resolve_resource(&self, key: &str, hardware: f64) -> f64 "
+                  ],
+                  "tests": 6
+                },
+                "name": "config.rs",
+                "path": "src/runner/config.rs",
+                "type": "file"
+              },
+              "decode.rs": {
+                "info": {
+                  "code_lines": 235,
+                  "content_hash": "1d05eb4f66023ea1",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 指令解码器 + 256 条目调度表。",
+                    "//!",
+                    "//! 覆盖 02-指令集规范.md §1.3 和 §3 的译码规范。",
+                    "use crate::base::isa::{self, EncTemplate};",
+                    "// ─── 解码后的操作数 ────────────────────────────────────"
+                  ],
+                  "lines": 285,
+                  "modified": "t=1784468754",
+                  "pub_decls": [
+                    "pub struct Operands ",
+                    "pub fn new(enc: EncTemplate) -> Self ",
+                    "pub struct OpcodeEntry ",
+                    "pub fn dispatch_table() -> Vec<OpcodeEntry> ",
+                    "pub fn decode(instr: u32, enc: EncTemplate) -> Operands "
+                  ],
+                  "tests": 10
+                },
+                "name": "decode.rs",
+                "path": "src/runner/decode.rs",
+                "type": "file"
+              },
+              "event.rs": {
+                "info": {
+                  "code_lines": 202,
+                  "content_hash": "c68d65e2dbad55f6",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 事件通道 — Executor → Runtime 的 lock-free SPSC 通信。",
+                    "//!",
+                    "//! 覆盖设计文档 §5（事件通道）。",
+                    "use std::sync::atomic::{AtomicU64, Ordering};",
+                    "// ─── 事件类型 ───────────────────────────────────────"
+                  ],
+                  "lines": 282,
+                  "modified": "t=1784538268",
+                  "pub_decls": [
+                    "pub enum ExecutorEvent ",
+                    "pub struct EventChannel ",
+                    "pub fn new(n: usize) -> Self ",
+                    "pub fn len(&self) -> usize ",
+                    "pub fn is_empty(&self) -> bool ",
+                    "pub fn post(&self, idx: usize, event: ExecutorEvent) ",
+                    "pub fn poll(&self, idx: usize) -> ExecutorEvent ",
+                    "pub fn poll_all(&self) -> Vec<(usize, ExecutorEvent)> ",
+                    "pub struct ExecutorStats "
+                  ],
+                  "tests": 9
+                },
+                "name": "event.rs",
+                "path": "src/runner/event.rs",
+                "type": "file"
+              },
+              "execute.rs": {
+                "info": {
+                  "code_lines": 1368,
+                  "content_hash": "3c688a7dab36c4dd",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 指令执行引擎 — 54 条指令的 dispatch 处理函数。",
+                    "//!",
+                    "//! 覆盖 02-指令集规范.md §3 的全部指令行为。",
+                    "use crate::base::isa::{self, opcode, reg};",
+                    "use crate::runner::VmState;"
+                  ],
+                  "lines": 1680,
+                  "modified": "t=1784555453",
+                  "pub_decls": [
+                    "pub fn execute_instruction(vm: &mut VmState) -> bool ",
+                    "pub fn run_vm(vm: &mut VmState) -> &str "
+                  ],
+                  "tests": 30
+                },
+                "name": "execute.rs",
+                "path": "src/runner/execute.rs",
+                "type": "file"
+              },
+              "executor.rs": {
+                "info": {
+                  "code_lines": 197,
+                  "content_hash": "275353654dde2943",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Executor 定义 — VM 执行体，一个 Executor = 一个 VmState = 一个线程（1:1:1）。",
+                    "//!",
+                    "//! 覆盖设计文档 §2（Executor 定义）。",
+                    "use crate::base::isa::reg;",
+                    "use crate::runner::event::{EventChannel, ExecutorEvent, ExecutorStats};"
+                  ],
+                  "lines": 252,
+                  "modified": "t=1784538282",
+                  "pub_decls": [
+                    "pub enum ExecutorCommand ",
+                    "pub struct Executor ",
+                    "pub fn new(event_idx: usize) -> Self ",
+                    "pub fn load(&mut self, task: &mut Task) ",
+                    "pub fn unload(&mut self, task: &mut Task) ",
+                    "pub fn take_pending_child(&mut self) -> Option<Box<VmState>> ",
+                    "pub fn take_vm(&mut self) -> Option<VmState> ",
+                    "pub fn run_quantum(&mut self, quantum: u32) -> (u64, Option<ExecutorEvent>) ",
+                    "pub fn post_event(&self, channel: &EventChannel, event: ExecutorEvent) ",
+                    "pub fn is_idle(&self) -> bool ",
+                    "pub fn executor_main("
+                  ],
+                  "tests": 0
+                },
+                "name": "executor.rs",
+                "path": "src/runner/executor.rs",
+                "type": "file"
+              },
+              "hwinfo.rs": {
+                "info": {
+                  "code_lines": 55,
+                  "content_hash": "0cff426f22112bd4",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 硬件检测 — 查询 CPU 核心数和可用内存。",
+                    "//!",
+                    "//! 覆盖 P3-RUN-003。",
+                    "/// 检测到的硬件信息。",
+                    "#[derive(Debug, Clone)]"
+                  ],
+                  "lines": 90,
+                  "modified": "t=1784466251",
+                  "pub_decls": [
+                    "pub struct HardwareInfo ",
+                    "pub fn detect_hardware(default_cpu: f64, default_mem_mb: f64) -> HardwareInfo "
+                  ],
+                  "tests": 4
+                },
+                "name": "hwinfo.rs",
+                "path": "src/runner/hwinfo.rs",
+                "type": "file"
+              },
+              "load_balancer.rs": {
+                "info": {
+                  "code_lines": 133,
+                  "content_hash": "b254dbb773d81750",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 负载均衡器 — 加权最少任务分配 + 抗偏斜。",
+                    "//!",
+                    "//! 覆盖设计文档 §6.2（负载均衡算法）。",
+                    "use crate::runner::task::TaskId;",
+                    "use std::collections::HashMap;"
+                  ],
+                  "lines": 206,
+                  "modified": "t=1784538271",
+                  "pub_decls": [
+                    "pub struct ExecutorLoad ",
+                    "pub struct LoadBalancer ",
+                    "pub fn new() -> Self ",
+                    "pub fn assign(",
+                    "pub fn build_executor_loads("
+                  ],
+                  "tests": 5
+                },
+                "name": "load_balancer.rs",
+                "path": "src/runner/load_balancer.rs",
+                "type": "file"
+              },
+              "loader.rs": {
+                "info": {
+                  "code_lines": 106,
+                  "content_hash": "978820ee40ea0717",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! .task 段解析器 — 将编译后的 .task 段二进制解析为任务条目列表。",
+                    "//!",
+                    "//! 覆盖 02-指令集规范.md §4.4 和 P3-SCH-007。",
+                    "/// 解析后的任务条目。",
+                    "#[derive(Debug, Clone)]"
+                  ],
+                  "lines": 138,
+                  "modified": "t=1784467101",
+                  "pub_decls": [
+                    "pub struct TaskEntry ",
+                    "pub fn parse_task_section(data: &[u8]) -> Result<Vec<TaskEntry>, String> "
+                  ],
+                  "tests": 6
+                },
+                "name": "loader.rs",
+                "path": "src/runner/loader.rs",
+                "type": "file"
+              },
+              "memory.rs": {
+                "info": {
+                  "code_lines": 173,
+                  "content_hash": "f823c9e1cb2ce6ff",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 沙箱线性内存 — 边界检查的内存访问抽象。",
+                    "//!",
+                    "//! 覆盖 执行器设计.md §3 和执行器设计.md §8 的沙箱规范。",
+                    "use std::collections::HashMap;",
+                    "/// 沙箱内存。提供带边界检查的读写操作。"
+                  ],
+                  "lines": 246,
+                  "modified": "t=1784485862",
+                  "pub_decls": [
+                    "pub struct SandboxMemory ",
+                    "pub fn new(size: usize) -> Self ",
+                    "pub fn reserve(initial_mb: f64, max_mb: f64) -> Self ",
+                    "pub fn grow(&mut self, additional: u64) -> bool ",
+                    "pub fn read_u64(&self, addr: u64) -> Option<u64> ",
+                    "pub fn read_u32(&self, addr: u64) -> Option<u32> ",
+                    "pub fn write_u64(&mut self, addr: u64, val: u64) -> bool ",
+                    "pub fn write_u32(&mut self, addr: u64, val: u32) -> bool ",
+                    "pub fn read_u8(&self, addr: u64) -> Option<u8> ",
+                    "pub fn write_u8(&mut self, addr: u64, val: u8) -> bool ",
+                    "pub fn alloc(&mut self, size: u64) -> u64 ",
+                    "pub fn free(&mut self, addr: u64) ",
+                    "pub fn is_over_watermark(&self) -> bool "
+                  ],
+                  "tests": 7
+                },
+                "name": "memory.rs",
+                "path": "src/runner/memory.rs",
+                "type": "file"
+              },
+              "mod.rs": {
+                "info": {
+                  "code_lines": 242,
+                  "content_hash": "48d5c0a648e8537e",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Atomix 虚拟机 — 加载并执行 .atxe 二进制。",
+                    "//!",
+                    "//! 详见 02-指令集规范.md、07-执行器设计.md、08-运行时架构.md",
+                    "pub mod batch;",
+                    "pub mod client;"
+                  ],
+                  "lines": 329,
+                  "modified": "t=1784572041",
+                  "pub_decls": [
+                    "pub mod batch;",
+                    "pub mod client;",
+                    "pub mod config;",
+                    "pub mod decode;",
+                    "pub mod event;",
+                    "pub mod execute;",
+                    "pub mod executor;",
+                    "pub mod hwinfo;",
+                    "pub mod load_balancer;",
+                    "pub mod loader;",
+                    "pub mod memory;",
+                    "pub mod pool;",
+                    "pub mod prefetch;",
+                    "pub mod regression;",
+                    "pub mod runtime;",
+                    "pub mod server;",
+                    "pub(crate)",
+                    "pub mod slot;",
+                    "pub mod task;",
+                    "pub mod task_meta;",
+                    "pub struct CallFrame ",
+                    "pub struct VmState ",
+                    "pub enum VmStateKind ",
+                    "pub fn from_atxe(binary: &AtxeBinary) -> Result<Self, String> ",
+                    "pub fn load_atxe(bytes: &[u8]) -> Result<Self, String> ",
+                    "pub fn fetch(&self) -> u32 ",
+                    "pub fn is_running(&self) -> bool ",
+                    "pub fn read_reg(&self, idx: usize) -> u64 ",
+                    "pub fn write_reg(&mut self, idx: usize, val: u64) "
+                  ],
+                  "tests": 8
+                },
+                "name": "mod.rs",
+                "path": "src/runner/mod.rs",
+                "type": "file"
+              },
+              "pool.rs": {
+                "info": {
+                  "code_lines": 218,
+                  "content_hash": "14bcbcf1c40fc7ab",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 任务池 — 管理所有任务的生命周期和状态转换。",
+                    "//!",
+                    "//! 覆盖 P3-PL-001 任务池基本设计、P3-PL-002 状态码范围。",
+                    "use crate::runner::task::{Task, TaskId, TaskStatus};",
+                    "use std::collections::HashSet;"
+                  ],
+                  "lines": 287,
+                  "modified": "t=1784486457",
+                  "pub_decls": [
+                    "pub struct TaskPool ",
+                    "pub fn new(tasks: Vec<Task>) -> Self ",
+                    "pub fn get(&self, id: TaskId) -> Option<&Task> ",
+                    "pub fn get_mut(&mut self, id: TaskId) -> Option<&mut Task> ",
+                    "pub fn ready_tasks(&self) -> Vec<TaskId> ",
+                    "pub fn activate_ready_tasks(&mut self) ",
+                    "pub fn all_done(&self) -> bool ",
+                    "pub fn add_task(&mut self, task: Task) ",
+                    "pub fn task_is_done(&self, id: TaskId) -> bool ",
+                    "pub fn has_suspended(&self) -> bool ",
+                    "pub fn wake_joiners(&mut self, done_id: TaskId, return_value: u64) ",
+                    "pub fn compute_levels(&self) -> Vec<(u32, Vec<TaskId>)> ",
+                    "pub fn len(&self) -> usize ",
+                    "pub fn is_empty(&self) -> bool ",
+                    "pub fn all_tasks(&self) -> &[Task] ",
+                    "pub fn results(&self) -> Vec<(TaskId, TaskStatus, u64, u64)> "
+                  ],
+                  "tests": 8
+                },
+                "name": "pool.rs",
+                "path": "src/runner/pool.rs",
+                "type": "file"
+              },
+              "prefetch.rs": {
+                "info": {
+                  "code_lines": 117,
+                  "content_hash": "9b42e1489a2800e9",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 预载机制 — 异步加载下一任务的 .atxe 到磁盘。",
+                    "//!",
+                    "//! 覆盖设计文档 §3.4（预载机制）和 §6.3（预载调度算法）。",
+                    "use std::collections::VecDeque;",
+                    "/// 预载队列 — 已预加载的任务 ID 列表。"
+                  ],
+                  "lines": 185,
+                  "modified": "t=1784538538",
+                  "pub_decls": [
+                    "pub struct PrefetchQueue ",
+                    "pub fn new() -> Self ",
+                    "pub fn push(&mut self, task_id: u16) ",
+                    "pub fn pop(&mut self) -> Option<u16> ",
+                    "pub fn is_empty(&self) -> bool ",
+                    "pub fn len(&self) -> usize ",
+                    "pub struct Prefetcher ",
+                    "pub fn new() -> Self ",
+                    "pub fn set_network_rtt(&mut self, rtt_ms: f64) ",
+                    "pub fn set_avg_exec_time(&mut self, exec_time_ms: f64) ",
+                    "pub fn should_prefetch(&self, remaining_instrs: u64, avg_ipc_rate_ns: f64) -> bool ",
+                    "pub fn prefetch_depth(&self) -> u32 ",
+                    "pub fn estimate_remaining_time(&self, remaining_instrs: u64, avg_ipc_rate_ns: f64) -> f64 "
+                  ],
+                  "tests": 6
+                },
+                "name": "prefetch.rs",
+                "path": "src/runner/prefetch.rs",
+                "type": "file"
+              },
+              "regression.rs": {
+                "info": {
+                  "code_lines": 263,
+                  "content_hash": "cb74019cca3267fd",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 线性回归模型 — 编译器峰值预测 → 实际峰值的 OLS 修正。",
+                    "//!",
+                    "//! 覆盖设计文档 §7.3（线性回归修正）。",
+                    "/// OLS 线性回归模型。",
+                    "///"
+                  ],
+                  "lines": 380,
+                  "modified": "t=1784538350",
+                  "pub_decls": [
+                    "pub struct RegressionModel ",
+                    "pub fn min_samples() -> u64 ",
+                    "pub fn is_ready(&self) -> bool ",
+                    "pub fn predict(&self, compiler_peak: f64) -> f64 ",
+                    "pub fn should_retrain(&self) -> bool ",
+                    "pub fn train(&mut self, samples: &[(f64, f64)]) ",
+                    "pub fn load_samples_from_csv(content: &str) -> Vec<(f64, f64)> ",
+                    "pub fn to_json(&self) -> String ",
+                    "pub fn save_to_file(&self, path: &str) -> Result<(), String> ",
+                    "pub fn load_from_file(path: &str) -> Option<Self> "
+                  ],
+                  "tests": 12
+                },
+                "name": "regression.rs",
+                "path": "src/runner/regression.rs",
+                "type": "file"
+              },
+              "runtime.rs": {
+                "info": {
+                  "code_lines": 622,
+                  "content_hash": "0c30d343eef4aa7b",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! Runtime — 监管层。事件驱动的多任务执行引擎。",
+                    "//!",
+                    "//! 覆盖设计文档 §1‒§7。",
+                    "use crate::base::ir::AtxeBinary;",
+                    "use crate::runner::batch::BatchManager;"
+                  ],
+                  "lines": 774,
+                  "modified": "t=1784538503",
+                  "pub_decls": [
+                    "pub enum ColdStartPhase ",
+                    "pub fn next(&self, completed_count: u32, regression_ready: bool) -> Self ",
+                    "pub struct Runtime ",
+                    "pub fn from_atxe(",
+                    "pub fn start_threadpool(&mut self) ",
+                    "pub fn stop_threadpool(&mut self) ",
+                    "pub fn run_singlethreaded(&mut self) -> Result<(), String> ",
+                    "pub fn run_multithreaded(&mut self) -> Result<(), String> ",
+                    "pub fn run(&mut self) -> Result<(), String> ",
+                    "pub fn results(&self) -> Vec<(TaskId, TaskStatus, u64, u64)> "
+                  ],
+                  "tests": 9
+                },
+                "name": "runtime.rs",
+                "path": "src/runner/runtime.rs",
+                "type": "file"
+              },
+              "sched.rs": {
+                "info": {
+                  "code_lines": 414,
+                  "content_hash": "a8073b882625c41f",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 任务调度器 — 多任务执行循环。",
+                    "//!",
+                    "//! 覆盖 P3-SCH-001 执行引擎主循环、P3-SCH-002 时间片与抢占、",
+                    "//! P3-SCH-003 上下文切换。",
+                    "use crate::base::ir::AtxeBinary;"
+                  ],
+                  "lines": 611,
+                  "modified": "t=1784538383",
+                  "pub_decls": [
+                    "pub fn from_atxe(binary: &AtxeBinary) -> Result<Self, String> ",
+                    "pub fn run_all(&mut self) -> Result<(), String> "
+                  ],
+                  "tests": 8
+                },
+                "name": "sched.rs",
+                "path": "src/runner/sched.rs",
+                "type": "file"
+              },
+              "server.rs": {
+                "info": {
+                  "code_lines": 196,
+                  "content_hash": "23b6eb0952e3b5bc",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! ATXP 服务器 — 接受远程连接，处理监控/控制消息。",
+                    "//!",
+                    "//! 使用 tokio 异步 TCP listener，每个连接独立 task 处理。",
+                    "use crate::base::atxp;",
+                    "use crate::runner::runtime::Runtime;"
+                  ],
+                  "lines": 233,
+                  "modified": "t=1784571905",
+                  "pub_decls": [
+                    "pub struct ServerConfig ",
+                    "pub struct AtxpServer ",
+                    "pub fn new(config: ServerConfig, runtime: Runtime) -> Self "
+                  ],
+                  "tests": 0
+                },
+                "name": "server.rs",
+                "path": "src/runner/server.rs",
+                "type": "file"
+              },
+              "slot.rs": {
+                "info": {
+                  "code_lines": 275,
+                  "content_hash": "f27c8c438c42bc6b",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 槽位管理 — 墙式预分配的虚地址空间槽位 + 滑道溢出 + 死区合并。",
+                    "//!",
+                    "//! 覆盖设计文档 §4（内存模型）。",
+                    "/// 槽位状态。",
+                    "#[derive(Debug, Clone, Copy, PartialEq, Eq)]"
+                  ],
+                  "lines": 416,
+                  "modified": "t=1784485874",
+                  "pub_decls": [
+                    "pub enum SlotStatus ",
+                    "pub struct Slot ",
+                    "pub fn is_available(&self) -> bool ",
+                    "pub struct SlotManager ",
+                    "pub fn new(total_mem_mb: f64, n_batch: u32, safety_margin: f64, slipway_mul: f64) -> Self ",
+                    "pub fn allocate(&mut self, estimated_peak_mb: f64) -> Option<&mut Slot> ",
+                    "pub fn slip_to_slipway(&mut self, from_slot_id: usize, task_id: u16) -> Option<&mut Slot> ",
+                    "pub fn free(&mut self, slot_id: usize) ",
+                    "pub fn evaluate_defrag_roi(&self) -> Option<Vec<(usize, usize)>> ",
+                    "pub fn allocated_count(&self) -> usize ",
+                    "pub fn free_count(&self) -> usize ",
+                    "pub fn has_free(&self) -> bool ",
+                    "pub fn get_mut(&mut self, slot_id: usize) -> Option<&mut Slot> "
+                  ],
+                  "tests": 9
+                },
+                "name": "slot.rs",
+                "path": "src/runner/slot.rs",
+                "type": "file"
+              },
+              "task.rs": {
+                "info": {
+                  "code_lines": 26,
+                  "content_hash": "acbd0ede10f02621",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 任务定义 — 调度器的基本工作单元。",
+                    "//!",
+                    "//! 覆盖 P3-PL-001 任务池基本设计、P3-PL-003 TaskContext 结构体。",
+                    "use crate::runner::VmState;",
+                    "/// 任务 ID 类型。"
+                  ],
+                  "lines": 59,
+                  "modified": "t=1784486450",
+                  "pub_decls": [
+                    "pub enum TaskStatus ",
+                    "pub fn is_terminal(&self) -> bool ",
+                    "pub struct Task "
+                  ],
+                  "tests": 0
+                },
+                "name": "task.rs",
+                "path": "src/runner/task.rs",
+                "type": "file"
+              },
+              "task_meta.rs": {
+                "info": {
+                  "code_lines": 66,
+                  "content_hash": "e6570f858a98d051",
+                  "ext": "rs",
+                  "header_snapshot": [
+                    "//! 轻量任务元数据 — 任务描述信息，不含运行时状态。",
+                    "//!",
+                    "//! 覆盖设计文档 §3.2（TaskMeta）。",
+                    "use crate::runner::task::TaskId;",
+                    "/// 轻量任务元数据，约 65 字节。"
+                  ],
+                  "lines": 110,
+                  "modified": "t=1784485488",
+                  "pub_decls": [
+                    "pub struct TaskMeta ",
+                    "pub fn new(task_id: TaskId, entry_point: u32) -> Self ",
+                    "pub fn set_name(&mut self, name: &str) ",
+                    "pub fn name_str(&self) -> &str "
+                  ],
+                  "tests": 5
+                },
+                "name": "task_meta.rs",
+                "path": "src/runner/task_meta.rs",
+                "type": "file"
+              }
+            },
+            "name": "runner",
+            "path": "src/runner",
+            "type": "dir"
+          }
+        },
+        "name": "src",
+        "path": "src",
+        "type": "dir"
+      },
+      "tests": {
+        "children": {
+          "compile_test.rs": {
+            "info": {
+              "code_lines": 78,
+              "content_hash": "fbc5cd5252af4159",
+              "ext": "rs",
+              "header_snapshot": [
+                "//! 编译器集成测试 — 读取 tests/fixtures/ 中的 .atx 文件并验证编译结果。",
+                "//!",
+                "//! valid/*.atx     → 编译必须 0 错误，产生非空 .atxe",
+                "//! invalid/*.atx   → 编译必须产生至少一个错误",
+                "use std::fs;"
+              ],
+              "lines": 111,
+              "modified": "t=1784471156",
+              "pub_decls": [],
+              "tests": 10
+            },
+            "name": "compile_test.rs",
+            "path": "tests/compile_test.rs",
+            "type": "file"
+          },
+          "edge_cases_test.rs": {
+            "info": {
+              "code_lines": 182,
+              "content_hash": "0d10eabb3636247a",
+              "ext": "rs",
+              "header_snapshot": [
+                "//! 编译器边界测试 — 找 bug 专用。",
+                "//!",
+                "//! 每个测试编译一段 .atx 源码，验证：",
+                "//! - 不会 panic（捕获所有 unwrap/expect）",
+                "//! - 错误信息合理（对非法输入返回错误，对合法输入返回成功）"
+              ],
+              "lines": 276,
+              "modified": "t=1784472683",
+              "pub_decls": [],
+              "tests": 26
+            },
+            "name": "edge_cases_test.rs",
+            "path": "tests/edge_cases_test.rs",
+            "type": "file"
+          },
+          "fixtures": {
+            "children": {
+              "invalid": {
+                "children": {
+                  "bad_escape.atx": {
+                    "info": {
+                      "code_lines": 3,
+                      "content_hash": "098f700e4ef66378",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 期望词法错误：未知转义序列",
+                        "TASK : {",
+                        "    x : str = \"\\q\"",
+                        "}"
+                      ],
+                      "lines": 4,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "bad_escape.atx",
+                    "path": "tests/fixtures/invalid/bad_escape.atx",
+                    "type": "file"
+                  },
+                  "type_mismatch.atx": {
+                    "info": {
+                      "code_lines": 3,
+                      "content_hash": "a5b1104d0a382988",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 期望类型不匹配错误",
+                        "TASK : {",
+                        "    x : str = 42",
+                        "}"
+                      ],
+                      "lines": 4,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "type_mismatch.atx",
+                    "path": "tests/fixtures/invalid/type_mismatch.atx",
+                    "type": "file"
+                  },
+                  "undefined_var.atx": {
+                    "info": {
+                      "code_lines": 3,
+                      "content_hash": "573e6c217b960fdb",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 期望未定义变量错误",
+                        "TASK : {",
+                        "    y : int = undefined_var",
+                        "}"
+                      ],
+                      "lines": 4,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "undefined_var.atx",
+                    "path": "tests/fixtures/invalid/undefined_var.atx",
+                    "type": "file"
+                  }
+                },
+                "name": "invalid",
+                "path": "tests/fixtures/invalid",
+                "type": "dir"
+              },
+              "valid": {
+                "children": {
+                  "all_zones.atx": {
+                    "info": {
+                      "code_lines": 13,
+                      "content_hash": "b8eb36cd84b19183",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 五区全结构测试",
+                        "TOOLS : {",
+                        "    fn process(data : bytes) : bytes { data }",
+                        "}",
+                        "INPUT : {"
+                      ],
+                      "lines": 17,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "all_zones.atx",
+                    "path": "tests/fixtures/valid/all_zones.atx",
+                    "type": "file"
+                  },
+                  "builtins.atx": {
+                    "info": {
+                      "code_lines": 9,
+                      "content_hash": "d6a7ce1e0cbbc9c0",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 内置函数测试",
+                        "TASK : {",
+                        "    CALL print(42)",
+                        "    CALL abs(-5)",
+                        "    CALL min(3, 7)"
+                      ],
+                      "lines": 10,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "builtins.atx",
+                    "path": "tests/fixtures/valid/builtins.atx",
+                    "type": "file"
+                  },
+                  "control_flow.atx": {
+                    "info": {
+                      "code_lines": 10,
+                      "content_hash": "506bac59142b5856",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 控制流测试",
+                        "TASK : {",
+                        "    IF true {",
+                        "        CALL print(1)",
+                        "    } ELSE {"
+                      ],
+                      "lines": 12,
+                      "modified": "t=1784471222",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "control_flow.atx",
+                    "path": "tests/fixtures/valid/control_flow.atx",
+                    "type": "file"
+                  },
+                  "expressions.atx": {
+                    "info": {
+                      "code_lines": 10,
+                      "content_hash": "dc328dc7fe9c639c",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 表达式 + 优先级测试",
+                        "TASK : {",
+                        "    a : int = 2 + 3 * 4",
+                        "    b : int = (2 + 3) * 4",
+                        "    c : bool = 1 < 2 and true"
+                      ],
+                      "lines": 11,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "expressions.atx",
+                    "path": "tests/fixtures/valid/expressions.atx",
+                    "type": "file"
+                  },
+                  "functions.atx": {
+                    "info": {
+                      "code_lines": 12,
+                      "content_hash": "9640448ed0c2a918",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 函数定义 + CALL 测试",
+                        "TOOLS : {",
+                        "    fn add(a : int, b : int) : int {",
+                        "        a + b",
+                        "    }"
+                      ],
+                      "lines": 13,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "functions.atx",
+                    "path": "tests/fixtures/valid/functions.atx",
+                    "type": "file"
+                  },
+                  "generics.atx": {
+                    "info": {
+                      "code_lines": 11,
+                      "content_hash": "d793e63bf073c356",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# 泛型单态化测试",
+                        "TOOLS : {",
+                        "    fn identity<T>(x : T) : T { return x }",
+                        "    fn pair<A, B>(a : A, b : B) : tuple(A, B) {",
+                        "        return (a, b)"
+                      ],
+                      "lines": 12,
+                      "modified": "t=1784471203",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "generics.atx",
+                    "path": "tests/fixtures/valid/generics.atx",
+                    "type": "file"
+                  },
+                  "hello_world.atx": {
+                    "info": {
+                      "code_lines": 4,
+                      "content_hash": "ad62c8ee524eac6a",
+                      "ext": "atx",
+                      "header_snapshot": [
+                        "# Atomix 最小程序",
+                        "TASK : {",
+                        "    x : int = 42",
+                        "    CALL print(x)",
+                        "}"
+                      ],
+                      "lines": 5,
+                      "modified": "t=1784471146",
+                      "pub_decls": [],
+                      "tests": 0
+                    },
+                    "name": "hello_world.atx",
+                    "path": "tests/fixtures/valid/hello_world.atx",
+                    "type": "file"
+                  }
+                },
+                "name": "valid",
+                "path": "tests/fixtures/valid",
+                "type": "dir"
+              }
+            },
+            "name": "fixtures",
+            "path": "tests/fixtures",
+            "type": "dir"
+          },
+          "monomorphization_test.rs": {
+            "info": {
+              "code_lines": 58,
+              "content_hash": "7b233e99a66a8833",
+              "ext": "rs",
+              "header_snapshot": [
+                "//! 验证泛型单态化正确工作",
+                "use atomix::compiler::lexer::Lexer;",
+                "use atomix::compiler::parser::Parser;",
+                "use atomix::compiler::semantic::SemanticAnalyzer;",
+                "fn analyze(source: &str) -> (SemanticAnalyzer, Vec<String>) {"
+              ],
+              "lines": 67,
+              "modified": "t=1784467101",
+              "pub_decls": [],
+              "tests": 3
+            },
+            "name": "monomorphization_test.rs",
+            "path": "tests/monomorphization_test.rs",
+            "type": "file"
+          }
+        },
+        "name": "tests",
+        "path": "tests",
+        "type": "dir"
+      }
+    },
+    "name": ".",
+    "path": ".",
+    "type": "dir"
+  },
+  "version": "1.0"
+}

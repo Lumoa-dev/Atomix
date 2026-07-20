@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-/// ATXP 服务器配置。
+#[derive(Clone)]
 pub struct ServerConfig {
     pub listen_addr: String,
 }
@@ -24,8 +24,8 @@ impl Default for ServerConfig {
 
 /// ATXP 服务器。
 pub struct AtxpServer {
-    config: ServerConfig,
-    runtime: Arc<Mutex<Runtime>>,
+    pub config: ServerConfig,
+    pub runtime: Arc<Mutex<Runtime>>,
 }
 
 impl AtxpServer {
