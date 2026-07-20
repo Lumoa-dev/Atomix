@@ -332,13 +332,19 @@ pub fn execute_instruction(vm: &mut VmState) -> bool {
         }
 
         opcode::CALL => {
-            vm.write_reg(reg::RA, (vm.pc + 1) as u64);
+            let return_pc = vm.pc + 1;
+            vm.write_reg(reg::RA, return_pc as u64);
+            vm.call_stack.push(crate::runner::CallFrame {
+                return_pc,
+                sp: vm.read_reg(reg::SP),
+            });
             let offset = isa::decode_ji(instr);
             vm.pc = (vm.pc as i32).wrapping_add(offset) as usize;
             return true;
         }
 
         opcode::JMPR => {
+            vm.call_stack.pop();
             vm.pc = vm.read_reg(ops.rd as usize) as usize;
             return true;
         }

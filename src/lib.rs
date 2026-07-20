@@ -6,4 +6,5 @@
 
 pub mod base;
 pub mod compiler;
+pub mod debug;
 pub mod runner;

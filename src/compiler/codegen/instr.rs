@@ -18,6 +18,10 @@ pub struct InstrEmitter {
     labels: std::collections::HashMap<String, usize>,
     /// 未解析的前向引用：(标签名, 指令位置, 修复偏移量函数)
     pending: Vec<PendingFixup>,
+    /// 当前源码行号（用于 .debug 段发射）。
+    pub source_line: u32,
+    /// 行号映射：(pc, source_line) — 记录 source_line 变化时的起始 PC。
+    pub line_map: Vec<(usize, u32)>,
 }
 
 /// 待修复的前向引用。
@@ -34,6 +38,16 @@ impl InstrEmitter {
             text: Vec::new(),
             labels: std::collections::HashMap::new(),
             pending: Vec::new(),
+            source_line: 1,
+            line_map: Vec::new(),
+        }
+    }
+
+    /// 设置当前源码行号，记录行号映射。
+    pub fn set_source_line(&mut self, line: u32) {
+        if line != self.source_line {
+            self.source_line = line;
+            self.line_map.push((self.instr_count(), line));
         }
     }
 

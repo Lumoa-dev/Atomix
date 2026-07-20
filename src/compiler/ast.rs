@@ -275,7 +275,7 @@ pub struct TypeAlias {
 // ─── 区域节点 ──────────────────────────────────────────
 
 /// 区域类型。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ZoneKind {
     Tools,
     Input,

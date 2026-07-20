@@ -27,6 +27,61 @@ use crate::compiler::lexer::Lexer;
 use crate::compiler::parser::Parser;
 use crate::compiler::semantic::SemanticAnalyzer;
 
+/// 扫描源码，估算每个 zone 的起始和结束行号。
+fn compute_zone_line_ranges(
+    zones: &[semantic::ZoneInfo],
+    source_lines: &[&str],
+) -> std::collections::HashMap<ZoneKind, (u32, u32)> {
+    let mut result = std::collections::HashMap::new();
+    for zone in zones {
+        let kind = zone.kind;
+        let keyword = match kind {
+            ZoneKind::Tools => "TOOLS",
+            ZoneKind::Input => "INPUT",
+            ZoneKind::Works => "WORKS",
+            ZoneKind::Task => "TASK",
+            ZoneKind::Out => "OUT",
+        };
+        // 在源码中搜索对应的 zone 关键字
+        let mut start_line = 1u32;
+        let mut end_line = (source_lines.len() as u32).max(1);
+        for (i, line) in source_lines.iter().enumerate() {
+            let trimmed = line.trim().to_uppercase();
+            if trimmed.starts_with(keyword) || trimmed.starts_with(&format!("{}{}", keyword, ":"))
+            {
+                start_line = (i + 1) as u32;
+                // 找到闭合的 } 作为 end_line
+                let mut brace_depth = 0;
+                let mut found_start = false;
+                for (j, l) in source_lines.iter().enumerate().skip(i) {
+                    for ch in l.chars() {
+                        match ch {
+                            '{' => {
+                                brace_depth += 1;
+                                found_start = true;
+                            }
+                            '}' => {
+                                brace_depth -= 1;
+                                if found_start && brace_depth <= 0 {
+                                    end_line = (j + 1) as u32;
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if found_start && brace_depth <= 0 {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        result.insert(kind, (start_line, end_line));
+    }
+    result
+}
+
 /// 完整编译管线：.atx 源码 → .atxe 二进制字节。
 ///
 /// `opt_level`: 0=O0(无), 1=O1, 2=O2, s=Os
@@ -104,10 +159,17 @@ pub fn compile(source: &str, opt_level: &str) -> (Vec<u8>, Vec<String>) {
     let mut exn_entries: Vec<assembly::ExnEntry> = Vec::new();
     // 记录每个 zone 的指令区间 (kind, name, text_start, text_end)
     let mut zone_ranges: Vec<(ZoneKind, String, usize, usize)> = Vec::new();
+    // 计算源码行号映射（用于 .debug 段）
+    let zone_line_ranges = compute_zone_line_ranges(&analyzer.zones, &source_lines);
 
     // 编译所有 zone 体
     for zone_info in &analyzer.zones {
         let text_start = emit.instr_count();
+        // 设置该 zone 对应的起始行号
+        if let Some((start_line, _)) = zone_line_ranges.get(&zone_info.kind) {
+            emit.source_line = *start_line;
+            emit.line_map.push((text_start, *start_line));
+        }
         // 编译常规语句
         stmt::compile_stmts(&mut emit, &mut pool, &zone_info.body, &mut exn_entries);
         // 编译数据源声明（INPUT 区：加载数据）

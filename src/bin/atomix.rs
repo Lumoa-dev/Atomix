@@ -38,6 +38,11 @@ enum Command {
     },
     /// 清理构建产物
     Clean,
+    /// 调试任务（进入交互式 REPL）
+    Debug {
+        /// .atxe 或 .atx 文件路径
+        file: String,
+    },
 }
 
 fn main() {
@@ -109,12 +114,78 @@ fn main() {
             if build_dir.exists() {
                 let _ = fs::remove_dir_all(build_dir);
             }
-            // 清理默认输出目录
             let output_dir = Path::new("output");
             if output_dir.exists() {
                 let _ = fs::remove_dir_all(output_dir);
             }
             println!("清理完成");
+        }
+        Command::Debug { file } => {
+            let path = Path::new(&file);
+
+            // 判断是 .atx（需编译）还是 .atxe（直接加载）
+            let vm = if path.extension().is_some_and(|e| e == "atx") {
+                // 编译源文件
+                let source = match fs::read_to_string(path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("错误: 无法读取源文件 `{file}`: {e}");
+                        std::process::exit(1);
+                    }
+                };
+                let (binary, errors) = atomix::compiler::compile(&source, "0");
+                if !errors.is_empty() {
+                    for err in &errors {
+                        eprintln!("{}", err);
+                    }
+                    if binary.is_empty() {
+                        std::process::exit(1);
+                    }
+                }
+                match atomix::runner::VmState::load_atxe(&binary) {
+                    Ok(vm) => vm,
+                    Err(e) => {
+                        eprintln!("无法加载编译产物: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                // 直接加载 .atxe
+                let bytes = match fs::read(path) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        eprintln!("错误: 无法读取文件 `{file}`: {e}");
+                        std::process::exit(1);
+                    }
+                };
+                match atomix::runner::VmState::load_atxe(&bytes) {
+                    Ok(vm) => vm,
+                    Err(e) => {
+                        eprintln!("无法加载 .atxe: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            };
+
+            println!("Loaded: {} ({} instructions, {} bytes debug info)", file, vm.text.len(), vm.debug_info.len());
+
+            // 解析 .debug 段
+            let debug_bytes = vm.debug_info.clone();
+            let mut session = atomix::debug::repl::DebugSession::new(vm);
+            // 加载 .debug 映射
+            session.set_debug_map_from_bytes(&debug_bytes);
+            // 如果是 .atx 源文件，加载源码
+            if path.extension().is_some_and(|e| e == "atx") {
+                session.set_source(&file);
+            } else {
+                // 尝试找同名的 .atx 文件
+                let atx_path = path.with_extension("atx");
+                if atx_path.exists() {
+                    session.set_source(atx_path.to_str().unwrap_or(""));
+                }
+            }
+
+            atomix::debug::repl::run_repl(&mut session);
         }
     }
 }

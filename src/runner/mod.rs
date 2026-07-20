@@ -27,6 +27,15 @@ use crate::runner::memory::SandboxMemory;
 
 // ─── VM 状态 ───────────────────────────────────────────
 
+/// 调用栈帧。
+#[derive(Debug, Clone, Copy)]
+pub struct CallFrame {
+    /// 返回地址（CALL 的下一条指令）。
+    pub return_pc: usize,
+    /// 调用前的栈指针。
+    pub sp: u64,
+}
+
 /// VM 核心状态。持有任务执行所需的所有运行时数据。
 ///
 /// 手动实现 Clone（跳过 `open_files`，文件描述符不跨 VM 实例共享）。
@@ -58,6 +67,10 @@ pub struct VmState {
     pub join_waiting_for: Option<u16>,
     /// TASK_FORK 产生的子任务 VmState（调度器取走入队，None=无待处理 fork）。
     pub pending_child: Option<Box<Self>>,
+    /// .debug 段原始字节（PC ↔ 源码行映射）。
+    pub debug_info: Vec<u8>,
+    /// 调用栈帧列表。
+    pub call_stack: Vec<CallFrame>,
     /// 打开的文件描述符表（FS_OPEN/FS_READ/FS_WRITE/FS_CLOSE 使用）。
     pub open_files: Vec<Option<std::fs::File>>,
     /// 打开的 TCP 套接字表（TCP_CONNECT/TCP_SEND/TCP_RECV/TCP_CLOSE 使用）。
@@ -121,6 +134,7 @@ impl VmState {
             text: binary.text.clone(),
             rodata: binary.rodata.clone(),
             exn_table: binary.exn_table.clone(),
+            debug_info: binary.debug_info.clone(),
             memory,
             mem_size: total as u64,
             state: VmStateKind::Running,
@@ -129,6 +143,7 @@ impl VmState {
             task_id: 0,
             join_waiting_for: None,
             pending_child: None,
+            call_stack: Vec::new(),
             open_files: Vec::new(),
             open_sockets: Vec::new(),
             listeners: Vec::new(),
@@ -188,6 +203,7 @@ impl Clone for VmState {
             text: self.text.clone(),
             rodata: self.rodata.clone(),
             exn_table: self.exn_table.clone(),
+            debug_info: self.debug_info.clone(),
             memory: self.memory.clone(),
             mem_size: self.mem_size,
             state: self.state.clone(),
@@ -196,6 +212,7 @@ impl Clone for VmState {
             task_id: self.task_id,
             join_waiting_for: self.join_waiting_for,
             pending_child: None,
+            call_stack: self.call_stack.clone(),
             open_files: Vec::new(), // 新 VM 实例不继承打开的文件
             open_sockets: Vec::new(), // 不继承套接字
             listeners: Vec::new(),    // 不继承监听器

@@ -44,7 +44,7 @@ pub fn assemble(
         text: emit.text.clone(),
         rodata: rodata.to_vec(),
         task_table: build_task_section(&zone_tuples),
-        debug_info: Vec::new(),
+        debug_info: build_debug_section(emit),
         exn_table: build_exn_section(exn_entries),
         zones: build_zones_section(zones, emit),
     };
@@ -124,6 +124,69 @@ pub fn build_zones_section(zones: &[(ZoneKind, String, usize, usize)], _emit: &I
             data.extend_from_slice(&(*text_end as u32).to_le_bytes());
         }
     }
+
+    data
+}
+
+/// 构建 .debug 段 — PC → 源码行号映射。
+///
+/// 格式（与 docs/12-debugger-设计.md §9 兼容）：
+/// - Magic "ADBG" (4B)
+/// - version u16 LE (2B)
+/// - flags u16 LE (2B)
+/// - entry_count u32 LE (4B)
+/// - entries: DebugEntry[entry_count]（每条 28 字节）
+/// - string_pool: 连续存放的空终止字符串
+///
+/// 当前仅发射 LINE 类型条目（pc_start, source_line）。
+pub fn build_debug_section(emit: &InstrEmitter) -> Vec<u8> {
+    if emit.line_map.is_empty() {
+        return Vec::new();
+    }
+
+    let mut data = Vec::new();
+    // Header
+    data.extend_from_slice(b"ADBG"); // magic
+    data.extend_from_slice(&1u16.to_le_bytes()); // version
+    data.extend_from_slice(&0u16.to_le_bytes()); // flags
+    data.extend_from_slice(&(emit.line_map.len() as u32).to_le_bytes()); // entry_count
+
+    // string_pool 偏移占位（先写 entries，再写 string_pool）
+    let entries_start = 12; // 12B header
+    let mut string_pool = Vec::new();
+
+    // 先计算 entries 区域大小，预留空间
+    let entry_size = 28u32;
+    let entries_bytes = (emit.line_map.len() as u32) * entry_size;
+    data.resize(data.len() + entries_bytes as usize, 0);
+
+    // 填充 entries
+    for (i, &(pc, line)) in emit.line_map.iter().enumerate() {
+        let entry_off = entries_start + (i as u32) * entry_size;
+        // pc_start (4B)
+        data[entry_off as usize..][..4].copy_from_slice(&(pc as u32).to_le_bytes());
+        // pc_end (4B) — 暂不填充，可后续计算
+        // source_line (4B)
+        data[entry_off as usize + 8..][..4].copy_from_slice(&line.to_le_bytes());
+        // source_col (2B)
+        data[entry_off as usize + 12..][..2].copy_from_slice(&1u16.to_le_bytes());
+        // kind (1B) — 4 = LINE
+        data[entry_off as usize + 14] = 4;
+        // depth (1B)
+        data[entry_off as usize + 15] = 0;
+        // func_name_off, var_name_off, type_name_off, ast_node_off (4B each)
+        // 全部设为 0（LINE 条目不需要这些字段）
+        // 从偏移 16 到 28 都是 0
+        for j in 16..28 {
+            data[entry_off as usize + j] = 0;
+        }
+    }
+
+    // string_pool（无论如何都要附加一个空字符串给 0 偏移引用）
+    if string_pool.is_empty() {
+        string_pool.push(0); // 空字符串偏移 0
+    }
+    data.extend_from_slice(&string_pool);
 
     data
 }
