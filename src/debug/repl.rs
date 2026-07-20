@@ -130,11 +130,21 @@ impl DebugSession {
                 self.cmd_continue();
                 true
             }
-            "print" | "p" => {
-                if let Some(r) = parts.get(1) {
-                    self.cmd_print(r);
+            "eval" | "e" => {
+                let expr = parts[1..].join(" ");
+                if !expr.is_empty() {
+                    self.cmd_eval(&expr);
                 } else {
-                    println!("用法: print <reg>");
+                    println!("用法: eval <表达式>");
+                }
+                true
+            }
+            "print" | "p" => {
+                let expr = parts[1..].join(" ");
+                if expr.is_empty() {
+                    println!("用法: print <寄存器|表达式>");
+                } else {
+                    self.cmd_print(&expr);
                 }
                 true
             }
@@ -164,7 +174,8 @@ impl DebugSession {
         println!("  mem <addr> [bytes]  hexdump 内存");
         println!("  break <addr>        设置断点");
         println!("  continue    运行到断点或结束");
-        println!("  print <reg>  打印寄存器值（如 a0, t0, sp）");
+        println!("  eval <expr>  计算表达式（如 a0 + 42, *0x1000）");
+        println!("  print <expr> 打印表达式值（寄存器/表达式）");
         println!("  backtrace   显示调用栈回溯");
         println!("  source [n]  显示当前 PC 附近的 n 行源码");
         println!("  help        显示此帮助");
@@ -314,8 +325,31 @@ impl DebugSession {
         }
     }
 
+    fn cmd_eval(&self, expr: &str) {
+        match crate::debug::eval::eval_expr(expr, &self.vm) {
+            Ok(val) => {
+                let formatted = crate::debug::eval::format_result(val);
+                println!("  {} = {}", expr, formatted);
+            }
+            Err(e) => {
+                println!("表达式错误: {}", e);
+            }
+        }
+    }
+
     fn cmd_print(&self, name: &str) {
-        // 解析寄存器名
+        // 先尝试作为表达式求值
+        match crate::debug::eval::eval_expr(name, &self.vm) {
+            Ok(val) => {
+                let formatted = crate::debug::eval::format_result(val);
+                println!("  {} = {}", name, formatted);
+                return;
+            }
+            Err(_) => {
+                // 降级到旧的寄存器名解析
+            }
+        }
+
         let idx = match name.to_lowercase().as_str() {
             "zero" | "r0" => 0,
             "sp" | "r1" => 1,
@@ -338,7 +372,6 @@ impl DebugSession {
                 return;
             }
             _ => {
-                // 尝试解析为数字
                 if let Ok(n) = name.parse::<usize>() && n < 16 {
                     let val = self.vm.read_reg(n);
                     let n2 = isa::reg_name(n).to_uppercase();

@@ -15,4 +15,5 @@
 
 pub mod debug_segment;
 pub mod disassemble;
+pub mod eval;
 pub mod repl;
