@@ -40,7 +40,7 @@ rustyline = "14"
 
 # 远程 ATXP 协议
 prost = "0.13"
-tokio = { version = "1", features = ["rt", "net", "io-util", "sync", "time"] }
+tokio = { version = "1", features = ["rt", "net", "io-util", "sync", "time", "macros", "signal"] }
 
 [build-dependencies]
 prost-build = "0.13"
