@@ -24,20 +24,12 @@ pub struct ExecutorLoad {
 /// 3. 多个负载接近（差距 < 10%）→ 随机选（抗偏斜）
 /// 4. N_batch = 2 时退化为轮询
 /// 5. 高积压时（就绪任务 ≥ N_batch × 2）→ 批量分配 2-3 个
+#[derive(Default)]
 pub struct LoadBalancer {
     /// 轮询计数器（N=2 时使用）。
     round_robin_counter: usize,
     /// 伪随机计数器（抗偏斜用）。
     rand_counter: usize,
-}
-
-impl Default for LoadBalancer {
-    fn default() -> Self {
-        Self {
-            round_robin_counter: 0,
-            rand_counter: 0,
-        }
-    }
 }
 
 impl LoadBalancer {

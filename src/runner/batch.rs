@@ -173,7 +173,7 @@ impl BatchManager {
     /// v0.3 新增。θ 获得最高权重 0.25，
     /// 因为内存精度直接影响 OOM 风险。
     pub fn factor_theta(&self) -> f64 {
-        0.70 + 0.30 * self.regression.r_squared.min(1.0).max(0.0)
+        0.70 + 0.30 * self.regression.r_squared.clamp(0.0, 1.0)
     }
 
     // ═══════════════════════════════════════════════

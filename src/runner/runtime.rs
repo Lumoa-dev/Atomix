@@ -3,7 +3,6 @@
 //! 覆盖设计文档 §1‒§7。
 
 use crate::base::ir::AtxeBinary;
-use crate::base::isa::reg;
 use crate::runner::batch::BatchManager;
 use crate::runner::config::RunnerConfig;
 use crate::runner::event::{EventChannel, ExecutorEvent};
@@ -249,7 +248,7 @@ impl Runtime {
             let handle = std::thread::Builder::new()
                 .name(format!("executor-{}", exec.event_idx))
                 .spawn(move || {
-                    executor_main(exec, rx, &*ch, &*pool_clone);
+                    executor_main(exec, rx, &ch, &pool_clone);
                 })
                 .expect("无法创建 Executor 线程");
 
@@ -337,7 +336,7 @@ impl Runtime {
 
         // 初始化：激活所有就绪任务
         {
-            let mut guard = self.pool_arc.as_ref().unwrap().lock().unwrap();
+            let mut guard = self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned");
             guard.activate_ready_tasks();
         }
 
@@ -375,7 +374,7 @@ impl Runtime {
             }
 
             // 2. 检查是否全部完成
-            let all_done = { self.pool_arc.as_ref().unwrap().lock().unwrap().all_done() };
+            let all_done = { self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned").all_done() };
             if all_done {
                 break;
             }
@@ -384,7 +383,7 @@ impl Runtime {
             self.recover_oom_tasks();
 
             // 4. 分发任务到空闲 executor
-            let ready = { self.pool_arc.as_ref().unwrap().lock().unwrap().ready_tasks() };
+            let ready = { self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned").ready_tasks() };
             if ready.is_empty() {
                 if !all_idle {
                     std::thread::sleep(std::time::Duration::from_micros(100));
@@ -603,7 +602,7 @@ impl Drop for Runtime {
 mod tests {
     use super::*;
     use crate::base::ir::Header;
-    use crate::base::isa::{self, opcode};
+    use crate::base::isa::{self, opcode, reg};
 
     fn make_multi_task_atxe(
         texts: Vec<Vec<u32>>,

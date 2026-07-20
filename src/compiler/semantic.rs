@@ -79,6 +79,10 @@ pub struct ZoneInfo {
     pub body: Vec<Stmt>,
     pub lifecycle: Lifecycle,
     pub is_pruned: bool,
+    /// INPUT 区的数据源声明（供 codegen 使用）
+    pub source_decls: Vec<SourceDecl>,
+    /// OUT 区的数据交付声明（供 codegen 使用）
+    pub target_decls: Vec<TargetDecl>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +127,8 @@ impl SemanticAnalyzer {
                         body: zone.body.clone(),
                         lifecycle: Lifecycle::Persistent,
                         is_pruned: false,
+                        source_decls: Vec::new(),
+                        target_decls: Vec::new(),
                     });
                 }
                 ZoneKind::Input => {
@@ -133,6 +139,8 @@ impl SemanticAnalyzer {
                         body: zone.body.clone(),
                         lifecycle: Lifecycle::ExecUnload,
                         is_pruned: false,
+                        source_decls: zone.source_decls.clone(),
+                        target_decls: Vec::new(),
                     });
                 }
                 ZoneKind::Works => {
@@ -146,6 +154,8 @@ impl SemanticAnalyzer {
                         body: zone.body.clone(),
                         lifecycle: Lifecycle::ExecUnload,
                         is_pruned: true,
+                        source_decls: Vec::new(),
+                        target_decls: Vec::new(),
                     });
                 }
                 ZoneKind::Out => {
@@ -156,6 +166,8 @@ impl SemanticAnalyzer {
                         body: zone.body.clone(),
                         lifecycle: Lifecycle::Lazy,
                         is_pruned: false,
+                        source_decls: Vec::new(),
+                        target_decls: zone.target_decls.clone(),
                     });
                 }
             }
@@ -176,6 +188,8 @@ impl SemanticAnalyzer {
                 body: Vec::new(),
                 lifecycle: Lifecycle::Persistent,
                 is_pruned: false,
+                source_decls: Vec::new(),
+                target_decls: Vec::new(),
             },
         );
 

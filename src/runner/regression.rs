@@ -201,7 +201,7 @@ impl RegressionModel {
         let pattern = format!("\"{}\":", key);
         let start = json.find(&pattern)?;
         let rest = &json[start + pattern.len()..];
-        let end = rest.find(|c: char| c == ',' || c == '}' || c == ']')?;
+        let end = rest.find([',', '}', ']'])?;
         rest[..end].trim().parse().ok()
     }
 
@@ -210,7 +210,7 @@ impl RegressionModel {
         let pattern = format!("\"{}\":", key);
         let start = json.find(&pattern)?;
         let rest = &json[start + pattern.len()..];
-        let end = rest.find(|c: char| c == ',' || c == '}' || c == ']')?;
+        let end = rest.find([',', '}', ']'])?;
         rest[..end].trim().parse().ok()
     }
 }

@@ -11,6 +11,12 @@ pub struct PrefetchQueue {
     queue: VecDeque<u16>,
 }
 
+impl Default for PrefetchQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrefetchQueue {
     /// 创建空队列。
     pub fn new() -> Self {
@@ -49,7 +55,7 @@ impl PrefetchQueue {
 /// 异步拉取下一个任务的 .atxe。
 ///
 /// 预载深度动态调整：
-/// ```
+/// ```ignore
 /// prefetch_depth = clamp(ceil(avg_exec_time_ms / network_latency_ms), 1, 3)
 /// ```
 pub struct Prefetcher {

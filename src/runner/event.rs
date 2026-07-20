@@ -171,7 +171,7 @@ impl EventChannel {
 // ─── Executor 统计信息 ──────────────────────────────
 
 /// Executor 向 Runtime 暴露的运行时统计（lock-free 共享）。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ExecutorStats {
     /// 当前 PC。
     pub pc: u32,
@@ -181,17 +181,6 @@ pub struct ExecutorStats {
     pub total_instrs: u64,
     /// 已完成 quantum 数。
     pub total_quantums: u32,
-}
-
-impl Default for ExecutorStats {
-    fn default() -> Self {
-        Self {
-            pc: 0,
-            memory_usage: 0,
-            total_instrs: 0,
-            total_quantums: 0,
-        }
-    }
 }
 
 // ─── 测试 ───────────────────────────────────────────────

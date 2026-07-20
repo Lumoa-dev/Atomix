@@ -38,7 +38,6 @@ pub struct Executor {
     pub slot_id: Option<u16>,
     /// 心跳间隔（quantum 数，0 = 禁用）。
     pub heartbeat_interval: u32,
-    heartbeat_counter: u32,
     pub vm_taken: bool,
 }
 
@@ -51,7 +50,6 @@ impl Executor {
             task_id: None,
             slot_id: None,
             heartbeat_interval: 0,
-            heartbeat_counter: 0,
             vm_taken: false,
         }
     }
@@ -179,77 +177,76 @@ pub fn executor_main(
     event_channel: &EventChannel,
     pool: &Mutex<TaskPool>,
 ) {
-    loop {
-        match rx.recv() {
-            Ok(ExecutorCommand::Execute { task_id, quantum }) => {
-                executor.task_id = Some(task_id);
+    while let Ok(cmd) = rx.recv() {
+        let (task_id, quantum) = match cmd {
+            ExecutorCommand::Execute { task_id, quantum } => (task_id, quantum),
+            ExecutorCommand::Halt => break,
+        };
+        executor.task_id = Some(task_id);
 
-                // 1. 锁定 pool
-                let mut guard = pool.lock().unwrap();
-                let task = match guard.get_mut(task_id) {
-                    Some(t) => t,
-                    None => continue,
-                };
-                if task.status != TaskStatus::Ready && task.status != TaskStatus::Running {
-                    continue;
-                }
+        // 1. 锁定 pool
+        let mut guard = pool.lock().unwrap();
+        let task = match guard.get_mut(task_id) {
+            Some(t) => t,
+            None => continue,
+        };
+        if task.status != TaskStatus::Ready && task.status != TaskStatus::Running {
+            continue;
+        }
 
-                // 2. load → run
-                executor.load(task);
-                let (count, _event) = executor.run_quantum(quantum);
-                task.total_instrs += count;
-                task.quantum_instrs += count;
+        // 2. load → run
+        executor.load(task);
+        let (count, _event) = executor.run_quantum(quantum);
+        task.total_instrs += count;
+        task.quantum_instrs += count;
 
-                // 3. 在 unload 之前捕获返回值（避免 unload 后失去引用）
-                let task_status = task.status;
-                let task_retval = task.return_value;
+        // 3. 在 unload 之前捕获返回值（避免 unload 后失去引用）
+        let task_status = task.status;
+        let task_retval = task.return_value;
 
-                // 4. pending_child（在解锁之前取走）
-                let child_vm = executor.take_pending_child();
+        // 4. pending_child（在解锁之前取走）
+        let child_vm = executor.take_pending_child();
 
-                // 5. unload
-                executor.unload(task);
-                // task 借用结束
+        // 5. unload
+        executor.unload(task);
+        // task 借用结束
 
-                // 6. 添加子任务到 pool
-                if let Some(cv) = child_vm {
-                    let child_id = cv.task_id;
-                    let new_task = Task {
-                        id: child_id,
-                        entry_offset: cv.pc,
-                        status: TaskStatus::Ready,
-                        deps: Vec::new(),
-                        vm: Some(*cv),
-                        return_value: 0,
-                        total_instrs: 0,
-                        quantum_instrs: 0,
-                        join_waiting_for: None,
-                    };
-                    guard.add_task(new_task);
-                }
-                // guard 释放
+        // 6. 添加子任务到 pool
+        if let Some(cv) = child_vm {
+            let child_id = cv.task_id;
+            let new_task = Task {
+                id: child_id,
+                entry_offset: cv.pc,
+                status: TaskStatus::Ready,
+                deps: Vec::new(),
+                vm: Some(*cv),
+                return_value: 0,
+                total_instrs: 0,
+                quantum_instrs: 0,
+                join_waiting_for: None,
+            };
+            guard.add_task(new_task);
+        }
+        // guard 释放
 
-                // 7. 上报事件（锁外）
-                let event = match task_status {
-                    TaskStatus::Done => Some(ExecutorEvent::TaskDone {
-                        task_id,
-                        retval: task_retval,
-                    }),
-                    TaskStatus::Error => Some(ExecutorEvent::TaskError {
-                        task_id,
-                        errcode: 1,
-                    }),
-                    TaskStatus::Suspended => Some(ExecutorEvent::Oom {
-                        task_id,
-                        memory_usage: 0,
-                    }),
-                    _ => Some(ExecutorEvent::Yield { task_id }),
-                };
-                if let Some(ev) = event {
-                    executor.post_event(event_channel, ev);
-                }
-            }
-            Ok(ExecutorCommand::Halt) | Err(_) => break,
+        // 7. 上报事件（锁外）
+        let event = match task_status {
+            TaskStatus::Done => Some(ExecutorEvent::TaskDone {
+                task_id,
+                retval: task_retval,
+            }),
+            TaskStatus::Error => Some(ExecutorEvent::TaskError {
+                task_id,
+                errcode: 1,
+            }),
+            TaskStatus::Suspended => Some(ExecutorEvent::Oom {
+                task_id,
+                memory_usage: 0,
+            }),
+            _ => Some(ExecutorEvent::Yield { task_id }),
+        };
+        if let Some(ev) = event {
+            executor.post_event(event_channel, ev);
         }
     }
 }

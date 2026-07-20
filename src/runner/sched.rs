@@ -4,7 +4,6 @@
 //! P3-SCH-003 上下文切换。
 
 use crate::base::ir::AtxeBinary;
-use crate::base::isa::reg;
 use crate::runner::VmState;
 use crate::runner::batch::BatchManager;
 use crate::runner::executor::Executor;
@@ -14,7 +13,11 @@ use crate::runner::slot::SlotManager;
 use crate::runner::task::{Task, TaskId, TaskStatus};
 
 /// 调度器。管理多个任务的分时执行。
-pub struct Scheduler {
+///
+/// **已废弃** —　生产代码改用 `Runtime`（`runtime.rs`）多线程执行引擎。
+/// `Scheduler` 是单线程原型，保留下来仅作「来时路」参考。
+#[allow(dead_code)]
+pub(crate) struct Scheduler {
     /// 任务池。
     pub pool: TaskPool,
     /// 默认时间片大小（指令数）。
@@ -33,6 +36,7 @@ pub struct Scheduler {
     pub cold_start_count: u32,
 }
 
+#[allow(dead_code)]
 impl Scheduler {
     /// 从 .atxe 二进制创建调度器，自动解析 .task 段并为每个任务创建 VmState。
     pub fn from_atxe(binary: &AtxeBinary) -> Result<Self, String> {
@@ -309,7 +313,7 @@ impl Scheduler {
 mod tests {
     use super::*;
     use crate::base::ir::{AtxeBinary, Header};
-    use crate::base::isa::{self, opcode};
+    use crate::base::isa::{self, opcode, reg};
     use crate::compiler::codegen::assembly;
 
     /// 创建一个含有多任务 .task 段的最小 .atxe。

@@ -124,41 +124,6 @@ impl Parser {
         }
     }
 
-    /// 检查当前 Token 是否为语句起始关键字（用于 stop 条件）。
-    #[allow(dead_code)]
-    fn is_stmt_start(kind: &TokenKind) -> bool {
-        matches!(
-            kind,
-            TokenKind::Fn
-                | TokenKind::If
-                | TokenKind::For
-                | TokenKind::Call
-                | TokenKind::Wait
-                | TokenKind::Return
-                | TokenKind::Break
-                | TokenKind::Continue
-                | TokenKind::Assert
-                | TokenKind::Raise
-                | TokenKind::Goout
-                | TokenKind::Const
-                | TokenKind::LBrace
-                | TokenKind::Ident(_)
-                | TokenKind::Int(_)
-                | TokenKind::Float(_)
-                | TokenKind::Str(_)
-                | TokenKind::FStr(_)
-                | TokenKind::True
-                | TokenKind::False
-                | TokenKind::Dollar
-                | TokenKind::Minus
-                | TokenKind::Not
-                | TokenKind::Tilde
-                | TokenKind::LParen
-                | TokenKind::Do
-                | TokenKind::Pub
-        )
-    }
-
     // ═══════════════════════════════════════════════
     //  顶层文件解析
     // ═══════════════════════════════════════════════
@@ -1017,32 +982,6 @@ impl Parser {
     }
 
     // ── 具体语句解析 ──────────────────────────────
-
-    #[allow(dead_code)]
-    fn parse_let(&mut self, type_required: bool) -> Stmt {
-        if type_required {
-            self.advance(); // Let
-        }
-        let name = self.parse_ident().unwrap_or_default();
-        let type_ann = if self.peek_kind() == Some(&TokenKind::Colon) {
-            self.advance();
-            self.parse_type_node()
-                .unwrap_or(TypeNode::Base("any".into()))
-        } else {
-            TypeNode::Base("any".into())
-        };
-        let init = if self.peek_kind() == Some(&TokenKind::Eq) {
-            self.advance();
-            self.parse_expr()
-        } else {
-            Expr::Int(0) // placeholder
-        };
-        Stmt::Let {
-            name,
-            type_ann,
-            init,
-        }
-    }
 
     fn parse_const(&mut self) -> Stmt {
         self.advance(); // CONST
