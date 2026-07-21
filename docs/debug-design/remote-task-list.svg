@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .blue { fill: #569cd6; } .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; }
+      .bg-cmd { fill: #1a1a1a; } .bg-border { fill: #3e3e42; }
+      .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Task List</text>
+  <text x="200" y="37" class="dim">│ 12 tasks  │  r:refresh  s:sort</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Header -->
+  <rect x="0" y="44" width="770" height="20" class="bg-header"/>
+  <text x="10" y="58" class="bold white">ID</text>
+  <text x="50" y="58" class="bold white">Name</text>
+  <text x="200" y="58" class="bold white">Status</text>
+  <text x="300" y="58" class="bold white">Instrs</text>
+  <text x="380" y="58" class="bold white">Memory</text>
+  <text x="480" y="58" class="bold white">Elapsed</text>
+  <text x="580" y="58" class="bold white">Deps</text>
+
+  <!-- Task 1 -->
+  <text x="15" y="82" class="dim">f7a3</text>
+  <text x="50" y="82" class="white">batch-process</text>
+  <text x="200" y="82" class="green">Done</text>
+  <text x="300" y="82" class="dim">156,234</text>
+  <text x="380" y="82" class="dim">2.1 MB</text>
+  <text x="480" y="82" class="dim">45ms</text>
+  <text x="580" y="82" class="dim">—</text>
+
+  <!-- Task 2 -->
+  <text x="15" y="102" class="dim">b2c1</text>
+  <text x="50" y="102" class="white">validate-orders</text>
+  <text x="200" y="102" class="green">Done</text>
+  <text x="300" y="102" class="dim">89,012</text>
+  <text x="380" y="102" class="dim">1.5 MB</text>
+  <text x="480" y="102" class="dim">23ms</text>
+  <text x="580" y="102" class="dim">—</text>
+
+  <!-- Task 3 (selected) -->
+  <rect x="0" y="110" width="770" height="20" class="bg-selected"/>
+  <text x="15" y="126" class="green bold">e4d7</text>
+  <text x="50" y="126" class="white bold">aggregate-data</text>
+  <text x="200" y="126" class="blue bold">Running</text>
+  <text x="300" y="126" class="white bold">234,567</text>
+  <text x="380" y="126" class="white bold">4.2 MB</text>
+  <text x="480" y="126" class="white bold">1m 12s</text>
+  <text x="580" y="126" class="dim">—</text>
+
+  <!-- Task 4 -->
+  <text x="15" y="148" class="dim">c3e2</text>
+  <text x="50" y="148" class="white">format-output</text>
+  <text x="200" y="148" class="blue">Running</text>
+  <text x="300" y="148" class="dim">12,345</text>
+  <text x="380" y="148" class="dim">0.8 MB</text>
+  <text x="480" y="148" class="dim">5s</text>
+  <text x="580" y="148" class="dim">← e4d7</text>
+
+  <!-- Task 5 -->
+  <text x="15" y="168" class="dim">a1b2</text>
+  <text x="50" y="168" class="white">fetch-input</text>
+  <text x="200" y="168" class="dim">Ready</text>
+  <text x="300" y="168" class="dim">0</text>
+  <text x="380" y="168" class="dim">—</text>
+  <text x="480" y="168" class="dim">—</text>
+  <text x="580" y="168" class="dim">—</text>
+
+  <!-- Task 6 -->
+  <text x="15" y="188" class="dim">d5f6</text>
+  <text x="50" y="188" class="white">send-report</text>
+  <text x="200" y="188" class="red">Error</text>
+  <text x="300" y="188" class="dim">1,024</text>
+  <text x="380" y="188" class="dim">0.3 MB</text>
+  <text x="480" y="188" class="dim">2ms</text>
+  <text x="580" y="188" class="dim">← c3e2</text>
+
+  <text x="15" y="208" class="dim">—</text>
+  <text x="50" y="208" class="dim">(6 more tasks)</text>
+  <text x="200" y="208" class="dim">...</text>
+
+  <rect x="10" y="225" width="750" height="1" class="bg-border"/>
+
+  <!-- Task detail for selected -->
+  <rect x="10" y="240" width="750" height="120" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="24" y="262" class="bold white">Task Detail: aggregate-data (e4d7)</text>
+  <text x="24" y="286" class="dim">Status:</text><text x="90" y="286" class="blue">Running</text>
+  <text x="200" y="286" class="dim">PC:</text><text x="230" y="286" class="white">0x0042</text>
+  <text x="24" y="306" class="dim">Instrs:</text><text x="80" y="306" class="white">234,567</text>
+  <text x="200" y="306" class="dim">Memory:</text><text x="270" y="306" class="white">4.2 MB</text>
+  <text x="24" y="326" class="dim">Elapsed:</text><text x="90" y="326" class="white">1m 12s</text>
+  <text x="200" y="326" class="dim">Quantum:</text><text x="270" y="326" class="white">234 / 1000</text>
+  <text x="24" y="346" class="dim">Output:</text><text x="85" y="346" class="dim">(not yet available — task is Running)</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Task Detail</text>
+
+  <rect x="780" y="76" width="310" height="80" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="blue bold">aggregate-data</text>
+  <text x="795" y="116" class="dim">ID:</text><text x="825" y="116" class="white">e4d7</text>
+  <text x="795" y="134" class="dim">State:</text><text x="840" y="134" class="blue">Running</text>
+  <text x="795" y="152" class="dim">Deps:</text><text x="835" y="152" class="dim">none (root task)</text>
+
+  <rect x="780" y="168" width="310" height="1" class="bg-border"/>
+  <text x="795" y="190" class="dim">Enter: inspect (if Done/Suspended)</text>
+  <text x="795" y="210" class="dim">:regs :mem :stack (if not Running)</text>
+  <text x="795" y="230" class="dim">r:refresh  s:sort by status/instrs</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">r</text>
+  <text x="55" y="611" class="dim">refresh  |  ↑↓ select  |  Enter inspect  |  exit:Dashboard</text>
+
+</svg>

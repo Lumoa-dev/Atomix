@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="11">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .yellow { fill: #d4b83b; } .dim { fill: #6a6a6a; }
+      .white { fill: #e8e8e8; } .cyan { fill: #4ec9b0; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Runner Logs</text>
+  <text x="250" y="37" class="dim">│ f:filter  l:level  p:pause  c:clear  r:refresh</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Log entries -->
+  <text x="12" y="68" class="dim">12:45:03.210</text>
+  <text x="140" y="68" class="green">INFO </text>
+  <text x="185" y="68" class="dim">[runner]</text>
+  <text x="270" y="68" class="white">Task batch-7 completed: 156,234 instrs, 45ms, ret=42</text>
+
+  <text x="12" y="86" class="dim">12:45:03.005</text>
+  <text x="140" y="86" class="green">INFO </text>
+  <text x="185" y="86" class="dim">[runner]</text>
+  <text x="270" y="86" class="white">Scheduling batch 4: 4 tasks (depth 3→2)</text>
+
+  <text x="12" y="104" class="dim">12:44:58.442</text>
+  <text x="140" y="104" class="green">INFO </text>
+  <text x="185" y="104" class="dim">[task:f7a3]</text>
+  <text x="270" y="104" class="white">Task batch-process: Done (156,234 instrs)</text>
+
+  <text x="12" y="122" class="dim">12:44:50.118</text>
+  <text x="140" y="122" class="yellow">WARN </text>
+  <text x="185" y="122" class="dim">[controller]</text>
+  <text x="270" y="122" class="yellow">OOM warning: slot 14 at 94% (14.2/15.0 MB), activating slipway</text>
+
+  <text x="12" y="140" class="dim">12:44:50.100</text>
+  <text x="140" y="140" class="red">ERROR</text>
+  <text x="185" y="140" class="dim">[task:d5f6]</text>
+  <text x="270" y="140" class="red">Task send-report: Error — timeout after 30s</text>
+
+  <text x="12" y="158" class="dim">12:44:48.330</text>
+  <text x="140" y="158" class="dim">DEBUG</text>
+  <text x="185" y="158" class="dim">[batch]</text>
+  <text x="270" y="158" class="dim">Controller decision: n_batch=4, α_mem=0.375 → INCREASE</text>
+
+  <text x="12" y="176" class="dim">12:44:32.100</text>
+  <text x="140" y="176" class="green">INFO </text>
+  <text x="185" y="176" class="dim">[runner]</text>
+  <text x="270" y="176" class="white">Task batch-3 completed: 89,012 instrs, 23ms</text>
+
+  <text x="12" y="194" class="dim">12:44:30.000</text>
+  <text x="140" y="194" class="green">INFO </text>
+  <text x="185" y="194" class="dim">[runner]</text>
+  <text x="270" y="194" class="white">Client connected: 192.168.1.50:54321 (debugger)</text>
+
+  <text x="12" y="212" class="dim">12:44:29.800</text>
+  <text x="140" y="212" class="green">INFO </text>
+  <text x="185" y="212" class="dim">[runner]</text>
+  <text x="270" y="212" class="white">Runner started on 0.0.0.0:9000 (4 executors, 128MB)</text>
+
+  <rect x="5" y="230" width="760" height="1" class="bg-border"/>
+
+  <!-- Filter bar -->
+  <rect x="5" y="240" width="760" height="22" fill="#1a1a1a" rx="2"/>
+  <text x="15" y="256" class="dim bold">Filter:</text>
+  <text x="70" y="256" class="white">task:</text>
+  <text x="115" y="256" class="dim">f7a3</text>
+  <text x="155" y="256" class="dim">│ Level:</text>
+  <text x="215" y="256" class="white">ALL</text>
+  <text x="265" y="256" class="dim">[ERROR] [WARN] [INFO] [DEBUG]</text>
+  <text x="500" y="256" class="dim">│ Source:</text>
+  <text x="565" y="256" class="white">ALL</text>
+  <text x="615" y="256" class="dim">[runner] [task] [controller] [batch]</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Log Actions</text>
+
+  <text x="795" y="90" class="dim">f /</text><text x="830" y="90" class="white">set filter (task_id, keyword)</text>
+  <text x="795" y="110" class="dim">l</text><text x="815" y="110" class="white">cycle log level filter</text>
+  <text x="795" y="130" class="dim">p</text><text x="815" y="130" class="white">pause / resume live feed</text>
+  <text x="795" y="150" class="dim">c</text><text x="815" y="150" class="white">clear log buffer</text>
+  <text x="795" y="170" class="dim">r</text><text x="815" y="170" class="white">refresh from runner</text>
+  <text x="795" y="195" class="dim">↑↓ scroll  |  PgUp/PgDn page</text>
+  <text x="795" y="215" class="dim">Home/End jump to top/bottom</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">f task:f7a3</text>
+  <text x="130" y="611" class="dim">filter by task  |  l cycle level  |  p pause  |  exit:Dashboard</text>
+
+</svg>

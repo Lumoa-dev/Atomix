@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; } .yellow { fill: #d4b83b; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; } .cyan { fill: #4ec9b0; }
+      .orange { fill: #ce9178; } .blue { fill: #569cd6; } .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-card { fill: #252526; rx: 4; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner @ 192.168.1.100:9000</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="cyan bold">Dashboard</text>
+  <text x="200" y="37" class="dim">│ :tasks  :controller  :slots  :submit</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Status Card -->
+  <rect x="10" y="54" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="24" y="74" class="dim">Runner Status</text>
+  <text x="24" y="98" class="green bold">● RUNNING</text>
+  <text x="24" y="120" class="dim">uptime 2h 15m  |  v0.1.0</text>
+
+  <!-- Tasks Card -->
+  <rect x="265" y="54" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="279" y="74" class="dim">Tasks</text>
+  <text x="279" y="98" class="white bold">12 total</text>
+  <text x="279" y="120" class="green">8 done</text>
+  <text x="350" y="120" class="blue">4 running</text>
+
+  <!-- Memory Card -->
+  <rect x="520" y="54" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="534" y="74" class="dim">Memory</text>
+  <text x="534" y="98" class="white bold">48 / 128 MB</text>
+  <text x="534" y="120" class="dim">██░░░░░░░░ 37.5%</text>
+
+  <!-- CPU Card -->
+  <rect x="10" y="144" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="24" y="164" class="dim">CPU</text>
+  <text x="24" y="188" class="white bold">12.4%</text>
+  <text x="24" y="210" class="dim">4 executors active</text>
+
+  <!-- Instructions Card -->
+  <rect x="265" y="144" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="279" y="164" class="dim">Instructions</text>
+  <text x="279" y="188" class="white bold">1,234,567</text>
+  <text x="279" y="210" class="dim">total executed</text>
+
+  <!-- Slots Card -->
+  <rect x="520" y="144" width="240" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="534" y="164" class="dim">Memory Slots</text>
+  <text x="534" y="188" class="white bold">24 / 32 used</text>
+  <text x="534" y="210" class="dim">4 slipway  |  4 dead</text>
+
+  <rect x="10" y="240" width="750" height="1" class="bg-border"/>
+
+  <!-- Task pool overview -->
+  <text x="24" y="268" class="bold white">Task Pool</text>
+  <text x="24" y="292" class="dim">Pending:</text><text x="100" y="292" class="white">0</text>
+  <text x="24" y="312" class="dim">Ready:</text><text x="85" y="312" class="white">2</text>
+  <text x="24" y="332" class="blue">Running:</text><text x="100" y="332" class="blue">4</text>
+  <text x="24" y="352" class="dim">Suspended:</text><text x="120" y="352" class="white">0</text>
+  <text x="24" y="372" class="green">Done:</text><text x="80" y="372" class="green">8</text>
+  <text x="24" y="392" class="red">Error:</text><text x="80" y="392" class="red">0</text>
+
+  <!-- Controller summary -->
+  <rect x="300" y="260" width="460" height="130" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+  <text x="314" y="282" class="bold white">Controller</text>
+  <text x="314" y="306" class="dim">Batch:</text><text x="370" y="306" class="white">4 / hard 12 / soft 8</text>
+  <text x="314" y="326" class="dim">Backlog:</text><text x="385" y="326" class="white">34</text>
+  <text x="460" y="326" class="yellow">HIGH</text>
+  <text x="314" y="346" class="dim">OOM:</text><text x="355" y="346" class="white">3 total</text>
+  <text x="460" y="346" class="red">INCREASE</text>
+  <text x="314" y="366" class="dim">Factors:</text><text x="380" y="366" class="white">β=0.82 λ=0.65 σ=0.71 γ=0.23 → 0.58</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Recent Events</text>
+
+  <text x="795" y="88" class="dim">12:45:03</text>
+  <text x="870" y="88" class="white">task batch-7 → Done</text>
+  <text x="795" y="108" class="dim">12:44:58</text>
+  <text x="870" y="108" class="white">task batch-6 → Done</text>
+  <text x="795" y="128" class="dim">12:44:50</text>
+  <text x="870" y="128" class="red">OOM warning (slot 14)</text>
+  <text x="795" y="148" class="dim">12:44:32</text>
+  <text x="870" y="148" class="white">task batch-3 → Done</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">r</text>
+  <text x="55" y="611" class="dim">refresh  |  :tasks  :controller  :slots  :submit  |  exit:connections</text>
+
+</svg>

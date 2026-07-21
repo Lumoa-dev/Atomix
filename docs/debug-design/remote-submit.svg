@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .blue { fill: #569cd6; }
+      .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; }
+      .bg-cmd { fill: #1a1a1a; } .bg-border { fill: #3e3e42; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Submit Task</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Submit form -->
+  <text x="24" y="74" class="bold white">Submit Task to prod-runner</text>
+
+  <text x="24" y="104" class="dim">Source File:</text>
+  <text x="120" y="104" class="white">./tasks/batch.atx</text>
+  <text x="350" y="104" class="dim">(164 lines, 4.2 KB)</text>
+
+  <text x="24" y="130" class="dim">Task Name:</text>
+  <text x="115" y="130" class="white">batch-process</text>
+
+  <text x="24" y="156" class="dim">Mode:</text>
+  <text x="75" y="156" class="white">Source (.atx compile on runner)</text>
+  <text x="380" y="156" class="dim">[Binary]</text>
+
+  <text x="24" y="182" class="dim">Opt Level:</text>
+  <text x="110" y="182" class="white">0 (dev, debug info on)</text>
+  <text x="380" y="182" class="dim">[1] [2] [s]</text>
+
+  <text x="24" y="208" class="dim">Output:</text>
+  <text x="85" y="208" class="white">POLL</text>
+  <text x="160" y="208" class="dim">[CALLBACK] [STREAM]</text>
+
+  <text x="24" y="234" class="dim">Timeout:</text>
+  <text x="95" y="234" class="white">0 (no timeout)</text>
+
+  <rect x="15" y="258" width="740" height="1" class="bg-border"/>
+
+  <!-- Submit button area -->
+  <rect x="24" y="278" width="200" height="30" fill="#264f78" rx="4"/>
+  <text x="65" y="298" class="white bold">▶ Submit (Enter)</text>
+
+  <rect x="15" y="325" width="740" height="1" class="bg-border"/>
+
+  <!-- Recent submissions -->
+  <text x="24" y="352" class="bold white">Recent Submissions</text>
+
+  <text x="24" y="378" class="dim">12:45:00</text>
+  <text x="130" y="378" class="white">batch-7 → Accepted (id: d5f6)</text>
+  <text x="460" y="378" class="dim">compile: 12ms</text>
+
+  <text x="24" y="400" class="dim">12:30:15</text>
+  <text x="130" y="400" class="white">validate-orders → Accepted (id: b2c1)</text>
+  <text x="460" y="400" class="dim">compile: 8ms</text>
+
+  <text x="24" y="422" class="dim">12:15:00</text>
+  <text x="130" y="422" class="red">fmt-error → Compile Error</text>
+  <text x="460" y="422" class="red">line 23: unexpected token</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Submit Detail</text>
+
+  <rect x="780" y="76" width="310" height="100" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="white bold">batch.atx</text>
+  <text x="795" y="116" class="dim">Zones:</text><text x="845" y="116" class="white">TOOLS INPUT WORKS TASK OUT</text>
+  <text x="795" y="134" class="dim">Functions:</text><text x="880" y="134" class="white">4</text>
+  <text x="795" y="152" class="dim">WORKS:</text><text x="860" y="152" class="white">1 (DataPipeline)</text>
+  <text x="795" y="170" class="dim">Steps:</text><text x="845" y="170" class="white">4 CALL statements</text>
+
+  <rect x="780" y="188" width="310" height="1" class="bg-border"/>
+  <text x="795" y="210" class="dim">Enter: submit</text>
+  <text x="795" y="230" class="dim">Tab: switch fields</text>
+  <text x="795" y="250" class="dim">After submit: monitor via :tasks</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">Enter</text>
+  <text x="80" y="611" class="dim">submit  |  Tab switch field  |  exit:Dashboard</text>
+
+</svg>

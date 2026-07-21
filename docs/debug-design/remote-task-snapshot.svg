@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .orange { fill: #ce9178; }
+      .blue { fill: #569cd6; } .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; }
+      .bg-cmd { fill: #1a1a1a; } .bg-border { fill: #3e3e42; }
+      .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Task Snapshot: batch-process (f7a3)</text>
+  <text x="450" y="37" class="green">Done</text>
+  <text x="520" y="37" class="dim">│ :regs  :mem  :stack  :is</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Tab bar -->
+  <rect x="0" y="44" width="770" height="20" class="bg-header"/>
+  <text x="12" y="58" class="white bold">Registers</text>
+  <text x="100" y="58" class="dim">Memory</text>
+  <text x="170" y="58" class="dim">Call Stack</text>
+  <text x="260" y="58" class="dim">IS*</text>
+
+  <!-- Registers -->
+  <text x="15" y="84" class="dim">R0 zero</text><text x="130" y="84" class="dim">0x0000000000000000</text><text x="350" y="84" class="dim">0</text>
+  <text x="15" y="104" class="white">R1 sp</text><text x="130" y="104" class="white">0x00007F0000001000</text><text x="350" y="104" class="dim">→ stack ptr</text>
+  <text x="15" y="124" class="white">R2 fp</text><text x="130" y="124" class="white">0x00007F0000000FF0</text><text x="350" y="124" class="dim">→ frame ptr</text>
+  <text x="15" y="144" class="white">R3 ra</text><text x="130" y="144" class="white">0x0000000000000034</text><text x="350" y="144" class="dim">return addr</text>
+  <text x="15" y="164" class="green">R4 a0</text><text x="130" y="164" class="green">0x000000000000002A (42)</text><text x="350" y="164" class="green">→ "userCount: int"</text>
+  <text x="15" y="184" class="dim">R5 a1  —  R7 a3</text><text x="130" y="184" class="dim">0x0000000000000000</text>
+  <text x="15" y="204" class="dim">R8 t0  —  R13 t5</text><text x="130" y="204" class="dim">0x0000000000000000</text>
+  <text x="15" y="224" class="dim">R14 task_id</text><text x="130" y="224" class="dim">0xA1B2C3D4E5F60001</text><text x="350" y="224" class="dim">(read-only)</text>
+  <text x="15" y="244" class="dim">R15 tmp</text><text x="130" y="244" class="dim">0x0000000000000000</text>
+
+  <rect x="10" y="265" width="750" height="1" class="bg-border"/>
+
+  <!-- Memory -->
+  <text x="24" y="290" class="bold white">Memory @ 0x1000 (snapshot at task completion)</text>
+  <text x="24" y="312" class="dim">0x00001000: 13 01 00 00  93 01 10 00  23 20 41 00  83 20 00 00</text>
+  <text x="24" y="332" class="dim">0x00001010: 67 80 00 00  00 00 00 00  00 00 00 00  00 00 00 00</text>
+  <text x="24" y="352" class="dim">0x00001020: 48 65 6C 6C  6F 00 00 00  64 61 74 61  2E 63 73 76</text>
+
+  <rect x="10" y="370" width="750" height="1" class="bg-border"/>
+
+  <!-- Stats -->
+  <text x="24" y="395" class="bold white">Task Stats</text>
+  <text x="24" y="418" class="dim">Instructions:</text><text x="135" y="418" class="white">156,234</text>
+  <text x="300" y="418" class="dim">ECALLs:</text><text x="365" y="418" class="white">42</text>
+  <text x="24" y="438" class="dim">Wall Time:</text><text x="115" y="438" class="white">45ms</text>
+  <text x="300" y="438" class="dim">CPU Time:</text><text x="380" y="438" class="white">12.5ms</text>
+  <text x="24" y="458" class="dim">Peak Mem:</text><text x="115" y="458" class="white">4.2 MB</text>
+  <text x="300" y="458" class="dim">IO Read:</text><text x="370" y="458" class="white">1.2 MB</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Snapshot Info</text>
+
+  <rect x="780" y="76" width="310" height="80" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="green bold">batch-process (Done)</text>
+  <text x="795" y="116" class="dim">Snapshot taken at:</text><text x="930" y="116" class="white">45ms</text>
+  <text x="795" y="134" class="dim">Return value:</text><text x="900" y="134" class="white">42</text>
+  <text x="795" y="152" class="dim">Note: snapshot is read-only</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">exit</text>
+  <text x="75" y="611" class="dim">back to task list  |  Tab switch regs/mem/stack  |  :is</text>
+
+</svg>

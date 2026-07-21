@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .orange { fill: #ce9178; }
+      .blue { fill: #569cd6; } .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; }
+      .bg-cmd { fill: #1a1a1a; } .bg-border { fill: #3e3e42; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Task Pool</text>
+  <text x="200" y="37" class="dim">│ 34 backlog  |  12 active  |  r:refresh</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Pool stats -->
+  <rect x="10" y="54" width="180" height="50" class="bg-card" stroke="#3e3e42" rx="4"/>
+  <text x="24" y="74" class="dim">Pending</text><text x="130" y="74" class="white bold">0</text>
+  <rect x="210" y="54" width="180" height="50" class="bg-card" stroke="#3e3e42" rx="4"/>
+  <text x="224" y="74" class="dim">Ready</text><text x="330" y="74" class="white bold">2</text>
+  <rect x="410" y="54" width="180" height="50" class="bg-card" stroke="#3e3e42" rx="4"/>
+  <text x="424" y="74" class="blue">Running</text><text x="540" y="74" class="blue bold">4</text>
+  <rect x="610" y="54" width="150" height="50" class="bg-card" stroke="#3e3e42" rx="4"/>
+  <text x="624" y="74" class="red">Error</text><text x="700" y="74" class="red bold">1</text>
+
+  <rect x="10" y="115" width="750" height="1" class="bg-border"/>
+
+  <!-- DAG visualization -->
+  <text x="24" y="140" class="bold white">Dependency DAG</text>
+
+  <!-- Depth 3 -->
+  <text x="24" y="170" class="dim">Depth 3</text>
+  <rect x="24" y="175" width="100" height="24" fill="#252526" stroke="#ce9178" stroke-width="1" rx="4"/>
+  <text x="30" y="192" class="white">fetch-users</text>
+  <text x="125" y="192" class="green">Done</text>
+
+  <rect x="24" y="204" width="100" height="24" fill="#252526" stroke="#ce9178" stroke-width="1" rx="4"/>
+  <text x="30" y="221" class="white">fetch-orders</text>
+  <text x="130" y="221" class="green">Done</text>
+
+  <rect x="24" y="233" width="100" height="24" fill="#252526" stroke="#ce9178" stroke-width="1" rx="4"/>
+  <text x="30" y="250" class="white">validate</text>
+  <text x="125" y="250" class="green">Done</text>
+
+  <!-- Depth 2 -->
+  <text x="210" y="170" class="dim">Depth 2</text>
+  <rect x="210" y="190" width="110" height="24" fill="#252526" stroke="#ce9178" stroke-width="1" rx="4"/>
+  <text x="216" y="207" class="white">aggregate</text>
+  <text x="315" y="207" class="blue">Running</text>
+
+  <rect x="210" y="230" width="110" height="24" fill="#252526" stroke="#ce9178" stroke-width="1" rx="4"/>
+  <text x="216" y="247" class="white">format</text>
+  <text x="310" y="247" class="dim">Ready</text>
+
+  <!-- Depth 1 -->
+  <text x="420" y="170" class="dim">Depth 1</text>
+  <rect x="420" y="200" width="110" height="24" fill="#252526" stroke="#ce9178" stroke-width="1.5" rx="4"/>
+  <text x="426" y="217" class="white">process</text>
+  <text x="515" y="217" class="dim">Pending</text>
+
+  <!-- Depth 0 -->
+  <text x="620" y="170" class="dim">Depth 0</text>
+  <rect x="620" y="200" width="100" height="24" fill="#252526" stroke="#569cd6" stroke-width="2" rx="4"/>
+  <text x="628" y="217" class="white bold">ROOT</text>
+  <text x="690" y="217" class="dim">Pending</text>
+
+  <!-- Edges -->
+  <line x1="124" y1="187" x2="208" y2="197" stroke="#3e3e42" stroke-width="1"/>
+  <line x1="124" y1="216" x2="208" y2="210" stroke="#3e3e42" stroke-width="1"/>
+  <line x1="124" y1="245" x2="208" y2="237" stroke="#3e3e42" stroke-width="1"/>
+  <line x1="320" y1="202" x2="418" y2="210" stroke="#3e3e42" stroke-width="1"/>
+  <line x1="320" y1="242" x2="418" y2="216" stroke="#3e3e42" stroke-width="1"/>
+  <line x1="530" y1="212" x2="618" y2="212" stroke="#3e3e42" stroke-width="1"/>
+
+  <rect x="10" y="280" width="750" height="1" class="bg-border"/>
+
+  <!-- All tasks list -->
+  <text x="24" y="308" class="bold white">All Tasks</text>
+  <text x="24" y="332" class="dim">fetch-users (id: a1)</text><text x="200" y="332" class="green">Done</text><text x="300" y="332" class="dim">depth 3  |  12,345 instrs</text>
+  <text x="24" y="352" class="dim">fetch-orders (id: a2)</text><text x="210" y="352" class="green">Done</text><text x="300" y="352" class="dim">depth 3  |  8,901 instrs</text>
+  <text x="24" y="372" class="dim">validate (id: b1)</text><text x="190" y="372" class="green">Done</text><text x="300" y="372" class="dim">depth 3  |  45,678 instrs</text>
+  <text x="24" y="392" class="white">aggregate (id: c1)</text><text x="195" y="392" class="blue">Running</text><text x="300" y="392" class="dim">depth 2  |  234,567 instrs  |  ← a1,a2</text>
+  <text x="24" y="412" class="dim">format (id: c2)</text><text x="185" y="412" class="dim">Ready</text><text x="300" y="412" class="dim">depth 2  |  0 instrs  |  ← b1</text>
+  <text x="24" y="432" class="dim">process (id: d1)</text><text x="190" y="432" class="dim">Pending</text><text x="300" y="432" class="dim">depth 1  |  ← c1,c2</text>
+  <text x="24" y="452" class="dim">ROOT (id: root)</text><text x="165" y="452" class="dim">Pending</text><text x="300" y="452" class="dim">depth 0  |  ← d1</text>
+
+  <rect x="10" y="470" width="750" height="40" class="bg-card" stroke="#3e3e42" rx="4"/>
+  <text x="24" y="492" class="dim">Schedule: Batch 1 (depth 3): a1,a2,b1 → Batch 2: c1,c2 → Batch 3: d1 → Batch 4: root</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Pool Stats</text>
+
+  <text x="795" y="90" class="dim">Total tasks:</text><text x="890" y="90" class="white">12</text>
+  <text x="795" y="110" class="dim">Depth levels:</text><text x="900" y="110" class="white">4</text>
+  <text x="795" y="130" class="dim">Max depth:</text><text x="885" y="130" class="white">3 (3 tasks)</text>
+  <text x="795" y="150" class="dim">Batches needed:</text><text x="915" y="150" class="white">4</text>
+  <text x="795" y="170" class="dim">Critical path:</text><text x="900" y="170" class="white">a1→c1→d1→root</text>
+  <text x="795" y="195" class="dim">Enter: inspect task</text>
+  <text x="795" y="215" class="dim">r:refresh pool</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">r</text>
+  <text x="55" y="611" class="dim">refresh  |  ↑↓ select task  |  Enter inspect  |  exit:Dashboard</text>
+
+</svg>

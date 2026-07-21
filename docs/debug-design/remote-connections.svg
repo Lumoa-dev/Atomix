@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .orange { fill: #ce9178; }
+      .blue { fill: #569cd6; } .purple { fill: #c586c0; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — remote</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="cyan bold">Connections</text>
+  <text x="200" y="37" class="dim">│ c:connect  d:disconnect  r:refresh</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Connection 1 (active) -->
+  <rect x="10" y="55" width="750" height="60" fill="#264f78" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="78" class="green bold">● prod-runner</text>
+  <text x="150" y="78" class="white">192.168.1.100:9000</text>
+  <text x="340" y="78" class="green">connected</text>
+  <text x="450" y="78" class="dim">v0.1.0  |  uptime 2h 15m  |  12 tasks</text>
+
+  <!-- Connection 2 (available) -->
+  <rect x="10" y="125" width="750" height="60" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="148" class="dim">○ staging</text>
+  <text x="110" y="148" class="dim">10.0.0.5:9000</text>
+  <text x="250" y="148" class="dim">idle</text>
+  <text x="450" y="148" class="dim">last seen: 2026-07-21 18:30</text>
+
+  <!-- Connection 3 (error) -->
+  <rect x="10" y="195" width="750" height="60" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="218" class="red">✗ dev-runner</text>
+  <text x="140" y="218" class="dim">172.16.0.50:9000</text>
+  <text x="310" y="218" class="red">connection refused</text>
+  <text x="450" y="218" class="dim">last attempt: 30s ago</text>
+
+  <rect x="10" y="270" width="750" height="1" class="bg-border"/>
+
+  <!-- Add new connection form -->
+  <text x="24" y="298" class="bold white">Add Connection</text>
+  <text x="24" y="322" class="dim">Alias:</text>
+  <text x="80" y="322" class="white">prod-runner</text>
+  <text x="24" y="344" class="dim">Address:</text>
+  <text x="95" y="344" class="white">192.168.1.100</text>
+  <text x="24" y="366" class="dim">Port:</text>
+  <text x="70" y="366" class="white">9000</text>
+  <text x="24" y="388" class="dim">Token:</text>
+  <text x="80" y="388" class="dim">••••••••</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Connection Detail</text>
+
+  <rect x="780" y="76" width="310" height="120" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="green bold">● prod-runner</text>
+  <text x="795" y="116" class="dim">Address:</text><text x="860" y="116" class="white">192.168.1.100:9000</text>
+  <text x="795" y="134" class="dim">Version:</text><text x="860" y="134" class="white">0.1.0</text>
+  <text x="795" y="152" class="dim">Uptime:</text><text x="855" y="152" class="white">2h 15m</text>
+  <text x="795" y="170" class="dim">Tasks:</text><text x="845" y="170" class="white">8 done / 4 running / 12 total</text>
+  <text x="795" y="188" class="dim">Memory:</text><text x="860" y="188" class="white">48MB / 128MB</text>
+
+  <rect x="780" y="208" width="310" height="1" class="bg-border"/>
+  <text x="795" y="230" class="dim">c:connect  d:disconnect  r:refresh  ↑↓ select</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">connect prod-runner</text>
+
+</svg>

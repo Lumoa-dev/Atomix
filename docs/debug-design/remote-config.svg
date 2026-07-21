@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; }
+      .bg-cmd { fill: #1a1a1a; } .bg-border { fill: #3e3e42; }
+      .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner</text>
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Dashboard</text>
+  <text x="85" y="37" class="dim">▸</text>
+  <text x="100" y="37" class="cyan bold">Runner Config</text>
+  <text x="250" y="37" class="dim">│ s:save  |  (read-only fields dimmed)</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Execution -->
+  <text x="24" y="72" class="bold white">Execution</text>
+  <text x="24" y="96" class="dim">max_concurrent:</text>
+  <text x="160" y="96" class="white bold">4</text>
+  <text x="200" y="96" class="dim">(当前批次大小上限)</text>
+  <text x="24" y="118" class="dim">quantum:</text>
+  <text x="105" y="118" class="white bold">1000</text>
+  <text x="160" y="118" class="dim">(时间片指令数)</text>
+
+  <rect x="10" y="140" width="750" height="1" class="bg-border"/>
+
+  <!-- Tracing -->
+  <text x="24" y="168" class="bold white">Tracing</text>
+  <text x="24" y="192" class="dim">trace_level:</text>
+  <text x="125" y="192" class="white bold">SPARSE</text>
+  <text x="220" y="192" class="dim">[OFF] [FUNCTION] [SPARSE] [BRANCH] [FULL]</text>
+  <text x="24" y="214" class="dim">trace_sparse_n:</text>
+  <text x="150" y="214" class="white bold">100</text>
+  <text x="200" y="214" class="dim">(每 N 条记录一条)</text>
+
+  <rect x="10" y="236" width="750" height="1" class="bg-border"/>
+
+  <!-- Network -->
+  <text x="24" y="264" class="bold white">Network</text>
+  <text x="24" y="288" class="dim">listen_addr:</text>
+  <text x="120" y="288" class="dim">0.0.0.0:9000 (read-only)</text>
+  <text x="24" y="310" class="dim">heartbeat_ms:</text>
+  <text x="140" y="310" class="dim">30000 (read-only)</text>
+
+  <rect x="10" y="332" width="750" height="1" class="bg-border"/>
+
+  <!-- Security -->
+  <text x="24" y="360" class="bold white">Security</text>
+  <text x="24" y="384" class="dim">deny_commands:</text>
+  <text x="150" y="384" class="white bold">[eval, inject, replay]</text>
+  <text x="380" y="384" class="dim">(回车编辑列表)</text>
+
+  <rect x="10" y="406" width="750" height="1" class="bg-border"/>
+
+  <!-- Directories -->
+  <text x="24" y="434" class="bold white">Directories</text>
+  <text x="24" y="458" class="dim">task_dir:</text>
+  <text x="100" y="458" class="dim">/var/atomix/tasks (read-only)</text>
+  <text x="24" y="480" class="dim">state_dir:</text>
+  <text x="105" y="480" class="dim">/var/atomix/state (read-only)</text>
+
+  <rect x="10" y="505" width="750" height="1" class="bg-border"/>
+
+  <!-- Memory / Misc -->
+  <text x="24" y="532" class="bold white">Memory</text>
+  <text x="24" y="556" class="dim">stream_buf_mb:</text>
+  <text x="145" y="556" class="dim">16 (read-only)</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Config Actions</text>
+
+  <text x="795" y="90" class="dim">Writable fields:</text>
+  <text x="795" y="110" class="white">max_concurrent</text>
+  <text x="795" y="128" class="white">quantum</text>
+  <text x="795" y="146" class="white">trace_level / trace_sparse_n</text>
+  <text x="795" y="164" class="white">deny_commands</text>
+  <text x="795" y="190" class="dim">s:save — apply changes</text>
+  <text x="795" y="210" class="dim">Enter — edit selected field</text>
+  <text x="795" y="230" class="dim">Changes take effect immediately</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">s</text>
+  <text x="55" y="611" class="dim">save  |  ↑↓ select  |  Enter edit  |  exit:Dashboard</text>
+
+</svg>
