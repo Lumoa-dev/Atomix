@@ -1,0 +1,274 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; } .yellow { fill: #d4b83b; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; } .cyan { fill: #4ec9b0; }
+      .orange { fill: #ce9178; } .blue { fill: #569cd6; } .purple { fill: #c586c0; }
+      .bold { font-weight: bold; }
+      .bg { fill: #1e1e1e; } .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-card { fill: #252526; rx: 4; }
+      .chart-line { fill: none; stroke: #569cd6; stroke-width: 2; }
+      .chart-line-green { fill: none; stroke: #4ec94e; stroke-width: 2; }
+      .chart-line-red { fill: none; stroke: #e05555; stroke-width: 2; }
+      .chart-line-yellow { fill: none; stroke: #d4b83b; stroke-width: 2; }
+      .chart-fill { fill: #569cd6; opacity: 0.15; }
+      .chart-fill-green { fill: #4ec94e; opacity: 0.15; }
+      .chart-grid { stroke: #333333; stroke-width: 1; }
+      .chart-bar-dim { fill: #3e3e42; }
+      .chart-bar-blue { fill: #569cd6; }
+      .chart-bar-orange { fill: #ce9178; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="620" class="bg"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — prod-runner @ 192.168.1.100:9000</text>
+
+  <!-- Breadcrumb -->
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="dim">Dashboard ▸</text>
+  <text x="100" y="37" class="cyan bold">:perf</text>
+
+  <rect x="0" y="44" width="1100" height="1" class="bg-border"/>
+
+  <!-- LEFT PANEL (760px) -->
+
+  <!-- CPU / Memory time series -->
+  <text x="15" y="72" class="bold white">CPU &amp; Memory Usage</text>
+  <rect x="10" y="80" width="745" height="140" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+
+  <!-- Chart area -->
+  <rect x="50" y="88" width="680" height="80" fill="#1e1e1e" rx="2"/>
+  <rect x="50" y="88" width="680" height="1" class="chart-grid"/>
+  <rect x="50" y="108" width="680" height="1" class="chart-grid"/>
+  <rect x="50" y="128" width="680" height="1" class="chart-grid"/>
+  <rect x="50" y="148" width="680" height="1" class="chart-grid"/>
+  <rect x="50" y="168" width="680" height="1" class="chart-grid"/>
+
+  <!-- Y-axis labels -->
+  <text x="5" y="92" class="dim">100%</text>
+  <text x="5" y="112" class="dim">75%</text>
+  <text x="5" y="132" class="dim">50%</text>
+  <text x="5" y="152" class="dim">25%</text>
+  <text x="5" y="172" class="dim">0%</text>
+
+  <!-- CPU line (blue) - simulated sine-ish wave -->
+  <polyline points="50,140 80,130 110,142 140,120 170,116 200,124 230,110 260,118 290,114 320,106 350,112 380,100 410,104 440,96 470,108 500,98 530,92 560,100 590,88 620,94 650,86 680,90 710,96 730,102" class="chart-line"/>
+  <polygon points="730,168 50,168 50,140 80,130 110,142 140,120 170,116 200,124 230,110 260,118 290,114 320,106 350,112 380,100 410,104 440,96 470,108 500,98 530,92 560,100 590,88 620,94 650,86 680,90 710,96 730,102" class="chart-fill"/>
+
+  <!-- Memory line (green) - trend going up -->
+  <polyline points="50,156 80,150 110,148 140,144 170,140 200,136 230,130 260,128 290,124 320,120 350,118 380,112 410,110 440,106 470,102 500,100 530,98 560,94 590,92 620,88 650,86 680,84 710,82 730,80" class="chart-line-green"/>
+  <polygon points="730,168 50,168 50,156 80,150 110,148 140,144 170,140 200,136 230,130 260,128 290,124 320,120 350,118 380,112 410,110 440,106 470,102 500,100 530,98 560,94 590,92 620,88 650,86 680,84 710,82 730,80" class="chart-fill-green"/>
+
+  <!-- X-axis time labels -->
+  <text x="50" y="188" class="dim">12:30</text>
+  <text x="140" y="188" class="dim">12:35</text>
+  <text x="230" y="188" class="dim">12:40</text>
+  <text x="320" y="188" class="dim">12:45</text>
+  <text x="410" y="188" class="dim">12:50</text>
+  <text x="500" y="188" class="dim">12:55</text>
+  <text x="590" y="188" class="dim">13:00</text>
+  <text x="680" y="188" class="dim">13:05</text>
+
+  <!-- Legend -->
+  <rect x="50" y="200" width="10" height="10" fill="#569cd6" rx="1"/>
+  <text x="64" y="209" class="blue">CPU (avg 18.2%)</text>
+  <rect x="180" y="200" width="10" height="10" fill="#4ec94e" rx="1"/>
+  <text x="194" y="209" class="green">Memory (avg 42 MB)</text>
+
+  <!-- Divider -->
+  <rect x="0" y="226" width="760" height="1" class="bg-border"/>
+
+  <!-- Throughput & Queue Depth -->
+  <text x="15" y="250" class="bold white">Task Throughput &amp; Queue Depth</text>
+  <rect x="10" y="258" width="745" height="120" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+
+  <!-- Throughput bars (bottom half) -->
+  <text x="50" y="282" class="dim">Throughput (tasks/sec)</text>
+  <rect x="50" y="288" width="24" height="40" class="chart-bar-dim"/>
+  <rect x="78" y="296" width="24" height="32" class="chart-bar-dim"/>
+  <rect x="106" y="290" width="24" height="38" class="chart-bar-dim"/>
+  <rect x="134" y="284" width="24" height="44" class="chart-bar-dim"/>
+  <rect x="162" y="292" width="24" height="36" class="chart-bar-dim"/>
+  <rect x="190" y="280" width="24" height="48" class="chart-bar-blue"/>
+  <rect x="218" y="276" width="24" height="52" class="chart-bar-blue"/>
+  <rect x="246" y="282" width="24" height="46" class="chart-bar-blue"/>
+  <rect x="274" y="278" width="24" height="50" class="chart-bar-blue"/>
+  <rect x="302" y="286" width="24" height="42" class="chart-bar-blue"/>
+  <rect x="330" y="290" width="24" height="38" class="chart-bar-dim"/>
+  <rect x="358" y="288" width="24" height="40" class="chart-bar-dim"/>
+  <rect x="386" y="284" width="24" height="44" class="chart-bar-dim"/>
+  <rect x="414" y="292" width="24" height="36" class="chart-bar-dim"/>
+  <rect x="442" y="282" width="24" height="46" class="chart-bar-blue"/>
+  <rect x="470" y="278" width="24" height="50" class="chart-bar-blue"/>
+  <rect x="498" y="280" width="24" height="48" class="chart-bar-blue"/>
+  <rect x="526" y="284" width="24" height="44" class="chart-bar-dim"/>
+  <rect x="554" y="296" width="24" height="32" class="chart-bar-dim"/>
+  <rect x="582" y="288" width="24" height="40" class="chart-bar-dim"/>
+
+  <!-- Queue depth line (orange) -->
+  <polyline points="50,340 78,332 106,338 134,330 162,340 190,320 218,310 246,325 274,315 302,328 330,335 358,340 386,332 414,338 442,322 470,318 498,324 526,338 554,342 582,336" class="chart-line-yellow"/>
+
+  <!-- Y-axis right label -->
+  <text x="620" y="282" class="dim">Queue:</text>
+  <text x="660" y="282" class="yellow bold">4</text>
+  <text x="680" y="282" class="dim">pending</text>
+
+  <text x="620" y="302" class="dim">Throughput:</text>
+  <text x="700" y="302" class="white bold">8.2</text>
+  <text x="720" y="302" class="dim">/s</text>
+
+  <!-- Divider -->
+  <rect x="0" y="384" width="760" height="1" class="bg-border"/>
+
+  <!-- Controller parameters history -->
+  <text x="15" y="410" class="bold white">Controller Adaptation History</text>
+  <rect x="10" y="418" width="745" height="100" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+
+  <text x="20" y="440" class="dim">Parameter</text>
+  <text x="120" y="440" class="dim">t=0</text>
+  <text x="200" y="440" class="dim">t+5m</text>
+  <text x="280" y="440" class="dim">t+10m</text>
+  <text x="360" y="440" class="dim">t+15m</text>
+  <text x="440" y="440" class="dim">t+20m</text>
+  <text x="520" y="440" class="dim">t+25m</text>
+  <text x="600" y="440" class="green">→ now</text>
+
+  <rect x="10" y="444" width="745" height="1" class="bg-border"/>
+
+  <!-- β (batch factor) -->
+  <text x="20" y="462" class="dim">β</text>
+  <text x="120" y="462" class="white">0.50</text>
+  <text x="200" y="462" class="white">0.60</text>
+  <text x="280" y="462" class="white">0.75</text>
+  <text x="360" y="462" class="white">0.82</text>
+  <text x="440" y="462" class="white">0.85</text>
+  <text x="520" y="462" class="white">0.82</text>
+  <text x="600" y="462" class="green bold">0.80</text>
+  <text x="660" y="462" class="dim">batch size control</text>
+
+  <!-- λ (lambda pressure) -->
+  <text x="20" y="482" class="dim">λ</text>
+  <text x="120" y="482" class="white">0.30</text>
+  <text x="200" y="482" class="white">0.45</text>
+  <text x="280" y="482" class="white">0.55</text>
+  <text x="360" y="482" class="white">0.65</text>
+  <text x="440" y="482" class="white">0.70</text>
+  <text x="520" y="482" class="white">0.68</text>
+  <text x="600" y="482" class="green bold">0.65</text>
+  <text x="660" y="482" class="dim">backlog pressure</text>
+
+  <!-- σ (sigma urgency) -->
+  <text x="20" y="502" class="dim">σ</text>
+  <text x="120" y="502" class="white">0.40</text>
+  <text x="200" y="502" class="white">0.40</text>
+  <text x="280" y="502" class="white">0.55</text>
+  <text x="360" y="502" class="white">0.71</text>
+  <text x="440" y="502" class="white">0.75</text>
+  <text x="520" y="502" class="white">0.73</text>
+  <text x="600" y="502" class="green bold">0.71</text>
+  <text x="660" y="502" class="dim">OOM urgency</text>
+
+  <!-- γ (gamma regression) -->
+  <text x="20" y="522" class="dim">γ</text>
+  <text x="120" y="522" class="white">0.10</text>
+  <text x="200" y="522" class="white">0.15</text>
+  <text x="280" y="522" class="white">0.20</text>
+  <text x="360" y="522" class="white">0.23</text>
+  <text x="440" y="522" class="white">0.35</text>
+  <text x="520" y="522" class="white">0.50</text>
+  <text x="600" y="522" class="green bold">0.58</text>
+  <text x="660" y="522" class="dim">regression slope</text>
+
+  <!-- Vertical divider -->
+  <rect x="760" y="44" width="2" height="549" class="bg-border"/>
+
+  <!-- RIGHT PANEL -->
+  <rect x="762" y="46" width="338" height="24" class="bg-header"/>
+  <text x="772" y="63" class="bold white">Current Stats</text>
+
+  <rect x="762" y="70" width="338" height="1" class="bg-border"/>
+
+  <!-- Runner stats cards -->
+  <rect x="762" y="74" width="338" height="80" class="bg-card" stroke="#3e3e42" stroke-width="1"/>
+
+  <text x="772" y="96" class="dim">CPU</text>
+  <text x="880" y="96" class="white bold">12.4%</text>
+  <rect x="940" y="88" width="150" height="10" class="bg-dim"/>
+  <rect x="940" y="88" width="37" height="10" fill="#569cd6" rx="2"/>
+
+  <text x="772" y="116" class="dim">Memory</text>
+  <text x="880" y="116" class="white bold">48 / 128 MB</text>
+  <rect x="940" y="108" width="150" height="10" class="bg-dim"/>
+  <rect x="940" y="108" width="90" height="10" fill="#4ec94e" rx="2"/>
+
+  <text x="772" y="136" class="dim">Slots</text>
+  <text x="880" y="136" class="white bold">24 / 32 used</text>
+  <rect x="940" y="128" width="150" height="10" class="bg-dim"/>
+  <rect x="940" y="128" width="112" height="10" fill="#ce9178" rx="2"/>
+
+  <rect x="762" y="158" width="338" height="1" class="bg-border"/>
+
+  <!-- Summary metrics -->
+  <text x="772" y="182" class="bold white">Metrics Summary</text>
+
+  <text x="772" y="206" class="dim">Total tasks</text>
+  <text x="940" y="206" class="white">128</text>
+
+  <text x="772" y="226" class="green">Completed</text>
+  <text x="940" y="226" class="white">118</text>
+
+  <text x="772" y="246" class="red">Failed</text>
+  <text x="940" y="246" class="white">3</text>
+
+  <text x="772" y="266" class="dim">Running</text>
+  <text x="940" y="266" class="white">4</text>
+
+  <text x="772" y="286" class="dim">Pending</text>
+  <text x="940" y="286" class="white">3</text>
+
+  <rect x="762" y="302" width="338" height="1" class="bg-border"/>
+
+  <!-- Execution stats -->
+  <text x="772" y="326" class="bold white">Execution</text>
+
+  <text x="772" y="348" class="dim">Total instructions</text>
+  <text x="940" y="348" class="white">1,234,567</text>
+
+  <text x="772" y="368" class="dim">Avg per task</text>
+  <text x="940" y="368" class="white">9,645</text>
+
+  <text x="772" y="388" class="dim">Avg duration</text>
+  <text x="940" y="388" class="white">2.4 ms</text>
+
+  <text x="772" y="408" class="dim">OOM events</text>
+  <text x="940" y="408" class="white">3</text>
+
+  <rect x="762" y="424" width="338" height="1" class="bg-border"/>
+
+  <!-- Slot usage trend -->
+  <text x="772" y="448" class="bold white">Slot Usage Trend</text>
+
+  <text x="772" y="470" class="dim">Peak usage</text>
+  <text x="940" y="470" class="white">30 / 32</text>
+
+  <text x="772" y="490" class="dim">Fragmentation (peak)</text>
+  <text x="940" y="490" class="white">14.2%</text>
+
+  <text x="772" y="510" class="dim">Compaction runs</text>
+  <text x="940" y="510" class="white">4</text>
+
+  <text x="772" y="530" class="dim">Avg recovery/run</text>
+  <text x="940" y="530" class="white">2.5 slots</text>
+
+  <!-- Command bar -->
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">:perf</text>
+  <text x="80" y="611" class="dim">│  r: refresh  |  ← →: time range  |  :dashboard  :tasks  :controller</text>
+</svg>
