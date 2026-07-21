@@ -8,6 +8,7 @@
 *.rs text diff
 # 文档
 *.md text diff
+*.svg text diff
 *.toml text diff
 *.json text diff
 *.yaml text diff
@@ -15,6 +16,5 @@
 *.csv text diff
 # 图片（LFS）
 *.png filter=lfs diff=lfs merge=lfs -text
-*.svg filter=lfs diff=lfs merge=lfs -text
 *.ico filter=lfs diff=lfs merge=lfs -text
 *.exe filter=lfs diff=lfs merge=lfs -text

@@ -128,24 +128,28 @@ pub struct FuncParam {
 pub enum Stmt {
     /// 变量声明：x : Type = expr
     Let {
+        line: usize,
         name: String,
         type_ann: TypeNode,
         init: Expr,
     },
     /// 常量声明：CONST x : Type = expr
     Const {
+        line: usize,
         name: String,
         type_ann: TypeNode,
         init: Expr,
     },
     /// GOOUT 产出声明：GOOUT x : Type = expr
     Goout {
+        line: usize,
         name: String,
         type_ann: TypeNode,
         init: Expr,
     },
     /// CALL 语句（含 TRY 处理）
     Call {
+        line: usize,
         input: Option<Box<Expr>>,
         func_name: String,
         args: Vec<Expr>,
@@ -156,6 +160,7 @@ pub enum Stmt {
     },
     /// WAIT 语句
     Wait {
+        line: usize,
         input: Option<Box<Expr>>,
         template: String,
         overrides: Vec<(String, Expr)>,
@@ -165,27 +170,49 @@ pub enum Stmt {
     },
     /// IF 条件分支
     If {
+        line: usize,
         cond: Expr,
         body: Vec<Stmt>,
         elifs: Vec<(Expr, Vec<Stmt>)>,
         else_body: Option<Vec<Stmt>>,
     },
     /// FOR 循环
-    For { cond: Expr, body: Vec<Stmt> },
+    For {
+        line: usize,
+        cond: Expr,
+        body: Vec<Stmt>,
+    },
     /// BREAK [cond]
-    Break { cond: Option<Expr> },
+    Break {
+        line: usize,
+        cond: Option<Expr>,
+    },
     /// CONTINUE [cond]
-    Continue { cond: Option<Expr> },
+    Continue {
+        line: usize,
+        cond: Option<Expr>,
+    },
     /// ASSERT expr [, msg]
-    Assert { cond: Expr, msg: Option<String> },
+    Assert {
+        line: usize,
+        cond: Expr,
+        msg: Option<String>,
+    },
     /// RAISE expr [, msg]
-    Raise { expr: Expr, msg: Option<String> },
+    Raise {
+        line: usize,
+        expr: Expr,
+        msg: Option<String>,
+    },
     /// return [expr]
-    Return { value: Option<Expr> },
+    Return {
+        line: usize,
+        value: Option<Expr>,
+    },
     /// 语句块 { stmt* }
-    Block(Vec<Stmt>),
+    Block { line: usize, stmts: Vec<Stmt> },
     /// 函数定义（TOOLS/WORKS 中出现在语句位置）
-    FnDef(FuncDef),
+    FnDef { line: usize, def: FuncDef },
 }
 
 /// TRY 异常处理器。

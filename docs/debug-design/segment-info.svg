@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — demo.atx</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Home</text>
+  <text x="48" y="37" class="dim">▸</text>
+  <text x="60" y="37" class="cyan bold">Segment Info (.atxe structure)</text>
+  <text x="300" y="37" class="dim">│ demo.atxe  ·  1,424 bytes</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- File layout diagram -->
+  <text x="15" y="70" class="bold white">.atxe File Layout</text>
+
+  <!-- Header -->
+  <rect x="15" y="82" width="740" height="20" fill="#252526" stroke="#3e3e42" rx="2"/>
+  <text x="22" y="96" class="white bold">Header</text>
+  <text x="85" y="96" class="dim">20 bytes  |  magic="ATXE"  |  version=0x0001  |  entry=0x002C  |  flags=0x00</text>
+
+  <!-- Section table -->
+  <rect x="15" y="108" width="740" height="20" fill="#252526" stroke="#3e3e42" rx="2"/>
+  <text x="22" y="122" class="white bold">Section Table</text>
+  <text x="130" y="122" class="dim">72 bytes  |  6 entries × 12 bytes</text>
+
+  <!-- .text -->
+  <rect x="15" y="134" width="740" height="20" fill="#252526" stroke="#569cd6" rx="2"/>
+  <text x="22" y="148" class="blue bold">.text</text>
+  <text x="75" y="148" class="dim">48 bytes (12 instrs)  |  0x0000-0x002F  |  type=0x0001  |  flags=READ+EXEC</text>
+
+  <!-- .rodata -->
+  <rect x="15" y="160" width="740" height="20" fill="#252526" stroke="#3e3e42" rx="2"/>
+  <text x="22" y="174" class="white bold">.rodata</text>
+  <text x="95" y="174" class="dim">1024 bytes  |  0x0030-0x042F  |  type=0x0002  |  flags=READ</text>
+
+  <!-- .task -->
+  <rect x="15" y="186" width="740" height="20" fill="#252526" stroke="#ce9178" rx="2"/>
+  <text x="22" y="200" class="orange bold">.task</text>
+  <text x="80" y="200" class="dim">64 bytes  |  0x0430-0x046F  |  type=0x0003  |  flags=READ</text>
+
+  <!-- .debug -->
+  <rect x="15" y="212" width="740" height="20" fill="#252526" stroke="#c586c0" rx="2"/>
+  <text x="22" y="226" class="purple bold">.debug</text>
+  <text x="90" y="226" class="dim">256 bytes  |  0x0470-0x056F  |  type=0x0004  |  format=ADBG v1  |  8 entries</text>
+
+  <!-- .exn -->
+  <rect x="15" y="238" width="740" height="20" fill="#252526" stroke="#e05555" rx="2"/>
+  <text x="22" y="252" class="red bold">.exn</text>
+  <text x="70" y="252" class="dim">0 bytes  |  —  |  type=0x0005  |  (no exception handlers)</text>
+
+  <!-- .zones -->
+  <rect x="15" y="264" width="740" height="20" fill="#252526" stroke="#4ec9b0" rx="2"/>
+  <text x="22" y="278" class="cyan bold">.zones</text>
+  <text x="85" y="278" class="dim">32 bytes  |  0x0570-0x058F  |  type=0x0006  |  5 zones defined</text>
+
+  <rect x="15" y="295" width="740" height="1" class="bg-border"/>
+
+  <!-- Debug segment detail -->
+  <text x="24" y="320" class="bold white">.debug Segment (ADBG v1)</text>
+  <rect x="15" y="330" width="740" height="120" fill="#1a1a1a" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="28" y="352" class="dim">Magic:</text><text x="80" y="352" class="white">ADBG</text>
+  <text x="28" y="372" class="dim">Version:</text><text x="95" y="372" class="white">1</text>
+  <text x="28" y="392" class="dim">Entries:</text><text x="90" y="392" class="white">8</text>
+  <text x="28" y="412" class="dim">Entry 0:</text><text x="95" y="412" class="white">pc=0x0000 line=36 kind=LINE</text>
+  <text x="28" y="432" class="dim">Entry 4:</text><text x="95" y="432" class="white">pc=0x002C line=43 kind=LINE  ← current</text>
+
+  <!-- Exn segment -->
+  <rect x="15" y="460" width="740" height="50" fill="#1a1a1a" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="28" y="482" class="bold white">.exn Segment</text>
+  <text x="28" y="502" class="dim">No exception handlers defined in this binary.</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Segment Detail</text>
+
+  <rect x="780" y="76" width="310" height="100" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="blue bold">.text segment</text>
+  <text x="820" y="106" width="260" height="1" fill="#3e3e42"/>
+  <text x="795" y="122" class="dim">Type:</text><text x="840" y="122" class="white">0x0001 (TEXT)</text>
+  <text x="795" y="140" class="dim">Size:</text><text x="835" y="140" class="white">48 bytes</text>
+  <text x="795" y="158" class="dim">Instructions:</text><text x="890" y="158" class="white">12</text>
+  <text x="795" y="176" class="dim">Flags:</text><text x="840" y="176" class="white">READ | EXEC</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">exit</text>
+  <text x="75" y="611" class="dim">back to home  ·  ↑↓ select segment  ·  Enter inspect  ·  :binary  ·  :disasm</text>
+
+</svg>

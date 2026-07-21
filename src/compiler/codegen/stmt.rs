@@ -17,7 +17,7 @@ pub fn compile_stmts(
 ) {
     // 收集所有函数定义的标签
     for stmt in stmts {
-        if let Stmt::FnDef(f) = stmt {
+        if let Stmt::FnDef { def: f, .. } = stmt {
             emit.emit_label(&f.name);
         }
     }
@@ -34,6 +34,25 @@ pub fn compile_stmt(
     stmt: &Stmt,
     exn_entries: &mut Vec<ExnEntry>,
 ) {
+    // 记录语句行号（供 .debug 段和运行时错误报告使用）
+    let line = match stmt {
+        Stmt::Let { line, .. }
+        | Stmt::Const { line, .. }
+        | Stmt::Goout { line, .. }
+        | Stmt::Call { line, .. }
+        | Stmt::Wait { line, .. }
+        | Stmt::If { line, .. }
+        | Stmt::For { line, .. }
+        | Stmt::Break { line, .. }
+        | Stmt::Continue { line, .. }
+        | Stmt::Assert { line, .. }
+        | Stmt::Raise { line, .. }
+        | Stmt::Return { line, .. }
+        | Stmt::Block { line, .. }
+        | Stmt::FnDef { line, .. } => *line,
+    };
+    emit.set_source_line(line as u32);
+
     match stmt {
         Stmt::Let { init, .. } | Stmt::Const { init, .. } | Stmt::Goout { init, .. } => {
             compile_expr(emit, pool, init);
@@ -177,6 +196,7 @@ pub fn compile_stmt(
             body,
             elifs,
             else_body,
+            ..
         } => {
             let endif_label = format!(".L_end_if_{}", emit.instr_count());
 
@@ -214,7 +234,7 @@ pub fn compile_stmt(
             emit.resolve_all();
         }
 
-        Stmt::For { cond, body } => {
+        Stmt::For { cond, body, .. } => {
             let loop_label = format!(".L_loop_{}", emit.instr_count());
             let exit_label = format!(".L_exit_{}", emit.instr_count());
 
@@ -227,7 +247,7 @@ pub fn compile_stmt(
             emit.resolve_all();
         }
 
-        Stmt::Break { cond } => {
+        Stmt::Break { cond, .. } => {
             // BREAK cond → 如果 cond 成立则跳转到循环出口
             let exit_label = format!(".L_exit_{}", emit.instr_count());
             if let Some(c) = cond {
@@ -238,7 +258,7 @@ pub fn compile_stmt(
             emit.resolve_all();
         }
 
-        Stmt::Continue { cond } => {
+        Stmt::Continue { cond, .. } => {
             let loop_label = format!(".L_loop_{}", emit.instr_count());
             if let Some(c) = cond {
                 let vreg = compile_expr(emit, pool, c);
@@ -265,7 +285,7 @@ pub fn compile_stmt(
             emit.emit_r1i(opcode::THROW, reg::A0 as u8, 0);
         }
 
-        Stmt::Return { value } => {
+        Stmt::Return { value, .. } => {
             if let Some(v) = value {
                 let vreg = compile_expr(emit, pool, v);
                 emit.emit_mov(reg::A0 as u8, vreg_to_preg(vreg));
@@ -273,11 +293,11 @@ pub fn compile_stmt(
             emit.emit_r1i(opcode::JMPR, reg::RA as u8, 0);
         }
 
-        Stmt::Block(stmts) => {
+        Stmt::Block { stmts, .. } => {
             compile_stmts(emit, pool, stmts, exn_entries);
         }
 
-        Stmt::FnDef(_) => {
+        Stmt::FnDef { .. } => {
             // 函数定义已在标签收集阶段处理
         }
     }
@@ -314,6 +334,7 @@ mod tests {
     #[test]
     fn let_int() {
         let stmt = Stmt::Let {
+            line: 0,
             name: "x".into(),
             type_ann: TypeNode::Base("int".into()),
             init: Expr::Int(42),
@@ -326,14 +347,17 @@ mod tests {
     #[test]
     fn if_else_pattern() {
         let stmt = Stmt::If {
+            line: 0,
             cond: Expr::Bool(true),
             body: vec![Stmt::Let {
+                line: 0,
                 name: "x".into(),
                 type_ann: TypeNode::Base("int".into()),
                 init: Expr::Int(1),
             }],
             elifs: Vec::new(),
             else_body: Some(vec![Stmt::Let {
+                line: 0,
                 name: "x".into(),
                 type_ann: TypeNode::Base("int".into()),
                 init: Expr::Int(2),
@@ -347,6 +371,7 @@ mod tests {
     #[test]
     fn for_loop_emits_instructions() {
         let stmt = Stmt::For {
+            line: 0,
             cond: Expr::Bool(true),
             body: vec![],
         };
@@ -357,6 +382,7 @@ mod tests {
     #[test]
     fn return_int() {
         let stmt = Stmt::Return {
+            line: 0,
             value: Some(Expr::Int(42)),
         };
         let (text, _) = compile_one(stmt);
@@ -368,6 +394,7 @@ mod tests {
     #[test]
     fn call_function() {
         let stmt = Stmt::Call {
+            line: 0,
             input: None,
             func_name: "foo".into(),
             args: vec![Expr::Int(1), Expr::Int(2)],
@@ -384,6 +411,7 @@ mod tests {
     #[test]
     fn assert_ok_path() {
         let stmt = Stmt::Assert {
+            line: 0,
             cond: Expr::Bool(true),
             msg: None,
         };
@@ -395,6 +423,7 @@ mod tests {
     #[test]
     fn raise_exception() {
         let stmt = Stmt::Raise {
+            line: 0,
             expr: Expr::Int(1),
             msg: None,
         };
@@ -408,11 +437,13 @@ mod tests {
     fn multiple_let_statement() {
         let stmts = vec![
             Stmt::Let {
+                line: 0,
                 name: "a".into(),
                 type_ann: TypeNode::Base("int".into()),
                 init: Expr::Int(1),
             },
             Stmt::Let {
+                line: 0,
                 name: "b".into(),
                 type_ann: TypeNode::Base("int".into()),
                 init: Expr::Int(2),

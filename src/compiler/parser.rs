@@ -879,6 +879,7 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Option<Stmt> {
+        let line = self.peek()?.span.start.line;
         let kind = self.peek_kind()?.clone();
         match kind {
             // 以关键词开始的语句
@@ -893,9 +894,9 @@ impl Parser {
             TokenKind::Assert => Some(self.parse_assert()),
             TokenKind::Raise => Some(self.parse_raise()),
             TokenKind::Return => Some(self.parse_return()),
-            TokenKind::LBrace => Some(Stmt::Block(self.parse_delimited_block())),
+            TokenKind::LBrace => Some(Stmt::Block { line, stmts: self.parse_delimited_block() }),
             // 函数定义（TOOLS/WORKS 内）
-            TokenKind::Fn | TokenKind::Pub => self.parse_func_def().map(Stmt::FnDef),
+            TokenKind::Fn | TokenKind::Pub => self.parse_func_def().map(|def| Stmt::FnDef { line, def }),
             // 以标识符开始的语句——可能是变量声明或表达式
             TokenKind::Ident(_) => {
                 self.try_parse_ident_stmt()
@@ -910,6 +911,7 @@ impl Parser {
                             self.advance();
                             let init = self.parse_expr();
                             return Some(Stmt::Let {
+                                line,
                                 name: name.clone(),
                                 type_ann: TypeNode::Base("any".into()),
                                 init,
@@ -930,6 +932,7 @@ impl Parser {
     /// 尝试解析以标识符开始的语句（变量声明或表达式）。
     /// 使用窥探法在两个 token 之前判断是声明还是表达式。
     fn try_parse_ident_stmt(&mut self) -> Option<Stmt> {
+        let line = self.peek()?.span.start.line;
         // 先窥探第二个 token 来区分声明与表达式
         // 仅当 Ident 后紧跟 `:` 或 `=` 时才作为变量声明
         let is_decl = match self.pos + 1 < self.tokens.len() {
@@ -962,6 +965,7 @@ impl Parser {
                     None
                 };
                 Some(Stmt::Let {
+                    line,
                     name: ident,
                     type_ann,
                     init: init.unwrap_or(Expr::Int(0)),
@@ -972,6 +976,7 @@ impl Parser {
                 self.advance();
                 let init = self.parse_expr();
                 Some(Stmt::Let {
+                    line,
                     name: ident,
                     type_ann: TypeNode::Base("any".into()),
                     init,
@@ -984,6 +989,7 @@ impl Parser {
     // ── 具体语句解析 ──────────────────────────────
 
     fn parse_const(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // CONST
         let name = self.parse_ident().unwrap_or_default();
         self.expect(&TokenKind::Colon);
@@ -993,6 +999,7 @@ impl Parser {
         self.expect(&TokenKind::Eq);
         let init = self.parse_expr();
         Stmt::Const {
+            line,
             name,
             type_ann,
             init,
@@ -1000,6 +1007,7 @@ impl Parser {
     }
 
     fn parse_goout(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // GOOUT
         let name = self.parse_ident().unwrap_or_default();
         self.expect(&TokenKind::Colon);
@@ -1009,6 +1017,7 @@ impl Parser {
         self.expect(&TokenKind::Eq);
         let init = self.parse_expr();
         Stmt::Goout {
+            line,
             name,
             type_ann,
             init,
@@ -1016,6 +1025,7 @@ impl Parser {
     }
 
     fn parse_call_wait_stmt(&mut self, is_call: bool) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // CALL 或 WAIT
 
         // 检查 CALL 的输入语法: CALL raw = func()
@@ -1095,6 +1105,7 @@ impl Parser {
 
         if is_call {
             Stmt::Call {
+                line,
                 input,
                 func_name: name,
                 args,
@@ -1104,6 +1115,7 @@ impl Parser {
             }
         } else {
             Stmt::Wait {
+                line,
                 input,
                 template: name,
                 overrides,
@@ -1199,6 +1211,7 @@ impl Parser {
     }
 
     fn parse_if_stmt(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // IF
         let cond = self.parse_expr();
         let body = self.parse_delimited_block();
@@ -1224,6 +1237,7 @@ impl Parser {
         }
 
         Stmt::If {
+            line,
             cond,
             body,
             elifs,
@@ -1232,16 +1246,18 @@ impl Parser {
     }
 
     fn parse_for_stmt(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // FOR
         let cond = self.parse_expr();
         let was_in_loop = self.in_loop;
         self.in_loop = true;
         let body = self.parse_delimited_block();
         self.in_loop = was_in_loop;
-        Stmt::For { cond, body }
+        Stmt::For { line, cond, body }
     }
 
     fn parse_break_continue(&mut self, is_break: bool) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // BREAK / CONTINUE
         if !self.in_loop {
             self.errors.push(ParseError::new(
@@ -1259,13 +1275,14 @@ impl Parser {
             None
         };
         if is_break {
-            Stmt::Break { cond }
+            Stmt::Break { line, cond }
         } else {
-            Stmt::Continue { cond }
+            Stmt::Continue { line, cond }
         }
     }
 
     fn parse_assert(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // ASSERT
         let cond = self.parse_expr();
         let msg = if self.peek_kind() == Some(&TokenKind::Comma) {
@@ -1281,10 +1298,11 @@ impl Parser {
         } else {
             None
         };
-        Stmt::Assert { cond, msg }
+        Stmt::Assert { line, cond, msg }
     }
 
     fn parse_raise(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // RAISE
         let expr = self.parse_expr();
         let msg = if self.peek_kind() == Some(&TokenKind::Comma) {
@@ -1300,17 +1318,18 @@ impl Parser {
         } else {
             None
         };
-        Stmt::Raise { expr, msg }
+        Stmt::Raise { line, expr, msg }
     }
 
     fn parse_return(&mut self) -> Stmt {
+        let line = self.peek().unwrap().span.start.line;
         self.advance(); // return
         let value = if self.peek_kind().is_some_and(Self::is_expr_start) {
             Some(self.parse_expr())
         } else {
             None
         };
-        Stmt::Return { value }
+        Stmt::Return { line, value }
     }
 
     // ── 函数定义 ──────────────────────────────────

@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="11">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-selected { fill: #264f78; }
+      .orange { fill: #ce9178; } .cyan { fill: #4ec9b0; }
+      .blue { fill: #569cd6; } .purple { fill: #c586c0; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — demo.atx</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Home</text>
+  <text x="48" y="37" class="dim">▸</text>
+  <text x="60" y="37" class="cyan bold">IS* Context (full)</text>
+  <text x="250" y="37" class="dim">│ 16 active / 72 total  │  tab: group</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Group: 异常 -->
+  <rect x="5" y="48" width="250" height="160" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="15" y="68" class="red bold">异常</text>
+  <text x="15" y="88" class="dim">ISERROR</text><text x="140" y="88" class="green">false</text>
+  <text x="15" y="106" class="dim">ISERRORTYPE</text><text x="140" y="106" class="dim">—</text>
+  <text x="15" y="124" class="dim">ISERRORMESSAGE</text><text x="140" y="124" class="dim">—</text>
+  <text x="15" y="142" class="dim">ISERRORSTACK</text><text x="140" y="142" class="dim">—</text>
+  <text x="15" y="160" class="dim">ISERRORLINE</text><text x="140" y="160" class="dim">—</text>
+  <text x="15" y="178" class="dim">ISERRORCODE</text><text x="140" y="178" class="dim">—</text>
+  <text x="15" y="196" class="dim">ISCHILDERROR</text><text x="140" y="196" class="dim">—</text>
+
+  <!-- Group: 计数 -->
+  <rect x="265" y="48" width="240" height="160" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="275" y="68" class="blue bold">计数</text>
+  <text x="275" y="88" class="dim">ISCALLCOUNT</text><text x="395" y="88" class="white">4</text>
+  <text x="275" y="106" class="dim">ISRETRYCOUNT</text><text x="395" y="106" class="dim">0</text>
+  <text x="275" y="124" class="dim">ISDEPTH</text><text x="395" y="124" class="white">1</text>
+  <text x="275" y="142" class="dim">ISCHILDCOUNT</text><text x="395" y="142" class="dim">0</text>
+  <text x="275" y="160" class="dim">ISSTEPINDEX</text><text x="395" y="160" class="white">2</text>
+  <text x="275" y="178" class="dim">ISTOTALSTEPS</text><text x="395" y="178" class="white">4</text>
+  <text x="275" y="196" class="dim">ISITERATION</text><text x="395" y="196" class="dim">—</text>
+
+  <!-- Group: 调用 -->
+  <rect x="515" y="48" width="250" height="160" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="525" y="68" class="purple bold">调用上下文</text>
+  <text x="525" y="88" class="dim">ISMETHOD</text><text x="640" y="88" class="orange">validate</text>
+  <text x="525" y="106" class="dim">ISSTEPNAME</text><text x="640" y="106" class="orange">validate</text>
+  <text x="525" y="124" class="dim">ISWORKNAME</text><text x="640" y="124" class="white">DataChecker</text>
+  <text x="525" y="142" class="dim">ISCALLER</text><text x="640" y="142" class="dim">STEP: demo</text>
+  <text x="525" y="160" class="dim">ISARGS</text><text x="640" y="160" class="dim">["RAW"]</text>
+  <text x="525" y="178" class="dim">ISRETURN</text><text x="640" y="178" class="dim">{ok,count:42}</text>
+
+  <!-- Group: 系统 -->
+  <rect x="5" y="218" width="250" height="140" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="15" y="238" class="cyan bold">系统/环境</text>
+  <text x="15" y="258" class="dim">ISMODE</text><text x="140" y="258" class="cyan">dev</text>
+  <text x="15" y="276" class="dim">ISDEBUG</text><text x="140" y="276" class="green">true</text>
+  <text x="15" y="294" class="dim">ISFILE</text><text x="140" y="294" class="dim">demo.atx</text>
+  <text x="15" y="312" class="dim">ISLINE</text><text x="140" y="312" class="white">43</text>
+  <text x="15" y="330" class="dim">ISVERSION</text><text x="140" y="330" class="dim">0.1.0</text>
+  <text x="15" y="348" class="dim">ISENV</text><text x="140" y="348" class="dim">local</text>
+
+  <!-- Group: 时间/任务 -->
+  <rect x="265" y="218" width="240" height="140" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="275" y="238" class="orange bold">时间 &amp; 任务</text>
+  <text x="275" y="258" class="dim">ISELAPSED</text><text x="395" y="258" class="white">5ms</text>
+  <text x="275" y="276" class="dim">ISSTARTTIME</text><text x="395" y="276" class="dim">1700000000ns</text>
+  <text x="275" y="294" class="dim">ISTASKID</text><text x="395" y="294" class="white">f7a3b2c1</text>
+  <text x="275" y="312" class="dim">ISSTATUS</text><text x="395" y="312" class="green">running</text>
+  <text x="275" y="330" class="dim">ISPHASE</text><text x="395" y="330" class="dim">execute</text>
+  <text x="275" y="348" class="dim">ISQUOTA</text><text x="395" y="348" class="dim">1000</text>
+
+  <!-- Group: 数据 -->
+  <rect x="515" y="218" width="250" height="90" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="525" y="238" class="dim bold">数据</text>
+  <text x="525" y="258" class="dim">ISDATASIZE</text><text x="640" y="258" class="white">1024B</text>
+  <text x="525" y="276" class="dim">ISDATATYPE</text><text x="640" y="276" class="dim">bytes</text>
+  <text x="525" y="294" class="dim">ISWARNING</text><text x="640" y="294" class="dim">0</text>
+
+  <!-- Summary -->
+  <rect x="10" y="380" width="750" height="55" fill="#1a1a1a" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="402" class="bold white">Summary</text>
+  <text x="24" y="422" class="dim">16 active IS* values  |  72 total defined  |  Grouped: 异常/计数/调用/系统/时间/任务/数据</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">IS* Detail (↑↓ select)</text>
+
+  <rect x="780" y="76" width="310" height="80" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="purple bold">ISSTEPNAME</text>
+  <rect x="790" y="104" width="290" height="1" fill="#3e3e42"/>
+  <text x="795" y="122" class="dim">Value:</text>
+  <text x="840" y="122" class="orange">validate</text>
+  <text x="795" y="140" class="dim">Type:</text>
+  <text x="835" y="140" class="white">str</text>
+  <text x="795" y="158" class="dim">Group:</text>
+  <text x="850" y="158" class="dim">调用上下文</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">is ISSTEPNAME</text>
+  <text x="155" y="611" class="dim">│ exit │ ↑↓ select │ Tab next group │ / search</text>
+
+</svg>

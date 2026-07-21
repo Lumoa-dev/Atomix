@@ -311,7 +311,7 @@ impl SemanticAnalyzer {
         self.current_zone = Some(ZoneKind::Tools);
         // 第一遍：注册函数签名（全局可见，Level 0）
         for stmt in &zone.body {
-            if let Stmt::FnDef(func) = stmt {
+            if let Stmt::FnDef { def: func, .. } = stmt {
                 let mut sym =
                     Symbol::new(func.name.clone(), SymbolKind::Function).with_public(func.is_pub);
                 if let Some(ret) = &func.ret_type {
@@ -328,7 +328,7 @@ impl SemanticAnalyzer {
 
         // 第二遍：检查函数体（每个函数有自己的作用域）
         for stmt in &zone.body {
-            if let Stmt::FnDef(func) = stmt {
+            if let Stmt::FnDef { def: func, .. } = stmt {
                 self.check_function_body(func);
             }
         }
@@ -458,6 +458,7 @@ impl SemanticAnalyzer {
                     name,
                     type_ann,
                     init,
+                    ..
                 } => {
                     let t = resolve_type(type_ann);
                     // 验证初始值类型匹配标注
@@ -667,10 +668,10 @@ impl SemanticAnalyzer {
                 Stmt::For { body, .. } => {
                     self.collect_call_targets(body, targets);
                 }
-                Stmt::Block(stmts) => {
+                Stmt::Block { stmts, .. } => {
                     self.collect_call_targets(stmts, targets);
                 }
-                Stmt::FnDef(f) => {
+                Stmt::FnDef { def: f, .. } => {
                     self.collect_call_targets(&f.body, targets);
                 }
                 _ => {}
@@ -864,23 +865,23 @@ impl SemanticAnalyzer {
                     self.rename_generic_calls_in_expr(cond);
                     self.rename_generic_calls_in_body(b);
                 }
-                Stmt::Block(b) => {
+                Stmt::Block { stmts: b, .. } => {
                     self.rename_generic_calls_in_body(b);
                 }
-                Stmt::FnDef(f) => {
+                Stmt::FnDef { def: f, .. } => {
                     self.rename_generic_calls_in_body(&mut f.body);
                 }
-                Stmt::Return { value: Some(v) } => {
+                Stmt::Return { value: Some(v), .. } => {
                     self.rename_generic_calls_in_expr(v);
                 }
-                Stmt::Return { value: None } => {}
+                Stmt::Return { value: None, .. } => {}
                 Stmt::Assert { cond, .. } | Stmt::Raise { expr: cond, .. } => {
                     self.rename_generic_calls_in_expr(cond);
                 }
-                Stmt::Break { cond: Some(c) } | Stmt::Continue { cond: Some(c) } => {
+                Stmt::Break { cond: Some(c), .. } | Stmt::Continue { cond: Some(c), .. } => {
                     self.rename_generic_calls_in_expr(c);
                 }
-                Stmt::Break { cond: None } | Stmt::Continue { cond: None } => {}
+                Stmt::Break { cond: None, .. } | Stmt::Continue { cond: None, .. } => {}
                 Stmt::Wait { overrides, .. } => {
                     for (_, val) in overrides.iter_mut() {
                         self.rename_generic_calls_in_expr(val);
@@ -1148,6 +1149,7 @@ impl SemanticAnalyzer {
                 name,
                 type_ann,
                 init,
+                ..
             } => {
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
@@ -1165,6 +1167,7 @@ impl SemanticAnalyzer {
                 name,
                 type_ann,
                 init,
+                ..
             } => {
                 let ann_type = resolve_type(type_ann);
                 let val_type = self.infer_expr_type(init);
@@ -1182,6 +1185,7 @@ impl SemanticAnalyzer {
                 name,
                 type_ann,
                 init,
+                ..
             } => {
                 // GOOUT 只能在 TASK 区使用
                 if self.current_zone != Some(ZoneKind::Task) {
@@ -1244,6 +1248,7 @@ impl SemanticAnalyzer {
                 body,
                 elifs,
                 else_body,
+                ..
             } => {
                 let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
@@ -1276,7 +1281,7 @@ impl SemanticAnalyzer {
                 }
             }
 
-            Stmt::For { cond, body } => {
+            Stmt::For { cond, body, .. } => {
                 let cond_type = self.infer_expr_type(cond);
                 if cond_type != Type::Bool && cond_type != Type::Any {
                     self.errors.push(SemanticError::new(format!(
@@ -1289,7 +1294,7 @@ impl SemanticAnalyzer {
                 self.symbols.pop_scope();
             }
 
-            Stmt::Break { cond } | Stmt::Continue { cond } => {
+            Stmt::Break { cond, .. } | Stmt::Continue { cond, .. } => {
                 if let Some(c) = cond {
                     let ct = self.infer_expr_type(c);
                     if ct != Type::Bool && ct != Type::Any {
@@ -1315,19 +1320,19 @@ impl SemanticAnalyzer {
                 let _et = self.infer_expr_type(expr);
             }
 
-            Stmt::Return { value } => {
+            Stmt::Return { value, .. } => {
                 if let Some(v) = value {
                     let _vt = self.infer_expr_type(v);
                 }
             }
 
-            Stmt::Block(stmts) => {
+            Stmt::Block { stmts, .. } => {
                 self.symbols.push_scope();
                 self.check_stmts(stmts);
                 self.symbols.pop_scope();
             }
 
-            Stmt::FnDef(_) => {}
+            Stmt::FnDef { .. } => {}
         }
     }
 }
@@ -1446,10 +1451,10 @@ fn substitute_types_in_stmts(stmts: &mut [Stmt], param_names: &[&str], concrete_
             Stmt::For { body, .. } => {
                 substitute_types_in_stmts(body, param_names, concrete_types);
             }
-            Stmt::Block(b) => {
+            Stmt::Block { stmts: b, .. } => {
                 substitute_types_in_stmts(b, param_names, concrete_types);
             }
-            Stmt::FnDef(f) => {
+            Stmt::FnDef { def: f, .. } => {
                 substitute_types_in_stmts(&mut f.body, param_names, concrete_types);
             }
             _ => {}

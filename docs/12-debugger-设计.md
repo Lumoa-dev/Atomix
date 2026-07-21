@@ -1,654 +1,851 @@
 # Atomix Debugger 设计文档 (atomix-debug)
 
-> 版本: v0.1 (需求框架)
-> 最后更新: 2026-07-16
-> 依赖: ATXP 协议 v0.3 (`docs/通信协议.md`)
-> 配套文档: 外围工具.md, 命令行规范.md
+> 版本: v0.2 (本地调试完整设计)
+> 最后更新: 2026-07-22
+> 范围: **本地调试**（远程调试单独设计）
+> 配套文件: `docs/debug-design/*.svg`（18 个页面线框图）
 
 ---
 
 ## 1. 概述
 
-`atomix-debug.exe` 是 Atomix 工具链的**深度检查后端**，通过 ATXP 协议与 `atomix-runner.exe` 通信，提供从底层二进制到高层源码的全方位调试能力。
+`atomix-debug` 是 Atomix 工具链的**本地调试器**。编译器与 VM 的部分模块直接编译进 debug 二进制，通过 `pub mod` 按需导入复用，无需跨进程通信。
 
-### 1.1 定位
+### 1.1 两种使用方式
 
-```
-atomix CLI
-  └── atomix task <name> ...  ──→  atomix-debug.exe  ──ATXP──→  atomix-runner.exe
-                                  (检查/控制/逆向/可视化)         (执行引擎)
-```
+| 方式 | 入口 | 说明 |
+|------|------|------|
+| **TUI 交互模式** | `atomix task <file>` | 完整调试环境，7 个页面，40+ 命令 |
+| **CLI 快捷命令** | `atomix task <file> --<flag>` | 一键操作，不进 TUI |
 
-- **本地模式**：共享内存（16MB 轨迹流 + 命令/事件环形缓冲），全功能可用
-- **远程模式**：TCP（含 TLS 可选），功能受限于请求-响应模式
+### 1.2 核心原则
 
-### 1.2 核心能力一览
-
-| 能力域 | 功能 | 依赖的 ATXP 端点 |
-|--------|------|-----------------|
-| 三层逆向 | 二进制→指令集→AST→源码 | `segments/{seg}`, `sourcemap`, `symbols` |
-| 执行控制 | 断点/单步/继续/数据监视 | `breakpoints`, `status` |
-| 状态检查 | 寄存器/内存/栈/IS*上下文/类型 | `regs`, `mem`, `stack`, `context`, `types` |
-| 可视化 | 数据流/内存槽/钩子/Zone/依赖图/时间线 | `dataflow`, `slots`, `timeline`, `zones` |
-| 录制回放 | .atxr 录制与回放 | Command + ATXR format |
-| 性能分析 | 控制器状态/任务统计/热点 | `controller`, `stats`, trace streaming |
-| 表达式 | 在当前上下文 eval | `eval` |
+- **默认运行收集**：打开时自动完整执行一遍，收集 Step 状态、变量变化、IS* 时间线、数据流向。后续查看/展开/追踪全在已收集数据上操作，无需再跑 VM。
+- **纯键盘操作**：不支持鼠标。
+- **底层复用**：编译器（解析、语义分析、debug info）+ 执行器（指令执行、寄存器/内存、解码/反汇编）按需导入，不重复造轮子。
 
 ---
 
-## 2. 三层逆向工程视图
-
-这是 atomix-debug 最有特色的能力：从 `.atxe` 编译产物逐层还原为可读的代码表示。
-
-### 2.1 概述
+## 2. TUI 布局
 
 ```
-Layer 1: 二进制视图 (Binary View)
-    ↑ disassemble
-Layer 2: 指令集视图 (ISA View)  
-    ↑ .debug segment + sourcemap
-Layer 3: AST 视图 (AST View)
-    ↑ sourcemap
-Layer 4: 源码视图 (Source View)
+┌──────────────────────────────────────────────────┐
+│  标题栏: atomix debug — <文件名>                   │
+├──────────────────────────────────────────────────┤
+│  面包屑: Home ▸ STEP 2: validate                  │  顶部固定
+├───────────────────────────┬──────────────────────┤
+│                            │  IS* Context          │
+│   左侧主视图 (约 70%)       │  ────────────         │
+│                            │  ISERROR   false      │
+│   页面内容                  │  ISMODE    dev        │
+│   (7 个页面之一)            │  ISSTEPNAME validate  │
+│                            │  ...                  │
+│                            │                       │
+│                            │  Variables / Watch    │
+│                            │  ────────────────     │
+│                            │  RAW: bytes 1024B     │
+│                            │  result: ...          │
+│                            │                       │
+│                            │  动态面板 (用户切换)    │
+│                            │  :regs / :mem / :cpu  │
+├───────────────────────────┴──────────────────────┤
+│  > command                                        │  底部固定
+│  ─────────────────────────────────────────────    │
+│  help 面板（help 命令时弹出在命令栏上方）            │
+└──────────────────────────────────────────────────┘
 ```
 
-每一层使用不同的 ATXP 端点获取数据：
+**布局规则：**
+- 面包屑始终可见，显示当前页面路径
+- 命令栏始终在底部
+- 右侧上区 = IS* 上下文 + 常量（持久）
+- 右侧下区 = 动态面板，`:regs` `:mem` `:cpu` 切换
+- help 面板在命令栏上方弹出，不遮挡主视图
 
-| 视图 | 数据来源 | ATXP 端点 |
-|------|---------|----------|
-| 二进制 | `.text` 段原始字节 | `segments/text` GET |
-| 指令集 | 32位定长指令解码 | `segments/text` GET + 本地反汇编 |
-| AST | AST 节点映射信息 | `segments/debug` GET (`.debug` 段解析) |
-| 源码 | 源文件内容 + pc↔行号映射 | `sourcemap` GET |
+---
 
-### 2.2 二进制视图
+## 3. 页面体系（18 个页面）
 
-**展示内容：** PC 偏移 + Hex dump + ASCII sidebar
+所有页面通过面包屑导航，`exit` 返回上一层，`exit:home` 回到首页。
 
-```
-偏移      Hex                                   ASCII
-0x0000:  13 01 00 00  93 01 10 00  23 20 41 00  .... .... # A.
-0x000C:  83 20 00 00  67 80 00 00               . ... g...
-```
-
-**数据获取流程：**
+### 页面导航模型
 
 ```
-1. Query segments/text GET → SegmentData { raw_data: bytes }
-2. 按 32-bit (4B) 对齐分行显示
-3. 当前 PC 高亮
-4. 断点地址标记
+Home  ← 根页面
+ ├─ Step: validate       ← step:see 进入
+ │    ├─ fn: check_format ← Enter 进入子调用
+ │    │    └─ :df         ← 数据时间轴
+ │    └─ :hooks           ← 钩子时间轴
+ ├─ :src                  ← 源码视图
+ └─ :deps                 ← 任务依赖树
 ```
 
-### 2.3 指令集视图（反汇编）
+页面历史以栈形式维护。`exit` 弹出栈顶，`exit:home` 清空栈，`exit:fn <name>` / `exit:step <name>` 跳到栈内指定页面。
 
-**展示内容：** 每条 32-bit 指令 → 助记符 + 操作数
+---
 
-```
-0x0000:  ADDI   R1, R0, 0        // sp = 0
-0x0004:  ADDI   R1, R1, 16       // sp += 16
-0x0008:  SW     R2, 0(R1)        // [sp+0] = fp
-0x000C:  LW     R2, 0(R1)        // R2 = [sp+0]
-0x0010:  JALR   R0, R3, 0        // ret
-```
+### 3.1 ① Home — Step 执行日志
 
-**数据获取流程：**
+**进入**：默认打开。
+
+**内容**：GitHub Actions 风格的 Step 日志，按段落排列：
 
 ```
-1. Query segments/text GET → raw .text bytes
-2. 本地反汇编引擎:
-   - 查 opcode lookup table (256 entries)
-   - 根据编码模板 (R3/R2I/R1I/JI) 解析操作数
-3. 叠加符号信息:
-   - Query symbols GET → 函数名标注 (入口 PC → func_name)
-   - 跳转目标标注 (JMP/JAL target → label/function name)
-4. 标注:
-   - ← PC (当前执行位置)
-   - ● BP (断点)
-   - ◆ WP (数据监视点)
+TASK: demo                              ✓  15ms
+──────────────────────────────────────────────
+SYSTEM STEPS
+  ▶ [load] Compile & link               ✓  2ms
+  ▶ [init] Init runtime                 ✓  1ms
+──────────────────────────────────────────────
+▶ INPUT: RAW, TIMEOUT                   ✓  3ms
+──────────────────────────────────────────────
+  ▶ STEP 1: fetch_data()                ✓  2ms
+  ▼ STEP 2: validate(RAW)               ✓  5ms   ← 选中
+  ▶ STEP 3: transform(data)             ✗  ERROR
+  ▶ STEP 4: send_report()               —  skipped
+──────────────────────────────────────────────
+▶ OUT: result                           ✓  1ms
 ```
 
-**反汇编查找表：**
+- SYSTEM / INPUT / TASK / OUT 四个段落
+- TASK 段每个 CALL 就是一个 Step
+- 折叠/展开，默认全部折叠
+- ↑↓ 选择 Step，Enter 进入详情
+
+**对应文件**：`docs/debug-design/home-page.svg`
+
+---
+
+### 3.2 ② Step Detail — Step 详情
+
+**进入**：`step:see name:<name>` / `step:see id:<n>` / 在 Home 页按 Enter。
+
+**内容**：
 
 ```
-struct OpcodeEntry {
-    mnemonic:   &str,        // "ADDI", "JAL", ...
-    template:   EncTemplate, // R3 / R2I / R1I / JI
-    category:   OpCategory,  // ARITH / MEM / CTRL / ...
-    desc:       &str,        // 指令说明
+← STEP: validate               ✓  5ms
+────────────────────────────────────────────
+CALL validate(RAW) @ line 43
+────────────────────────────────────────────
+  INPUT: RAW = <bytes: 1024>
+  ─────────────────────────────────────────
+  ▶ check_format(RAW)          ✓  1ms
+      → valid: true
+  ▶ DataChecker.run() [WORKS]  ✓  3ms
+      → INIT → START → DONE
+      → result: {ok: true, count: 42}
+  ▶ normalize(result)          ✓  1ms
+      → output: "processed"
+  ─────────────────────────────────────────
+  OUTPUT: status = "processed"
+```
+
+- 输入参数 → 子调用列表（每行 入→出）→ 输出
+- fn 调用和 WORKS 调用区分显示
+- WORKS 生命周期只做陈述性展示（INIT → START → DONE）
+- Enter 可深入子调用详情
+- 底部源码片段（当前行高亮）
+
+**对应文件**：`docs/debug-design/step-detail.svg`
+
+---
+
+### 3.3 ③ Data Timeline — 数据时间轴
+
+**进入**：`:df` / `:dataflow`。
+
+**内容**：横向时间轴树，展示变量从 INPUT → 各 Step → OUT 的完整生命周期。
+
+```
+INPUT        STEP 1        STEP 2          STEP 3        OUT
+ ● RAW ──── fetch_data() ─ validate() ─── transform() ✗
+                          ├ check_format()
+                          └ DataChecker.run()
+ ● TIMEOUT ────────────── (unchanged) ──────────────── ● TIMEOUT=30
+                            ↓ generate
+                          ● valid: true ─┐
+                            ↓ generate     │ merge
+                          ● result: dict ─┤ normalize() ── ● status: "processed"
+```
+
+- 变量 ● 圆点，函数/WORKS ▭ 方角
+- 边 = 数据流向
+- 合并点（多输入→单输出）可视化
+- 断裂（✗）清晰标注
+- ←→ 平移、↑↓ 切变量、+/- 缩放
+
+**对应文件**：`docs/debug-design/data-lineage.svg`
+
+---
+
+### 3.4 ④ Hook Timeline — 钩子时间轴
+
+**进入**：`:hooks` / `:lifecycle`。
+
+**内容**：横向时间轴树，展示 WORKS 的钩子执行序列。只显示定义了行为链的钩子（未定义行为的不显示）。
+
+```
+0ms              2ms              4ms              6ms
+ INIT ──→ START ──→ validate() ──→ PROCESS ──→ transform() ──→ DONE ●
+                  ├→ log_start() → end
+                  └→ check_timeout() → STEP → process() → ...
+                                                            
+                                                  ERROR ──→ recover() → VOID_0 ─→ INIT' ─→ START' ...
+                                                                    (重复触发, 时间轴继续向右)
+
+                                                  FINALLY ──→ cleanup() ──→ DEL
+```
+
+- 钩子 ○ 圆角，动作 ▭ 方角
+- 边 = 钩子链（条件标注在边上）
+- 扇出（同一钩子多分支）黄色标注
+- 重复触发不画回头箭头——直接在时间轴上继续往右画，用虚线表示
+- ←→ 平移、↑↓ 切分支、+/- 缩放
+
+**对应文件**：`docs/debug-design/works-lifecycle.svg`
+
+---
+
+### 3.5 ⑤ Task Dependency — 任务依赖树
+
+**进入**：`:deps` / `:tasks`。
+
+**内容**：横向层次树，展示 WAIT 产生的 FORK/JOIN 任务依赖关系。
+
+```
+Depth 3          Depth 2         Depth 1          Depth 0        Result
+ D: fetch_users ─┐
+                  ├─→ B: aggregate ─┐
+ E: fetch_orders ─┘                  ├─→ A: process ──→ TASK: demo ──→ OUT
+ F: validate_data ──→ C: format ────┘
+
+调度顺序: Batch 1: D,E,F → Batch 2: B,C → Batch 3: A
+```
+
+- FORK 边（橙色）= 父派生子
+- JOIN 边（青色）= 子返回父
+- 深层节点先执行
+- 同深度可并行
+- 底部展示调度批次
+
+**对应文件**：`docs/debug-design/task-dependency.svg`
+
+---
+
+### 3.6 ⑥ Source View — 源码视图
+
+**进入**：`:src` / `show atx`。
+
+**内容**：只读源码视图，含行号、装订线（断点红点）、当前执行行高亮。
+
+```
+ 39  │
+→43  │     CALL validate(RAW)          ← 当前执行行（绿色高亮）
+ 44  │     IF ISERROR:
+ 45  │         CALL handle_error()
+ 46  │     END
+ 50 ●     CALL transform(data)         ← 断点（红点）
+```
+
+- 语法高亮（关键字蓝色、字符串橙色等）
+- 已执行行右侧灰色注释标记
+- `↑↓` 移光标，`b` 打断点，`B` 条件断点，`g` 跳行
+- 右侧面板：断点列表、当前行详情、作用域变量
+
+**不支持编辑。** 编辑能力留待后续评估。
+
+**对应文件**：`docs/debug-design/source-view.svg`
+
+---
+
+### 3.7 ⑦ Watch Replay — 回放
+
+**进入**：`step:run <name> watch <speed>`。
+
+**内容**：
+
+```
+⏳ Replay: step:run validate watch 0.5    Step 4 of 8 sub-operations
+[========>                ] 50%
+
+▶ fn: check_format(RAW)                          ✓ done
+▶ WORKS: DataChecker.run()
+    ● DONE: ISSTATUS=done  ISELAPSED=3ms         ← 当前
+    RET: {ok: true, count: 42}
+◌ fn: normalize(result)                          pending
+
+Controls: Space=pause  ←→=speed  q=quit  :go=one step
+```
+
+- 进度条 + 子操作清单（已完成/当前/待执行）
+- `Space` 暂停/继续，`←→` 调速（0.25x ~ 4x）
+- 右侧面板实时更新 IS*、变量值、内存分配
+
+**对应文件**：`docs/debug-design/watch-replay.svg`
+
+---
+
+### 3.8 ⑧ INPUT Detail — 输入数据源
+
+**进入**：在 Home 页选中 INPUT 段按 Enter。
+
+**内容**：列出所有输入常量及其数据源详情。
+
+```
+RAW       : bytes   ✓ loaded   2ms    FILE("data.csv") → ./data/data.csv  1024B
+TIMEOUT   : int     ✓ loaded   1ms    DEFAULT = 30
+CONFIG    : dict    △ overridden      HTTP("...") → WAIT override = custom_config
+```
+
+- 每个常量一行：名称、类型、状态、耗时、数据源类型及地址
+- 被 WAIT 覆盖的常量标注 △
+- 显示消费者（哪些 Step 使用了该常量）
+- 右侧面板显示选中数据源的详细信息（路径、编码、读取字节数等）
+
+**对应文件**：`docs/debug-design/input-detail.svg`
+
+---
+
+### 3.9 ⑨ OUT Detail — 产出交付
+
+**进入**：在 Home 页选中 OUT 段按 Enter。
+
+**内容**：列出所有产出变量及其交付状态。
+
+```
+result       : JSON   ✓ delivered   1ms/512B    FILE("output.json")
+log          : TXT    ✓ delivered   0.5ms/128B  FILE("debug.log")
+error_report : JSON   ✗ not delivered           HTTP("...") — STEP 3 failed
+```
+
+- 每个产出变量一行：名称、类型、状态、耗时/大小、目标类型及地址
+- ✗ 未交付的标注原因
+- 右侧面板显示选中产出目标的详细信息
+
+**对应文件**：`docs/debug-design/out-detail.svg`
+
+---
+
+### 3.10 ⑩ Binary View — 二进制视图
+
+**进入**：`:binary`。
+
+**内容**：`.text` 段的原始 hex dump。
+
+```
+Offset    Hex (4B)         Binary                              ASCII
+0x0000    13 01 00 10      00010011 00000001 00000000 00010000  ....
+0x000C ●  83 20 00 00      10000011 00100000 00000000 00000000  . ..
+→0x002C   13 04 00 00      00010011 00000100 00000000 00000000  ....
+```
+
+- 每行 = 1 条指令（4 字节）
+- 列：offset / hex / binary / ASCII
+- ● 红点 = 断点，→ 绿色 = 当前 PC
+- 底部显示段信息（.text / .rodata / .debug 大小）
+
+**对应文件**：`docs/debug-design/binary-view.svg`
+
+---
+
+### 3.11 ⑪ IR / Disassembly — 反汇编视图
+
+**进入**：`:disasm` / `:ir`。
+
+**内容**：指令反汇编，带操作数和源码注释。
+
+```
+PC       Bytes (LE)    Opcode   Operands              Source
+0x0000   13 01 00 10   ADDI     sp, zero, 16          ; sp = stack_base + 16
+0x000C ● 83 20 00 00   LOAD     fp, [sp + 0]          ; restore fp
+→0x002C  13 04 00 00   ADDI     a0, zero, 0           ; entry: arg setup
+```
+
+- 操作码颜色分类（蓝色=ARITH、紫色=MEM、橙色=CTRL、红色=SYSTEM）
+- 右侧面板显示选中指令的编码详情
+
+**对应文件**：`docs/debug-design/ir-disasm.svg`
+
+---
+
+### 3.12 ⑫ Registers & Memory — 寄存器与内存
+
+**进入**：`:regs` / `:mem`。
+
+**内容**：上半部分 16 个寄存器，下半部分内存 hex dump。
+
+```
+R0  zero     0x0000000000000000  0                 (hardwired zero)
+R1  sp       0x00007F0000001000  → stack pointer
+R4  a0       0x000000000000002A  42               → "userCount: int"
+
+Memory:
+0x00001000  13 01 00 00  93 01 10 00  23 20 41 00  83 20 00 00  .... . .. # A. . ..
+0x00001020  48 65 6C 6C  6F 00 00 00  64 61 74 61  2E 63 73 76  Hell o... data. csv
+```
+
+- 寄存器可选中编辑（`set a0 = 100`）
+- 类型标注（从 debug info 推断）
+- Tab 切换焦点（寄存器 ↔ 内存）
+- 底部有 goto 地址输入框
+
+**对应文件**：`docs/debug-design/regs-mem.svg`
+
+---
+
+### 3.13 ⑬ Exception Detail — 异常详情
+
+**进入**：在 Home 页选中 ✗ Step 按 Enter，或从异常通知跳转。
+
+**内容**：异常发生时的完整上下文。
+
+```
+✗ EXCEPTION: bad format — "expected JSON object, got array"
+
+Error Info:  Type=ValueError  Code=402  Message="expected JSON..."
+Source:      Zone=TASK  Step=transform(data)  Line=50  Function=TOOLS::transform()
+IS* at error: ISERROR=true  ISERRORTYPE=ValueError  ISERRORCODE=402
+Call Stack:  #0 TOOLS::transform() @ line 82  PC:0x0064
+             #1 TASK:demo / STEP 3 @ PC:0x0050
+Variables:   RAW=<bytes 1024B>  valid=true  result={ok,count:42}
+```
+
+- 右侧面板显示异常传播情况（是否被 TRY 捕获、影响哪些 Step/OUT）
+
+**对应文件**：`docs/debug-design/exception-detail.svg`
+
+---
+
+### 3.14 ⑭ Zone Status — Zone 状态
+
+**进入**：`:zones`。
+
+**内容**：所有 Zone 的加载状态一览。
+
+```
+Zone     Lifecycle     Status     Size    Functions    PC Range      Deps
+TOOLS    PERSISTENT    ● loaded   12 KB   3            0x0000-0x0020  —
+INPUT    EXEC_UNLOAD   ● loaded   4 KB    — (const)    0x0024-0x0028  TOOLS
+WORKS    PERSISTENT    ● loaded   48 KB   1            0x0030-0x0060  TOOLS,INPUT
+TASK     EXEC_UNLOAD   ● loaded   8 KB    — (CALLs)    0x0064-0x00A0  TOOLS,WORKS,INPUT
+OUT      LAZY          ○ lazy     2 KB    — (delivery) 0x00A4-0x00B0  TASK
+```
+
+- 生命周期类型说明（PERSISTENT/EXEC_UNLOAD/LAZY/PRUNE）
+- Zone 依赖关系图
+- 内存占用统计
+
+**对应文件**：`docs/debug-design/zone-status.svg`
+
+---
+
+### 3.15 ⑮ Call Stack — 调用栈
+
+**进入**：`:bt` / `backtrace`（在 TUI 中打开全页视图）。
+
+**内容**：完整调用栈帧列表。
+
+```
+→ Frame 0  TOOLS::transform()         PC:0x0064  line 82
+  Frame 1  TASK:demo / STEP 3: ...    PC:0x0050  CALL transform(RAW) @ line 50
+  Frame 2  TASK:demo / STEP 2: ...    PC:0x0043  CALL validate(RAW) @ line 43
+  Frame 3  TASK:demo / STEP 1: ...    PC:0x0038  CALL fetch_data() @ line 41
+  Frame 4  TASK:demo (root/entry)     PC:0x002C
+```
+
+- 当前帧高亮
+- ↑↓ 选择帧，Enter 查看帧详情
+- u/d 上下切帧
+
+**对应文件**：`docs/debug-design/callstack.svg`
+
+---
+
+### 3.16 ⑯ Breakpoints — 断点管理
+
+**进入**：`break:list` 或 `:breaks`。
+
+**内容**：所有断点的集中管理视图。
+
+```
+#  Type   Location                  Condition    Hits   Status
+1  PC     line 39 (spacer)          —            0      ● active
+2  PC     line 43 (CALL validate)   —            3      ● active
+3  PC     line 50 (CALL transform)  ISERROR      1      ● active
+4  HOOK   ERROR (global)            —            0      ● active
+5  HOOK   DataChecker::START        ISDEBUG==true 0     ○ disabled
+6  WATCH  RAW (variable)            —            0      ● active
+7  WATCH  result (variable)         —            2      ● active
+8  PC     TOOLS::check_format (fn)  —            0      ○ disabled
+```
+
+- d 删除、e 启用/禁用、c 编辑条件
+- `break:clear` 清空、`break:enable all` 全部启用
+
+**对应文件**：`docs/debug-design/breakpoints.svg`
+
+---
+
+### 3.17 ⑰ IS* Context — IS* 全览
+
+**进入**：`:is`。
+
+**内容**：72 个 IS* 变量按分组展示。
+
+```
+异常         计数           调用上下文
+ISERROR ✗    ISCALLCOUNT 4   ISMETHOD validate
+ISERRORTYPE — ISDEPTH 1      ISSTEPNAME validate
+...          ...             ...
+
+系统/环境    时间 & 任务      数据
+ISMODE dev   ISELAPSED 5ms   ISDATASIZE 1024B
+ISDEBUG ✓    ISTASKID f7a3   ...
+```
+
+- 按 7 个分组排列（异常/计数/调用/系统/时间/任务/数据）
+- Tab 切换分组
+- `/` 搜索 IS* 变量名
+
+**对应文件**：`docs/debug-design/is-context.svg`
+
+---
+
+### 3.18 ⑱ Segment Info — 段信息
+
+**进入**：`:segments`。
+
+**内容**：`.atxe` 二进制文件的完整段结构。
+
+```
+.atxe File Layout
+
+Header        20 bytes  magic="ATXE" version=0x0001 entry=0x002C
+Section Table 72 bytes  6 entries × 12 bytes
+.text         48 bytes  (12 instrs)  0x0000-0x002F  type=0x0001
+.rodata       1024 bytes              0x0030-0x042F  type=0x0002
+.task         64 bytes                0x0430-0x046F  type=0x0003
+.debug        256 bytes  ADBG v1      0x0470-0x056F  type=0x0004
+.exn          0 bytes    —             —              type=0x0005
+.zones        32 bytes   5 zones      0x0570-0x058F  type=0x0006
+```
+
+- `.debug` 段展开显示条目详情
+- `.exn` 段显示异常处理器（如有）
+
+**对应文件**：`docs/debug-design/segment-info.svg`
+
+---
+
+## 4. 命令体系
+
+统一格式：**冒号分级**
+
+```
+主命令                    step / continue / exit / quit / help / watch
+主命令:子命令 参数 ...      step:see / exit:home / break:line 43
+:模式命令                  :go / :again
+:视图名                    :src / :df / :hooks / :deps / :regs / :mem
+```
+
+### 4.1 完整命令列表
+
+#### 执行控制
+
+| 命令 | 说明 |
+|------|------|
+| `step` | 执行到下一个 Step |
+| `step:into` | 进入 Step 内部 |
+| `step:out` | 跳出当前 Step |
+| `continue` / `c` | 运行到断点或结束 |
+| `:go` | 单步推进（watch/one 模式） |
+| `:again` | 重做上一步 |
+
+#### Step 查看与重跑
+
+| 命令 | 说明 |
+|------|------|
+| `step:see <name>` | 查看 Step（按名） |
+| `step:see <n>` | 查看 Step（按序号） |
+| `step:run <name>` | 重跑 Step |
+| `step:run <name> watch <speed>` | watch 模式 + 速度（0.25 ~ 4.0） |
+| `step:run <name> one` | 单步模式 |
+
+#### 导航
+
+| 命令 | 说明 |
+|------|------|
+| `exit` | 返回上一层 |
+| `exit:home` | 回到首页 |
+| `exit:fn <name>` | 回到历史上某函数页 |
+| `exit:step <name>` | 回到历史上某 Step 页 |
+
+#### 断点
+
+| 命令 | 说明 |
+|------|------|
+| `break:line <n>` | 按行号打断点 |
+| `break:fn <TOOLS::fn>` | 按函数路径打断点 |
+| `break:hook <HOOK>` | 在钩子上打断点 |
+| `break:hook <WORKS::HOOK>` | 在特定 WORKS 钩子上打断点 |
+| `break:line <n> if <cond>` | 条件断点 |
+| `break:list` | 列出所有断点 |
+| `break:del <id>` | 删除断点 |
+| `break:clear` | 清空所有断点 |
+| `watch <var>` | 监视变量变化 |
+
+源码视图中键盘：`↑↓` 移光标，`b` 打断点，`B` 条件断点，`g` 跳行。
+
+#### 信息查询
+
+| 命令 | 说明 |
+|------|------|
+| `info` | 当前上下文概览 |
+| `info:task` | 当前任务完整信息 |
+| `info:zones` | Zone 加载状态 |
+| `info:functions` | 当前作用域函数列表 |
+| `info:variables` | 当前作用域变量 + 类型 |
+| `info:file` | 当前源文件信息 |
+
+#### 表达式求值
+
+| 命令 | 说明 |
+|------|------|
+| `print <expr>` / `p <expr>` | 求值并打印 |
+| `print/f <expr>` | 格式化打印（`/x` 十六进制 `/d` 十进制 `/s` 字符串） |
+| `print/t <expr>` | 打印 + 类型信息 |
+
+#### 设置
+
+| 命令 | 说明 |
+|------|------|
+| `set <reg> = <value>` | 设置寄存器 |
+| `set *<addr> = <value>` | 写入内存 |
+| `set:var <name> = <value>` | 修改变量值 |
+
+#### 搜索
+
+| 命令 | 说明 |
+|------|------|
+| `find <text>` | 在源码中搜索 |
+| `find:next` / `find:prev` | 下一个/上一个匹配 |
+| `find:mem <pattern>` | 在内存中搜索字节 |
+| `find:var <name>` | 搜索变量定义/使用处 |
+
+#### 反汇编
+
+| 命令 | 说明 |
+|------|------|
+| `disasm` | 反汇编当前 PC 附近 8 条 |
+| `disasm <addr>` | 从指定地址开始 |
+| `disasm <addr> <n>` | 从指定地址，n 条 |
+
+#### 内存操作
+
+| 命令 | 说明 |
+|------|------|
+| `mem:dump <addr> <len>` | hexdump |
+| `mem:diff <a1> <a2> <len>` | 比较两块内存 |
+| `mem:fill <addr> <len> <val>` | 填充 |
+| `mem:watch <addr> <len>` | 监视区域变化 |
+
+#### 调用栈
+
+| 命令 | 说明 |
+|------|------|
+| `bt` / `backtrace` | 完整调用栈 |
+| `frame <n>` | 切换到第 n 帧 |
+| `frame:up` / `frame:down` | 上下切换帧 |
+| `frame:info` | 当前帧详情 |
+
+#### IS* 上下文
+
+| 命令 | 说明 |
+|------|------|
+| `is` | 显示全部 IS* 变量 |
+| `is <name>` | 查询单个（`is ISERROR`） |
+| `is:watch <name>` | 监视 IS* 变量变化 |
+
+#### 执行历史
+
+| 命令 | 说明 |
+|------|------|
+| `history` | 显示命令历史 |
+| `history <n>` | 最近 n 条 |
+| `!<n>` | 重复执行第 n 条 |
+
+#### 显示格式
+
+| 命令 | 说明 |
+|------|------|
+| `display <expr>` | 每次 step 后自动打印 |
+| `display` | 列出自动显示项 |
+| `display:del <n>` | 删除第 n 项 |
+| `display:clear` | 清空 |
+
+#### 日志与导出
+
+| 命令 | 说明 |
+|------|------|
+| `log:start <file>` | 开始日志记录 |
+| `log:stop` | 停止记录 |
+| `log:status` | 状态 |
+| `export:state <file>` | 导出 VM 快照 |
+| `export:dataflow <file>` | 导出数据追踪图 SVG |
+
+#### 配置
+
+| 命令 | 说明 |
+|------|------|
+| `set:fmt hex` / `set:fmt dec` | 默认数值格式 |
+| `set:depth <n>` | 嵌套展开深度 |
+| `set:speed <n>` | watch 默认速度 |
+
+#### 视图切换
+
+| 命令 | 说明 |
+|------|------|
+| `:src` | 源码视图 |
+| `:df` | 数据时间轴 |
+| `:hooks` | 钩子时间轴 |
+| `:deps` | 任务依赖树 |
+| `:binary` | 二进制视图（.text hex） |
+| `:disasm` / `:ir` | 反汇编视图 |
+| `:regs` | 寄存器面板 |
+| `:mem` | 内存面板 |
+| `:zones` | Zone 状态 |
+| `:bt` / `:callstack` | 调用栈全页 |
+| `:breaks` | 断点管理 |
+| `:is` | IS* 全览 |
+| `:segments` | 段信息 |
+
+#### 元命令
+
+| 命令 | 说明 |
+|------|------|
+| `help` / `h` / `?` | 弹出帮助面板 |
+| `quit` / `q` | 退出调试器 |
+
+### 4.2 全局键盘快捷键
+
+| 键 | 作用 |
+|----|------|
+| `↑ ↓ ← →` | 导航节点/选项/光标 |
+| `Enter` | 选中/进入 |
+| `Esc` | 返回上一层 |
+| `Tab` | 切换焦点面板（左 ↔ 右） |
+| `+ / -` | 缩放（时间轴视图） |
+| `Space` | 暂停/继续（watch 模式） |
+| `f` | 追踪路径（图视图） |
+| `t` | 切换执行轨迹高亮 |
+
+---
+
+## 5. CLI 快捷命令
+
+部分能力可绕过 TUI，直接从命令行一键执行。
+
+```
+atomix task <file>                    # 进入 TUI 交互模式（默认运行）
+atomix task <file> --no-run           # 进入 TUI，不自动运行
+atomix task <file> --step <name>      # 运行并直接查看某个 Step
+atomix task <file> --print <expr>     # 运行后打印表达式的值
+atomix task <file> --check            # 检查断点命中情况
+atomix task <file> --break-line <n>   # 运行前设断点，然后进入 TUI
+atomix task <file> --export-state <f> # 导出 VM 快照到文件
+atomix task <file> --export-dataflow  # 导出数据追踪图 SVG
+atomix task <file> --log <file>       # 运行并将日志写入文件
+atomix task <file> --list-steps       # 列出所有 Step 及其状态
+atomix task <file> --list-vars        # 列出所有变量及其最终值
+atomix task <file> --list-is          # 列出所有 IS* 最终状态
+atomix task <file> --disasm <addr>    # 反汇编指定地址
+atomix task <file> --mem-dump <a> <l> # 内存 dump
+```
+
+---
+
+## 6. 架构
+
+### 6.1 模块复用
+
+```
+atomix-debug 二进制
+  │
+  ├── compiler::lexer        # 词法分析（源码高亮、解析表达式）
+  ├── compiler::parser       # 语法分析（源码高亮、eval 表达式编译）
+  ├── compiler::semantic     # 语义分析（类型推断、变量解析）
+  ├── compiler::codegen      # debug info 生成 (.debug 段)
+  │    └── assembly::build_debug_section()
+  │    └── instr::InstrEmitter (line_map)
+  │
+  ├── runner::VmState        # VM 状态（寄存器、内存、PC）
+  ├── runner::execute        # 指令执行
+  ├── runner::decode         # 指令解码/反汇编
+  ├── runner::memory         # 沙箱内存
+  │
+  ├── debug::repl            # TUI 前端（ratatui）
+  ├── debug::session         # DebugSession trait + LocalDebugSession
+  ├── debug::eval            # 表达式求值
+  ├── debug::disassemble     # 反汇编格式化
+  └── debug::debug_segment   # .debug 段解析
+```
+
+### 6.2 数据流
+
+```
+atomix task demo.atx
+  │
+  ├─ ① 编译 (compiler::compile)
+  │    → .atxe 二进制 (含 .debug 段)
+  │
+  ├─ ② 加载 (VmState::load_atxe)
+  │    → VmState
+  │
+  ├─ ③ 默认执行 (execute_instruction 循环)
+  │    → 收集: Step 状态、变量变化、IS* 时间线、PC→行号映射
+  │    → 存入 ExecutionTrace
+  │
+  └─ ④ 打开 TUI
+       → 所有查看/展开/追踪操作基于 ExecutionTrace 数据
+       → step:run 时重新驱动 VM
+```
+
+### 6.3 关键数据结构
+
+```rust
+/// 一次执行的完整记录（默认运行后收集）
+struct ExecutionTrace {
+    steps: Vec<StepRecord>,
+    variable_events: Vec<VariableEvent>,
+    is_timeline: Vec<IsEvent>,
+    hook_timeline: Vec<HookEvent>,
+}
+
+struct StepRecord {
+    name: String,
+    status: StepStatus,      // Done / Error / Skipped
+    elapsed_us: u64,
+    sub_calls: Vec<SubCall>,
+    input_vars: Vec<String>,
+    output_vars: Vec<String>,
+    pc_range: (usize, usize),
+    source_line: u32,
 }
 ```
 
-### 2.4 AST 视图
+---
 
-**展示内容：** IR 指令序列 → AST 节点树
+## 7. 不在此次范围（后续设计）
 
-```
-Function: process_data (0x0042-0x00A0)
-└── Block
-    ├── VarDecl: int x
-    ├── VarDecl: str result
-    ├── Assign: x = INPUT.value
-    │   ├── Identifier: x
-    │   └── MemberAccess: INPUT.value
-    ├── Call: validate(x)
-    │   └── Identifier: x
-    └── Return: result
-```
-
-**数据获取流程：**
-
-```
-1. Query segments/debug GET → DebugSegment { entries: [...] }
-   每个 entry 有 kind=DEBUG_AST_NODE 的记录:
-   { pc: 0x0042, kind: AST_NODE, ast_node: "FunctionDecl:process_data" }
-   { pc: 0x0048, kind: AST_NODE, ast_node: "VarDecl:x:int" }
-   { pc: 0x0050, kind: AST_NODE, ast_node: "Assign" }
-   ...
-
-2. 按 pc 范围构建 AST 树
-3. AST 节点类型参考编译管线中的 40+ AST 节点类型
-```
-
-**`.debug` 段的 AST 条目格式（提议）：**
-
-```
-每个 AST 映射条目:
-  pc_start:  u32 LE    // 此 AST 节点对应的起始指令
-  pc_end:    u32 LE    // 此 AST 节点对应的结束指令
-  kind:      u8        // AST 节点类型 (见枚举)
-  depth:     u8        // 树深度 (用于缩进)
-  name_len:  u16 LE    // 名称长度
-  name:      UTF-8     // 节点名称/类型
-  extra_len: u16 LE    // 附加信息长度
-  extra:     UTF-8     // 附加信息 (类型注解, 值等)
-```
-
-### 2.5 源码视图
-
-**展示内容：** 原始 .atx 源文件，当前执行行高亮
-
-```
- 40 │ TASK cleanup {
- 41 │     RAW = INPUT.file("data.csv")
- 42 │ →   CALL parse(RAW)         ← 当前执行位置 (PC=0x0042)
- 43 │     IF ISERROR:
- 44 │         CALL handle_error()
- 45 │     END
- 46 │ }
-```
-
-**数据获取流程：**
-
-```
-1. Query sourcemap GET → SourceMap { source_file, entries: [...] }
-   每个 entry: { pc_start, pc_end, source_line, source_col, source_text }
-
-2. 根据当前 PC 查找对应的 source_line
-3. 从 source_text 或源文件中读取并显示
-4. 高亮当前行 (PC 匹配)
-5. 标记断点行 (bp.pc → source_line 映射)
-```
+- 远程调试（ATXP 协议）
+- TUI 内的代码编辑能力
+- 执行录制与回放（.atxr）
+- 内存槽可视化（俄罗斯方块滑道）
+- 数据流动画
+- 性能分析面板
+- 三层逆向视图（二进制/指令集/AST）
+- GUI 模式
 
 ---
 
-## 3. 执行控制
-
-### 3.1 断点管理
-
-```
-操作                           ATXP 消息
-─────────────────────────────────────────────────────
-设置 PC 断点                  Command + SET + Breakpoint { type: PC, pc: 0x42 }
-设置条件断点                  Command + SET + Breakpoint { pc: 0x42, condition: "x > 10" }
-设置数据监视点                Command + SET + Breakpoint { type: MEM_WRITE, mem_addr: 0x1000, mem_size: 4 }
-列出所有断点                  Query + GET → BreakpointList
-删除断点                      Command + SET + endpoint ".../del/{id}"
-启用/禁用                     Command + SET + Breakpoint { id: 3, enabled: false }
-订阅断点事件                  SUBSCRIBE → Event { type: BREAKPOINT_HIT / WATCHPOINT_HIT }
-```
-
-### 3.2 执行流程控制
-
-```
-暂停                          Command + SET + TaskStatus { state: SUSPENDED }
-继续                          Command + SET + TaskStatus { state: RUNNING }
-单步 (1条指令)                Command + SET + step_count: 1
-单步 (到下一行源码)           debugger 内部循环: 单步 → 检查 sourcemap → pc是否在新行
-单步 (跳过函数)               debugger 内部: 在当前 CALL 后设临时断点 → continue
-```
-
----
-
-## 4. 状态检查
-
-### 4.1 寄存器视图
-
-```
-R0  (zero):    0x0000000000000000
-R1  (sp):      0x00007F00_00001000  → 栈指针
-R2  (fp):      0x00007F00_00001000  → 帧指针
-R3  (ra):      0x0000000000000080  → 返回地址
-R4  (a0):      0x000000000000002A  (42) "userCount: int"
-R5  (a1):      0x00007F00_00000100  → "data.csv: str*"
-R6  (a2):      0x0000000000000000
-R7  (a3):      0x0000000000000000
-R8  (t0):      0x0000000000000001  (true) "isValid: bool"
-R9  (t1):      0x0000000000000000
-...
-R14 (task_id): 0xA1B2C3D4E5F60001
-R15 (tmp):     0x0000000000000000
-
-PC: 0x00000042
-```
-
-类型标注通过 `RegisterSnapshot.annotations` 和 `types` 端点获取。
-
-### 4.2 内存视图
-
-- 分页显示（每页 256 字节）
-- 地址可跳转（输入绝对地址或符号名）
-- 支持多种显示格式：hex dump / 有符号整数 / 无符号整数 / float / ASCII
-- 数据监视点高亮
-- 实时刷新（本地模式通过共享内存，远程模式通过定时轮询）
-
-### 4.3 调用栈视图
-
-```
-Frame 0: parse(RAW="data.csv")        pc=0x0042  [cleanup.atx:42]
-Frame 1: cleanup()                     pc=0x0020  [cleanup.atx:38]
-Frame 2: (entry)                       pc=0x0000  [cleanup.atx:36]
-```
-
-点击栈帧 → 自动切换到该帧的寄存器/内存/源码视图。
-
-### 4.4 IS* 上下文面板
-
-全天候显示运行时自省值，按类别分组：
-
-```
-┌─ 异常 ─────────────────────┐  ┌─ 调用上下文 ──────────────┐
-│ ISERROR:       false       │  │ ISMETHOD:    parse       │
-│ ISERRORTYPE:   —           │  │ ISSTEPNAME:  parse_data  │
-│ ISERRORMESSAGE: —          │  │ ISWORKNAME:  DataParser  │
-│ ISCHILDERROR:  false       │  │ ISARGS:      ["data.csv"]│
-└────────────────────────────┘  └──────────────────────────┘
-
-┌─ 计数 ─────────────────────┐  ┌─ 系统 ───────────────────┐
-│ ISSTEPINDEX:   2           │  │ ISDEBUG:      true       │
-│ ISTOTALSTEPS:  5           │  │ ISMODE:       dev        │
-│ ISDEPTH:       1           │  │ ISFILE:       cleanup.atx│
-│ ISCALLCOUNT:   42          │  │ ISLINE:       42         │
-└────────────────────────────┘  └──────────────────────────┘
-```
-
-数据来源：`Query runner/tasks/{tid}/context GET`，建议 500ms 刷新间隔。
-
-### 4.5 变量监视窗
-
-用户自定义监视列表：
-
-```
-表达式              类型      值
-──────────────────────────────────
-x                   int       42
-user.name           str       "Alice"
-items[0]            dict      {id: 1, name: "foo"}
-len(items)          int       3
-```
-
-每个监视项通过 `eval` 端点求值：
-
-```
-Query runner/tasks/{tid}/eval EVAL
-  params: EvalRequest { expression: "user.name" }
-→ EvalResult { type: "str", value: "\"Alice\"" }
-```
-
----
-
-## 5. 可视化
-
-### 5.1 数据流图
-
-**数据来源：** `Query runner/tasks/{tid}/dataflow GET`
-
-**展示形式：** 有向图（Source → Transform → Sink），边标注数据标签和字节数
-
-```
-┌──────────┐    data.csv     ┌──────────┐    parsed     ┌──────────┐
-│  INPUT   │ ──────────────→ │  parse() │ ────────────→ │  OUT     │
-│  (file)  │    1,024 B      │ (WORKS)  │    512 B      │ (output) │
-└──────────┘                 └──────────┘               └──────────┘
-```
-
-### 5.2 内存槽可视化（俄罗斯方块滑道）
-
-**数据来源：** `Query runner/tasks/{tid}/slots GET`，本地模式下还可 SUBSCRIBE `MEMORY_SLOT` 流
-
-**展示形式：** 垂直槽位列表，每个槽位显示：
-- 槽位 ID + 任务名
-- 使用量进度条（used / size）
-- 水位线标记
-- 颜色：NORMAL(绿) / SLIPWAY(黄) / DEAD(灰) / RESERVED(红)
-
-```
-槽位 ──────────────────────────────────────────
- #0  [████████░░░░] 40%  task_A     NORMAL
- #1  [████████████] 95%  task_B ⚠   WARNING
- #2  [░░░░░░░░░░░░]  0%  (空闲)     NORMAL
- #3  [██████░░░░░░] 30%  task_C     SLIPWAY ← 备用滑道
- #4  [██░░░░░░░░░░] 10%  (合并中)   DEAD
- #5  [████████████] 100% task_D 🔴  RESERVED
-```
-
-### 5.3 钩子生命周期图
-
-**数据来源：** SUBSCRIBE 钩子事件（HOOK_STEP, HOOK_CALL, HOOK_RETURN, ...），叠加 `context` 端点
-
-**展示形式：** 时间轴 + 泳道图，显示每个 WORKS 实例的 9 阶段钩子触发序列
-
-```
-时间 ──────────────────────────────────────────→
-DataParser:
-  INIT ──→ START ──→ STEP ──→ CALL:validate()
-                        │
-                        ├── CALL_AFTER: ✅
-                        │
-                        └── DONE ──→ DEL ──→ FINALLY
-```
-
-点击钩子节点 → 展开该钩子的 IS* 上下文快照。
-
-### 5.4 Zone 加载状态
-
-**数据来源：** `Query runner/tasks/{tid}/zones GET`
-
-```
-Zone          生命周期       状态      大小
-───────────────────────────────────────────
-TOOLS         PERSISTENT     ● 已加载   12 KB
-INPUT         EXEC_UNLOAD    ● 已加载    4 KB
-WORKS         PERSISTENT     ● 已加载   48 KB
-TASK          EXEC_UNLOAD    ◐ 加载中   —
-OUT           LAZY           ○ 未加载   —
-```
-
-### 5.5 任务依赖图
-
-**数据来源：** `Query runner/tasks/{tid}/segments/task GET` → TaskSegment
-
-**展示形式：** DAG（有向无环图），最深层优先高亮
-
-```
-         [E: send_report]
-              ↑
-    ┌─────────┴─────────┐
-    │                   │
- [C: aggregate]    [D: format]
-    ↑                   ↑
-    └──────┬────────────┘
-           │
-      [B: validate]
-           ↑
-      [A: extract]  ← 当前执行
-```
-
-### 5.6 执行时间线
-
-**数据来源：** `Query runner/tasks/{tid}/timeline GET`
-
-**展示形式：** 横向时间轴，不同颜色标记不同事件类型（CALL=蓝, RET=绿, ECALL=橙, OOM=红, HOOK=紫, BREAKPOINT=黄）
-
-```
-0ms ──────────────────────────────────────── 150ms
- │  ██  ██    ████  ██  ██  ████    ██  ██   │
- │  CALL RET  ECALL CALL RET ECALL  CALL RET  │
-```
-
----
-
-## 6. 录制与回放
-
-### 6.1 录制
-
-```bash
-atomix task record cleanup --output ./debug/cleanup.atxr --level full
-```
-
-内部通过 ATXP Command 触发：
-
-```
-Command {
-    endpoint: "runner/tasks/cleanup",
-    operation: SET,
-    data: RecordingCommand {
-        action: START_RECORDING,
-        output_path: "./debug/cleanup.atxr",
-        level: FULL,
-        snapshots: BREAKPOINT_ONLY
-    }
-}
-```
-
-### 6.2 回放
-
-加载录制文件后，debugger 进入回放模式，提供标准播放控件：
-
-```
-┌─────────────────────────────────────────────┐
-│  ⏮   ⏪   ▶/⏸   ⏩   ⏭   速度: 1.0x  [━░░░░] │
-│  00:01:42.350 / 00:05:30.000               │
-└─────────────────────────────────────────────┘
-```
-
-回放时所有 debugger 视图（寄存器/内存/栈/源码）跟随时间轴更新，完全模拟实时调试体验。
-
----
-
-## 7. 性能分析
-
-### 7.1 控制器面板
-
-**数据来源：** `Query runner/controller GET`
-
-展示自适应控制器的实时状态：
-
-```
-┌─ 批次管理 ─────────────┐  ┌─ OOM 反馈 ─────────────┐
-│ N_batch:        12     │  │ α_mem:          0.375  │
-│ Hard Ceiling:   21     │  │ OOM Count:      3      │
-│ Soft Ceiling:   15     │  │ OOM State:      INC    │
-│ Backlog:        34     │  │                          │
-│ High Backlog:   YES ⚠  │  │                          │
-│ Cold Start:     NO      │  └────────────────────────┘
-└────────────────────────┘  ┌─ 槽位 ─────────────────┐
-┌─ 四因子 ───────────────┐  │ Total:    32            │
-│ β (积压):   0.82       │  │ Used:     24 ●●●●●●●   │
-│ λ (速度):   0.65       │  │ Slipway:   4 ●●        │
-│ σ (容量):   0.71       │  │ Dead:      4 ●●        │
-│ γ (波动):   0.23       │  │ Slot:     16.0 MB      │
-│ Merged:     0.58       │  │ Slipway:   1.5x        │
-└────────────────────────┘  └────────────────────────┘
-```
-
-### 7.2 任务统计面板
-
-**数据来源：** `Query runner/tasks/{tid}/stats GET`
-
-```
-指令总数:     1,234,567    异常次数:       3
-ECALL 次数:   42           CPU 时间:     12.5ms
-阻塞次数:     8            墙上时间:     45.0ms
-OOM 次数:     1            峰值内存:    4.2 MB
-量子耗尽:     156          IO 读:       1.2 MB
-上下文切换:   164          IO 写:       0.5 MB
-```
-
-### 7.3 热点分析
-
-**数据来源：** 本地模式下通过 trace streaming 获取全量轨迹，远程模式下通过 `stats` 端点 + 采样 trace
-
-**展示形式：** 按函数/指令聚合的执行次数和耗时：
-
-```
-函数                  调用次数    指令数    耗时(ms)   占比
-─────────────────────────────────────────────────────
-parse()               1,000      450,000    18.2      40.4%
-validate()            1,000      320,000    12.8      28.4%
-aggregate()             500      200,000     8.1      18.0%
-format()                200       80,000     3.2       7.1%
-其他                     —        50,000     2.7       6.1%
-```
-
----
-
-## 8. 表达式求值（REPL）
-
-### 8.1 交互模式
-
-```
-atomix> task cleanup --repl
-
-attached to task: cleanup (pc=0x0042)
-mode: dev | step: parse_data (2/5)
-
->>> x
-42 (int)
-
->>> x + 1
-43 (int)
-
->>> user.name
-"Alice" (str)
-
->>> items[0]
-{id: 1, name: "foo", value: 100} (dict[str, any])
-
->>> len(items)
-3 (int)
-
->>> items | filter(.value > 50) | map(.name)
-["foo"] (list[str])
-
->>> :help
-  :regs      — 显示寄存器
-  :stack     — 显示调用栈
-  :context   — 显示所有 IS* 上下文变量
-  :types     — 显示当前作用域类型信息
-  :step      — 单步执行
-  :continue  — 继续执行
-  :quit      — 退出
-```
-
-### 8.2 实现
-
-每次 `>>>` 输入触发：
-
-```
-Query runner/tasks/{tid}/eval EVAL
-  params: EvalRequest { expression: "user.name", timeout_ms: 500 }
-→ EvalResult { type: "str", value: "\"Alice\"", error: "", duration_ns: 120000 }
-```
-
-- 求值在 Runner 的 VM 沙箱内执行（不可 ECALL/网络/文件/TASK_FORK）
-- 500ms 超时自动中断
-- 远程模式下受 `deny_commands` 约束
-
----
-
-## 9. .debug 段格式定义
-
-### 9.1 现状
-
-当前 `.debug` 段格式定义是"由工具链自定义"，未标准化。这导致 debugger 无法可靠解析。
-
-### 9.2 提议格式
-
-采用紧凑的自定义格式（非 DWARF，避免引入复杂依赖），直接编码 pc↔源码↔AST 的三向映射：
-
-```
-.debug 段结构:
-┌─────────┬──────┬─────────────────────────────────┐
-│ 0x00    │ 4B   │ magic: "ADBG" (0x47424441)      │
-│ 0x04    │ 2B   │ version: u16 LE = 0x0001        │
-│ 0x06    │ 2B   │ flags: u16 LE                   │
-│ 0x08    │ 4B   │ entry_count: u32 LE             │
-│ 0x0C    │ N    │ entries: DebugEntry[entry_count] │
-│ ...     │ M    │ string_pool: 所有字符串连续存放   │
-└─────────┴──────┴─────────────────────────────────┘
-
-每个 DebugEntry (定长 28 字节):
-┌─────────┬──────┬─────────────────────────────────┐
-│ 0x00    │ 4B   │ pc_start: u32 LE                │
-│ 0x04    │ 4B   │ pc_end: u32 LE                  │
-│ 0x08    │ 4B   │ source_line: u32 LE             │
-│ 0x0C    │ 2B   │ source_col: u16 LE              │
-│ 0x0E    │ 1B   │ kind: u8                        │
-│ 0x0F    │ 1B   │ depth: u8                       │
-│ 0x10    │ 4B   │ func_name_off: u32 LE           │ string_pool 偏移
-│ 0x14    │ 4B   │ var_name_off: u32 LE            │ string_pool 偏移
-│ 0x18    │ 4B   │ type_name_off: u32 LE           │ string_pool 偏移
-│ 0x1C    │ 4B   │ ast_node_off: u32 LE            │ string_pool 偏移
-└─────────┴──────┴─────────────────────────────────┘
-
-kind 枚举:
-  0 = FUNC_START   (func_name 有效)
-  1 = FUNC_END     (func_name 有效)
-  2 = VAR_DECL     (var_name + type_name 有效)
-  3 = VAR_END      (var_name 有效)
-  4 = LINE         (source_line 有效)
-  5 = AST_NODE     (ast_node 有效)
-```
-
-**string_pool：** 所有字符串（函数名、变量名、类型名、AST 节点类型）以 null-terminated C string 格式连续存储。Entry 中的 `*_off` 字段是该字符串在 pool 中的偏移量。
-
----
-
-## 10. 用户界面方案（参考）
-
-### 10.1 TUI 模式（终端）
-
-```
-┌─ 源码 (cleanup.atx) ───────────────────────────┐
-│ 40 │ TASK cleanup {                            │
-│ 41 │     RAW = INPUT.file("data.csv")          │
-│ 42 │ →   CALL parse(RAW)        ● BP          │
-│ 43 │     IF ISERROR:                          │
-│ 44 │         CALL handle_error()              │
-│ 45 │     END                                  │
-│ 46 │ }                                        │
-├─ 指令集 ───────────────────────────────────────┤
-│ 0x0042: ADDI  R4, R0, 42    // a0 = 42        │
-│ 0x0046: JAL   R3, 0x0080    // call parse     │
-│ 0x004A: SW    R4, 0(R1)     // save result    │
-├─ 寄存器 ─────────────────┬─ IS* 上下文 ────────┤
-│ R4(a0): 42 "userCount"  │ ISSTEPNAME: parse   │
-│ R5(a1): → "data.csv"    │ ISDEPTH:    1       │
-│ R8(t0): true "isValid"  │ ISDEBUG:    true    │
-│ PC:     0x0042          │ ISMODE:     dev     │
-├─ 调用栈 ─────────────────┴─────────────────────┤
-│ Frame 0: parse(RAW)    pc=0x0042              │
-│ Frame 1: cleanup()     pc=0x0020              │
-├─ 变量监视 ─────────────────────────────────────┤
-│ x:           42 (int)                         │
-│ user.name:   "Alice" (str)                    │
-│ items.len:   3 (int)                          │
-├─ REPL ────────────────────────────────────────┤
-│ >>> items[0].name                             │
-│ "foo" (str)                                   │
-│ >>>                                           │
-└───────────────────────────────────────────────┘
-```
-
-### 10.2 GUI 模式（考虑未来）
-
-可考虑基于 [egui](https://github.com/emilk/egui) (Rust 原生 immediate mode GUI) 或 Tauri (Web 技术栈) 构建图形界面，提供：
-- 多面板自由布局
-- 图形化数据流/依赖图/内存槽
-- 拖拽式变量监视
-- 时间轴拖拽回放
-
----
-
-> 本文档为 atomix-debug 的**需求框架**。具体实现细节（TUI 框架选型、面板渲染逻辑、键盘快捷键等）在后续开发阶段细化。
+> 页面线框图位于 `docs/debug-design/`：home-page.svg、step-detail.svg、data-lineage.svg、works-lifecycle.svg、task-dependency.svg、source-view.svg、watch-replay.svg、input-detail.svg、out-detail.svg、binary-view.svg、ir-disasm.svg、regs-mem.svg、exception-detail.svg、zone-status.svg、callstack.svg、breakpoints.svg、is-context.svg、segment-info.svg。

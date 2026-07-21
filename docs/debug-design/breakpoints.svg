@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; } .bg-selected { fill: #264f78; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — demo.atx</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Home</text>
+  <text x="48" y="37" class="dim">▸</text>
+  <text x="60" y="37" class="red bold">Breakpoints</text>
+  <text x="200" y="37" class="dim">│ 8 breakpoints  │  2 disabled</text>
+
+  <rect x="0" y="44" width="770" height="536" fill="#1e1e1e"/>
+
+  <!-- Table header -->
+  <rect x="0" y="44" width="770" height="20" class="bg-header"/>
+  <text x="10" y="58" class="bold white">#</text>
+  <text x="30" y="58" class="bold white">Type</text>
+  <text x="130" y="58" class="bold white">Location</text>
+  <text x="380" y="58" class="bold white">Condition</text>
+  <text x="550" y="58" class="bold white">Hits</text>
+  <text x="610" y="58" class="bold white">Status</text>
+
+  <!-- BP 1 -->
+  <text x="15" y="82" class="white">1</text>
+  <text x="30" y="82" class="dim">PC</text>
+  <text x="130" y="82" class="white">line 39</text>
+  <text x="200" y="82" class="dim">(spacer)</text>
+  <text x="380" y="82" class="dim">—</text>
+  <text x="550" y="82" class="dim">0</text>
+  <text x="610" y="82" class="green">● active</text>
+
+  <!-- BP 2 (selected) -->
+  <rect x="0" y="90" width="770" height="20" class="bg-selected"/>
+  <text x="15" y="106" class="green bold">2</text>
+  <text x="30" y="106" class="green bold">PC</text>
+  <text x="130" y="106" class="green bold">line 43  (CALL validate(RAW))</text>
+  <text x="380" y="106" class="green bold">—</text>
+  <text x="550" y="106" class="green bold">3</text>
+  <text x="610" y="106" class="green bold">● active</text>
+
+  <!-- BP 3 -->
+  <text x="15" y="128" class="white">3</text>
+  <text x="30" y="128" class="dim">PC</text>
+  <text x="130" y="128" class="white">line 50  (CALL transform(data))</text>
+  <text x="380" y="128" class="dim">ISERROR</text>
+  <text x="550" y="128" class="dim">1</text>
+  <text x="610" y="128" class="green">● active</text>
+
+  <!-- BP 4 -->
+  <text x="15" y="150" class="white">4</text>
+  <text x="30" y="150" class="dim">HOOK</text>
+  <text x="130" y="150" class="white">ERROR  (global)</text>
+  <text x="380" y="150" class="dim">—</text>
+  <text x="550" y="150" class="dim">0</text>
+  <text x="610" y="150" class="green">● active</text>
+
+  <!-- BP 5 -->
+  <text x="15" y="172" class="white">5</text>
+  <text x="30" y="172" class="dim">HOOK</text>
+  <text x="130" y="172" class="white">DataChecker::START</text>
+  <text x="380" y="172" class="dim">ISDEBUG==true</text>
+  <text x="550" y="172" class="dim">0</text>
+  <text x="610" y="172" class="dim">○ disabled</text>
+
+  <!-- BP 6 -->
+  <text x="15" y="194" class="white">6</text>
+  <text x="30" y="194" class="dim">WATCH</text>
+  <text x="130" y="194" class="white">RAW (variable)</text>
+  <text x="380" y="194" class="dim">—</text>
+  <text x="550" y="194" class="dim">0</text>
+  <text x="610" y="194" class="green">● active</text>
+
+  <!-- BP 7 -->
+  <text x="15" y="216" class="white">7</text>
+  <text x="30" y="216" class="dim">WATCH</text>
+  <text x="130" y="216" class="white">result (variable)</text>
+  <text x="380" y="216" class="dim">—</text>
+  <text x="550" y="216" class="dim">2</text>
+  <text x="610" y="216" class="green">● active</text>
+
+  <!-- BP 8 -->
+  <text x="15" y="238" class="white">8</text>
+  <text x="30" y="238" class="dim">PC</text>
+  <text x="130" y="238" class="white">TOOLS::check_format  (fn entry)</text>
+  <text x="380" y="238" class="dim">—</text>
+  <text x="550" y="238" class="dim">0</text>
+  <text x="610" y="238" class="dim">○ disabled</text>
+
+  <rect x="10" y="265" width="750" height="1" class="bg-border"/>
+
+  <!-- Actions -->
+  <rect x="10" y="280" width="750" height="80" fill="#1a1a1a" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="302" class="bold white">Commands</text>
+  <text x="24" y="324" class="dim">d</text>
+  <text x="40" y="324" class="white">delete selected</text>
+  <text x="24" y="344" class="dim">e</text>
+  <text x="40" y="344" class="white">enable/disable toggle</text>
+  <text x="24" y="364" class="dim">c</text>
+  <text x="40" y="364" class="white">edit condition</text>
+  <text x="300" y="324" class="dim">break:clear</text>
+  <text x="420" y="324" class="white">clear all</text>
+  <text x="300" y="344" class="dim">break:enable all</text>
+  <text x="460" y="344" class="white">enable all</text>
+
+  <!-- Right panel -->
+  <rect x="770" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="780" y="48" width="310" height="22" class="bg-header"/>
+  <text x="790" y="63" class="bold white">Breakpoint Detail</text>
+
+  <rect x="780" y="76" width="310" height="100" fill="#264f78" rx="4"/>
+  <text x="795" y="96" class="green bold">BP 2 — line 43</text>
+  <rect x="790" y="104" width="290" height="1" fill="#3e3e42"/>
+  <text x="795" y="120" class="dim">Type:</text>
+  <text x="840" y="120" class="white">PC breakpoint</text>
+  <text x="795" y="138" class="dim">Code:</text>
+  <text x="840" y="138" class="white">CALL validate(RAW)</text>
+  <text x="795" y="156" class="dim">Hits:</text>
+  <text x="835" y="156" class="white">3</text>
+  <text x="795" y="174" class="dim">Status:</text>
+  <text x="850" y="174" class="green">active</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">d</text>
+  <text x="55" y="611" class="dim">delete  │  e toggle  │  c edit condition  │  break:clear  │  exit</text>
+
+</svg>

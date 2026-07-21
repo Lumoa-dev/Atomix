@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Consolas, 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      text { fill: #c0c0c0; }
+      .green { fill: #4ec94e; } .red { fill: #e05555; }
+      .dim { fill: #6a6a6a; } .white { fill: #e8e8e8; }
+      .cyan { fill: #4ec9b0; } .orange { fill: #ce9178; }
+      .blue { fill: #569cd6; } .purple { fill: #c586c0; }
+      .bold { font-weight: bold; } .bg { fill: #1e1e1e; }
+      .bg-header { fill: #2d2d30; } .bg-cmd { fill: #1a1a1a; }
+      .bg-border { fill: #3e3e42; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="620" class="bg"/>
+  <rect x="0" y="0" width="1100" height="22" class="bg-header"/>
+  <text x="12" y="15" class="dim">atomix debug — demo.atx</text>
+
+  <rect x="0" y="22" width="1100" height="22" class="bg-header"/>
+  <text x="10" y="37" class="blue">Home</text>
+  <text x="48" y="37" class="dim">▸</text>
+  <text x="60" y="37" class="cyan bold">Zone Status</text>
+
+  <rect x="0" y="44" width="800" height="536" fill="#1e1e1e"/>
+
+  <!-- Zone table header -->
+  <rect x="0" y="44" width="800" height="22" class="bg-header"/>
+  <text x="12" y="60" class="bold white">Zone</text>
+  <text x="90" y="60" class="bold white">Lifecycle</text>
+  <text x="210" y="60" class="bold white">Status</text>
+  <text x="280" y="60" class="bold white">Size</text>
+  <text x="350" y="60" class="bold white">Functions</text>
+  <text x="450" y="60" class="bold white">PC Range</text>
+  <text x="600" y="60" class="bold white">Deps</text>
+
+  <!-- TOOLS -->
+  <text x="15" y="86" class="white bold">TOOLS</text>
+  <text x="90" y="86" class="blue">PERSISTENT</text>
+  <text x="210" y="86" class="green">● loaded</text>
+  <text x="280" y="86" class="dim">12 KB</text>
+  <text x="350" y="86" class="white">3 (check_format, normalize, transform)</text>
+  <text x="600" y="86" class="dim">0x0000-0x0020</text>
+  <text x="730" y="86" class="dim">—</text>
+
+  <!-- INPUT -->
+  <text x="15" y="108" class="white bold">INPUT</text>
+  <text x="90" y="108" class="orange">EXEC_UNLOAD</text>
+  <text x="210" y="108" class="green">● loaded</text>
+  <text x="280" y="108" class="dim">4 KB</text>
+  <text x="350" y="108" class="dim">— (constants only)</text>
+  <text x="600" y="108" class="dim">0x0024-0x0028</text>
+  <text x="730" y="108" class="dim">TOOLS</text>
+
+  <!-- WORKS -->
+  <text x="15" y="130" class="white bold">WORKS</text>
+  <text x="90" y="130" class="blue">PERSISTENT</text>
+  <text x="210" y="130" class="green">● loaded</text>
+  <text x="280" y="130" class="dim">48 KB</text>
+  <text x="350" y="130" class="white">1 (DataChecker)</text>
+  <text x="600" y="130" class="dim">0x0030-0x0060</text>
+  <text x="730" y="130" class="dim">TOOLS INPUT</text>
+
+  <!-- TASK -->
+  <text x="15" y="152" class="white bold">TASK</text>
+  <text x="90" y="152" class="orange">EXEC_UNLOAD</text>
+  <text x="210" y="152" class="green">● loaded</text>
+  <text x="280" y="152" class="dim">8 KB</text>
+  <text x="350" y="152" class="dim">— (CALL statements)</text>
+  <text x="600" y="152" class="dim">0x0064-0x00A0</text>
+  <text x="730" y="152" class="dim">TOOLS WORKS INPUT</text>
+
+  <!-- OUT -->
+  <text x="15" y="174" class="white bold">OUT</text>
+  <text x="90" y="174" class="purple">LAZY</text>
+  <text x="210" y="174" class="dim">○ loaded (lazy)</text>
+  <text x="280" y="174" class="dim">2 KB</text>
+  <text x="350" y="174" class="dim">— (delivery only)</text>
+  <text x="600" y="174" class="dim">0x00A4-0x00B0</text>
+  <text x="730" y="174" class="dim">TASK</text>
+
+  <rect x="10" y="200" width="780" height="1" class="bg-border"/>
+
+  <!-- Lifecycle legend -->
+  <text x="24" y="225" class="bold white">Lifecycle Types</text>
+  <text x="24" y="248" class="blue">PERSISTENT</text>
+  <text x="130" y="248" class="dim">— 全生命周期驻留，从不卸载</text>
+  <text x="24" y="268" class="orange">EXEC_UNLOAD</text>
+  <text x="140" y="268" class="dim">— 执行完毕后可卸载</text>
+  <text x="24" y="288" class="purple">LAZY</text>
+  <text x="80" y="288" class="dim">— 按需加载，闲置后回收</text>
+  <text x="24" y="308" class="red">PRUNE</text>
+  <text x="85" y="308" class="dim">— 编译期可剪枝优化移除</text>
+
+  <rect x="10" y="330" width="780" height="90" fill="#252526" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="352" class="bold white">Zone Dependency Graph</text>
+  <text x="24" y="374" class="dim">TOOLS ← (no deps, loaded first)</text>
+  <text x="24" y="392" class="dim">INPUT ← TOOLS</text>
+  <text x="24" y="410" class="dim">WORKS ← TOOLS, INPUT</text>
+  <text x="24" y="428" class="dim">TASK ← TOOLS, WORKS, INPUT</text>
+  <text x="24" y="446" class="dim">OUT ← TASK (lazy, loaded after TASK produces data)</text>
+
+  <rect x="10" y="435" width="780" height="55" fill="#1a1a1a" stroke="#3e3e42" stroke-width="1" rx="4"/>
+  <text x="24" y="457" class="bold white">Memory Footprint</text>
+  <text x="24" y="477" class="dim">Total compiled: 74 KB  |  Persistently loaded: 60 KB  |  Exec-then-unload: 12 KB  |  Lazy: 2 KB</text>
+
+  <!-- Right panel -->
+  <rect x="800" y="44" width="2" height="536" class="bg-border"/>
+  <rect x="810" y="48" width="280" height="22" class="bg-header"/>
+  <text x="820" y="63" class="bold white">Zone Detail (↑↓ select)</text>
+
+  <rect x="810" y="76" width="280" height="100" fill="#264f78" rx="4"/>
+  <text x="825" y="96" class="white bold">TOOLS</text>
+  <text x="885" y="96" class="blue">PERSISTENT</text>
+  <text x="820" y="106" width="260" height="1" fill="#3e3e42"/>
+  <text x="825" y="122" class="dim">Functions:</text>
+  <text x="910" y="122" class="white">3</text>
+  <text x="825" y="140" class="dim">Size:</text>
+  <text x="865" y="140" class="white">12 KB</text>
+  <text x="825" y="158" class="dim">PC Range:</text>
+  <text x="910" y="158" class="white">0x0000-0x0020</text>
+
+  <rect x="0" y="593" width="1100" height="27" class="bg-cmd"/>
+  <rect x="0" y="591" width="1100" height="2" class="bg-border"/>
+  <text x="15" y="611" class="green bold">&gt;</text>
+  <text x="30" y="611" class="white">exit</text>
+  <text x="75" y="611" class="dim">back to home  ·  ↑↓ select zone  ·  Enter inspect</text>
+
+</svg>

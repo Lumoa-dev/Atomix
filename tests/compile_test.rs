@@ -109,3 +109,47 @@ fn invalid_bad_escape() {
     let (_, errors) = compile_file(path);
     assert!(!errors.is_empty(), "{} 应产生编译错误", path.display());
 }
+
+// ─── 调试信息验证 ─────────────────────────────────
+
+#[test]
+fn debug_info_has_per_statement_lines() {
+    // 编译一个含多条语句的程序，验证 .debug 段包含每条语句的行号
+    let source = r#"
+TASK : {
+    x : int = 1
+    y : int = 2
+    z : int = 3
+    IF x < y {
+        CALL print(x)
+    } ELSE {
+        CALL print(y)
+    }
+}
+"#;
+    let (bytes, errors) = atomix::compiler::compile(source, "0");
+    assert!(errors.is_empty(), "编译错误:\n{}", errors.join("\n"));
+
+    let bin = atomix::base::ir::AtxeBinary::from_bytes(&bytes)
+        .expect("应能解析 .atxe");
+    
+    let map = atomix::debug::debug_segment::DebugMap::from_bytes(&bin.debug_info)
+        .expect("应能解析 .debug 段");
+    let lines = map.line_entries();
+    // 至少应包含每个 zone 和主要语句的行号
+    assert!(lines.len() >= 3, "应至少有 3 条行号映射, 实际 {}", lines.len());
+    // 验证行号不同（不是所有指令映射到同一行）
+    let unique_lines: std::collections::HashSet<u32> =
+        lines.iter().map(|e| e.source_line).collect();
+    assert!(unique_lines.len() >= 3, "应至少有 3 个不同行号, 实际 {}", unique_lines.len());
+
+    // 端到端验证：执行 VM，确认每条指令都能映射到有效行号
+    let mut vm = atomix::runner::VmState::load_atxe(&bytes)
+        .expect("应能加载 .atxe");
+    while vm.is_running() {
+        let pc = vm.pc;
+        let line = map.line_for_pc(pc);
+        assert!(line.is_some(), "PC={} 应能映射到行号", pc);
+        atomix::runner::execute::execute_instruction(&mut vm);
+    }
+}
