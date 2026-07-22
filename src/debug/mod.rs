@@ -34,6 +34,7 @@ pub mod debug_segment;
 pub mod disassemble;
 pub mod eval;
 pub mod repl;
+pub mod tui;
 
 // 重新导出常用类型
 pub use trace::{

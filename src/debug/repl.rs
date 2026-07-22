@@ -662,7 +662,7 @@ fn parse_addr(s: &str) -> Option<usize> {
     }
 }
 
-fn parse_reg_name(name: &str) -> Option<usize> {
+pub fn parse_reg_name(name: &str) -> Option<usize> {
     Some(match name.to_lowercase().as_str() {
         "zero" | "r0" => 0, "sp" | "r1" => 1, "fp" | "r2" => 2, "ra" | "r3" => 3,
         "a0" | "r4" => 4, "a1" | "r5" => 5, "a2" | "r6" => 6, "a3" | "r7" => 7,

@@ -38,6 +38,10 @@ toml = "0.8"
 # 调试器（REPL 行编辑）
 rustyline = "14"
 
+# TUI 终端界面
+ratatui = { version = "0.26", features = ["all-widgets"] }
+crossterm = "0.27"
+
 # 远程 ATXP 协议
 prost = "0.13"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "io-util", "sync", "time", "macros", "signal"] }

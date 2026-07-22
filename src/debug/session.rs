@@ -398,21 +398,21 @@ pub struct LocalDebugSession {
     wp_list: Vec<Watchpoint>,
 
     // 帧状态
-    frame_state: FrameState,
+    pub frame_state: FrameState,
 
     // 显示
-    display_expr_list: Vec<String>,
+    pub display_expr_list: Vec<String>,
 
     // 历史
-    cmd_history: CommandHistory,
+    pub cmd_history: CommandHistory,
 
     // 性能计数器
-    perf: PerfCounters,
+    pub perf: PerfCounters,
 
     // 配置
-    disp_fmt: DisplayFormat,
-    disp_depth: usize,
-    watch_spd: f32,
+    pub disp_fmt: DisplayFormat,
+    pub disp_depth: usize,
+    pub watch_spd: f32,
 
     // 收集时间
     _exec_start: Option<Instant>,
