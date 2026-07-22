@@ -98,7 +98,7 @@ pub fn disassemble_all(text: &[u32]) -> Vec<String> {
 }
 
 /// ECALL 系统调用名称映射。
-fn syscall_name(imm: u32) -> &'static str {
+pub fn syscall_name(imm: u32) -> &'static str {
     match imm {
         0 => "ALLOC",
         1 => "FREE",
