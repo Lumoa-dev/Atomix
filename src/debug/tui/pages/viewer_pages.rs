@@ -2,8 +2,10 @@
 //!
 //! 对应设计文档 §3.6（Source View）、§3.10（Binary View）、§3.11（IR/Disasm）、§3.12（Regs/Mem）
 
+use crate::base::isa;
 use crate::debug::session::{DebugSession, LocalDebugSession};
 use crate::debug::tui::pages::Page;
+use crate::runner::decode;
 
 use ratatui::{
     Frame,
@@ -12,6 +14,117 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
+
+/// Syntax-highlight a single source line into colored spans.
+///
+/// Handles keywords (blue bold), string literals (green),
+/// type annotations (yellow dim), and comments (dark gray italic).
+fn highlight_source(line: &str) -> Vec<Span<'static>> {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("//") || trimmed.starts_with('#') {
+        return vec![Span::styled(
+            line.to_string(),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
+        )];
+    }
+
+    const KEYWORDS: &[&str] = &[
+        "let", "fn", "CALL", "if", "else", "return", "for", "while", "true", "false", "TOOLS",
+        "INPUT", "TASK", "OUT", "WORKS", "ZONE", "IMPORT", "WAIT", "TRY", "HOOK",
+    ];
+
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut pos = 0;
+    let bytes = line.as_bytes();
+    let len = line.len();
+
+    while pos < len {
+        // ── String literal ──
+        if bytes[pos] == b'"' {
+            let start = pos;
+            pos += 1;
+            while pos < len && bytes[pos] != b'"' {
+                pos += 1;
+            }
+            if pos < len {
+                pos += 1; // skip closing quote
+            }
+            spans.push(Span::styled(
+                line[start..pos].to_string(),
+                Style::default().fg(Color::Green),
+            ));
+            continue;
+        }
+
+        // ── Word characters (alphanumeric / underscore) ──
+        if bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_' {
+            let start = pos;
+            while pos < len
+                && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_')
+            {
+                pos += 1;
+            }
+            let word = &line[start..pos];
+            if KEYWORDS.contains(&word) {
+                spans.push(Span::styled(
+                    word.to_string(),
+                    Style::default()
+                        .fg(Color::Blue)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                spans.push(Span::raw(word.to_string()));
+            }
+            continue;
+        }
+
+        // ── Colon — check for type annotation ──
+        if bytes[pos] == b':' {
+            let start = pos;
+            pos += 1;
+            // skip whitespace between `:` and type name
+            while pos < len && bytes[pos].is_ascii_whitespace() {
+                pos += 1;
+            }
+            let type_start = pos;
+            while pos < len
+                && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_')
+            {
+                pos += 1;
+            }
+            let type_word = &line[type_start..pos];
+            if ["int", "float", "bool", "string"].contains(&type_word) {
+                spans.push(Span::styled(
+                    line[start..pos].to_string(),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::DIM),
+                ));
+            } else {
+                spans.push(Span::raw(line[start..pos].to_string()));
+            }
+            continue;
+        }
+
+        // ── Other non-word character (whitespace, punctuation) ──
+        let start = pos;
+        pos += 1;
+        // group consecutive non-word, non-colon, non-quote chars
+        while pos < len
+            && !bytes[pos].is_ascii_alphanumeric()
+            && bytes[pos] != b'_'
+            && bytes[pos] != b'"'
+            && bytes[pos] != b':'
+        {
+            pos += 1;
+        }
+        spans.push(Span::raw(line[start..pos].to_string()));
+    }
+
+    spans
+}
 
 // ═══════════════════════════════════════════════════════════
 // Source View 页面（§3.6）
@@ -102,10 +215,28 @@ impl Page for SourceViewPage {
                 String::new()
             };
 
-            display_lines.push(Line::from(Span::styled(
-                format!("{} {:>4} │ {}", gutter, lnum, text),
+            let gutter_span = Span::styled(
+                format!("{} {:>4} │ ", gutter, lnum),
                 line_style,
-            )));
+            );
+            let text_spans = highlight_source(&text);
+            let text_spans: Vec<Span> = if is_exec_line {
+                text_spans
+                    .into_iter()
+                    .map(|s| {
+                        let patched = s.style.patch(Style::default().bg(Color::DarkGray));
+                        Span {
+                            content: s.content,
+                            style: patched,
+                        }
+                    })
+                    .collect()
+            } else {
+                text_spans
+            };
+            let mut line_spans = vec![gutter_span];
+            line_spans.extend(text_spans);
+            display_lines.push(Line::from(line_spans));
         }
 
         let file_name = session.source_path.as_deref().unwrap_or("untitled");
@@ -272,6 +403,57 @@ pub struct DisasmViewPage {
     pub _scroll: usize,
 }
 
+/// Format only the operand portion of an instruction (no PC prefix).
+fn format_operands_only(pc: usize, instr: u32) -> String {
+    let opcode = (instr >> 24) as u8;
+    let table = decode::dispatch_table();
+    let entry = &table[opcode as usize];
+    let ops = decode::decode(instr, entry.enc);
+    let mnemonic = entry.name;
+    use isa::EncTemplate;
+
+    let reg = |r: u8| -> String {
+        let name = isa::reg_name(r as usize);
+        if name == "?" {
+            format!("R{}", r)
+        } else {
+            name.to_uppercase()
+        }
+    };
+
+    match entry.enc {
+        EncTemplate::R3 => {
+            format!("{}, {}, {}", reg(ops.rd), reg(ops.rs1), reg(ops.rs2))
+        }
+        EncTemplate::R2I => match mnemonic {
+            "MOVI" => format!("{}, {}", reg(ops.rd), ops.imm as i16),
+            "LOAD" => format!("{}, [{}+{}]", reg(ops.rd), reg(ops.rs1), ops.imm as i16),
+            "STORE" => format!("[{}+{}], {}", reg(ops.rd), ops.imm as i16, reg(ops.rs1)),
+            _ => format!("{}, {}, {}", reg(ops.rd), reg(ops.rs1), ops.imm as i16),
+        },
+        EncTemplate::R1I => match mnemonic {
+            "TRAP" => format!("{}", ops.imm as i16),
+            "ECALL" => {
+                let sname = crate::debug::disassemble::syscall_name(ops.imm);
+                format!("{}, {} ; {}", ops.rd, ops.imm, sname)
+            }
+            "TASK_FORK" | "TASK_JOIN" | "TASK_RET" | "TASK_SELF" => {
+                format!("{}, {}", reg(ops.rd), ops.imm as i16)
+            }
+            _ => format!("{}, {}", reg(ops.rd), ops.imm as i16),
+        },
+        EncTemplate::JI => {
+            if mnemonic == "illegal" {
+                format!("; illegal instr {:#010x}", instr)
+            } else {
+                let offset = ops.imm as i32;
+                let target = (pc as i32).wrapping_add(offset);
+                format!("{:#x}", target)
+            }
+        }
+    }
+}
+
 impl DisasmViewPage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
@@ -302,45 +484,126 @@ impl Page for DisasmViewPage {
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let text = &session.vm.text;
         let pc = session.vm.pc;
-        let max_visible = (area.height as usize).saturating_sub(2);
+        let max_visible = (area.height as usize).saturating_sub(3);
         let max_instrs = text.len();
 
         let start = pc.saturating_sub(max_visible / 2);
         let start = start.min(max_instrs.saturating_sub(max_visible));
         let end = (start + max_visible).min(max_instrs);
 
-        let mut lines = Vec::new();
+        let table = decode::dispatch_table();
+
+        // ── Column header ──
+        let header_style = Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD);
+        let header = Line::from(vec![
+            Span::styled(format!("{:<7}", "PC"), header_style),
+            Span::raw("| "),
+            Span::styled(format!("{:<9}", "Bytes(LE)"), header_style),
+            Span::raw("| "),
+            Span::styled(format!("{:<8}", "Opcode"), header_style),
+            Span::raw("| "),
+            Span::styled("Operands", header_style),
+            Span::raw(" | Source Comment"),
+        ]);
+
+        let mut lines = vec![header, Line::from(Span::raw(""))];
+
         for i in start..end {
             let instr = text[i];
             let op = (instr >> 24) as u8;
             let is_pc = i == pc;
+            let entry = &table[op as usize];
 
-            let formatted = crate::debug::disassemble::format_instruction(i, instr);
-            let marker = if is_pc { "→" } else { " " };
-            let op_style = Style::default()
-                .fg(Self::opcode_color(op))
-                .add_modifier(if is_pc {
-                    Modifier::BOLD
+            let marker_style = if is_pc {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            // PC column — 6 hex digits right-aligned
+            let pc_str = format!("{:06x}", i);
+
+            // Bytes column — u32 as LE hex (8 hex digits)
+            let bytes_str = format!("{:08x}", instr);
+
+            // Opcode column — colored mnemonic
+            let op_style = Style::default().fg(Self::opcode_color(op));
+            let mnemonic_str = entry.name;
+
+            // Operands column
+            let ops_str = format_operands_only(i, instr);
+
+            // Source comment from debug_map
+            let src_line = session
+                .debug_map
+                .as_ref()
+                .and_then(|m| m.line_for_pc(i));
+            let comment = src_line.and_then(|ln| {
+                let idx = ln as usize;
+                if idx > 0 && idx <= session.source_lines.len() {
+                    let text = session.source_lines[idx - 1].trim().to_string();
+                    if text.is_empty() { None } else { Some(text) }
                 } else {
-                    Modifier::empty()
-                });
-            let bg_style = if is_pc {
+                    None
+                }
+            });
+
+            let pipe = Span::raw(" | ");
+
+            // Determine if this row should have a dark gray background
+            let row_style = if is_pc {
                 Style::default().bg(Color::DarkGray)
             } else {
                 Style::default()
             };
 
-            lines.push(Line::from(Span::styled(
-                format!("{} {}", marker, formatted),
-                op_style.patch(bg_style),
-            )));
+            // Build row as a Vec<Span> then wrap in Line with row_style
+            let mut row_parts: Vec<Span> = Vec::new();
+
+            // PC
+            row_parts.push(Span::styled(
+                format!("{:<7}", pc_str),
+                marker_style,
+            ));
+            row_parts.push(pipe.clone());
+
+            // Bytes
+            row_parts.push(Span::styled(
+                format!("{:<9}", bytes_str),
+                Style::default().fg(Color::Magenta),
+            ));
+            row_parts.push(pipe.clone());
+
+            // Opcode (colored)
+            row_parts.push(Span::styled(
+                format!("{:<8}", mnemonic_str),
+                op_style,
+            ));
+            row_parts.push(pipe.clone());
+
+            // Operands
+            row_parts.push(Span::raw(ops_str));
+
+            // Source comment
+            if let Some(comment_text) = comment {
+                row_parts.push(Span::styled(
+                    format!("  ; {}", comment_text),
+                    Style::default().fg(Color::DarkGray),
+                ));
+            }
+
+            lines.push(Line::from(row_parts).style(row_style));
         }
 
-        let table = crate::runner::decode::dispatch_table();
         let op_info = if pc < text.len() {
-            let op = (text[pc] >> 24) as u8;
-            let entry = &table[op as usize];
-            format!("opcode={:#04x} ({})", op, entry.name)
+            let opcode_val = (text[pc] >> 24) as u8;
+            let entry = &table[opcode_val as usize];
+            format!("opcode={:#04x} ({})", opcode_val, entry.name)
         } else {
             "pc 越界".to_string()
         };

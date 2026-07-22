@@ -347,36 +347,89 @@ impl IsContextSnapshot {
     }
 
     pub fn update_from_vm(&mut self, vm: &VmState) {
-        self.entries
-            .insert("IS_SYS_PC".to_string(), format!("{:#06x}", vm.pc));
-        self.entries
-            .insert("IS_SYS_STATE".to_string(), format!("{:?}", vm.state));
+        // ── Exception group (8) ──
+        match &vm.state {
+            VmStateKind::Error(msg) => {
+                self.entries.insert(
+                    "IS_EXCEPTION".to_string(),
+                    "RuntimeError".to_string(),
+                );
+                self.entries.insert(
+                    "IS_EXCEPTION_MSG".to_string(),
+                    msg.clone(),
+                );
+                self.entries.insert(
+                    "IS_EXCEPTION_PC".to_string(),
+                    format!("{:#06x}", vm.pc),
+                );
+                self.entries.insert(
+                    "IS_EXCEPTION_HANDLED".to_string(),
+                    "false".to_string(),
+                );
+                // Propagating / caught-by not determinable from raw VM state
+            }
+            _ => {
+                // Leave defaults ("—") for all exception entries
+            }
+        }
+
+        // ── Count group (8) ──
         self.entries.insert(
-            "IS_SYS_MEM_USED".to_string(),
-            format!("{}", vm.memory.usage),
+            "IS_COUNT_INSTR".to_string(),
+            format!("{}", vm.quantum),
         );
-        self.entries
-            .insert("IS_SYS_MEM_TOTAL".to_string(), format!("{}", vm.mem_size));
-        self.entries
-            .insert("IS_COUNT_INSTR".to_string(), format!("{}", vm.quantum));
-        self.entries.insert(
-            "IS_CALL_STACK_SIZE".to_string(),
-            format!("{}", vm.call_stack.len()),
-        );
-        self.entries
-            .insert("IS_TASK_ID".to_string(), format!("{}", vm.task_id));
+        // IS_COUNT_STEP — not directly available from VmState, leave "—"
+        // IS_COUNT_CALL  — not directly available from VmState
+        // IS_COUNT_FORK  — not directly available from VmState
+        // IS_COUNT_JOIN  — not directly available from VmState
+        // IS_COUNT_ECALL — not directly available from VmState
+        // IS_COUNT_ALLOC — not directly available from VmState
+        // IS_COUNT_ERROR — populated from Error state above (or leave "—")
+
+        // ── CallContext group (12) ──
+        let depth = vm.call_stack.len();
         self.entries.insert(
             "IS_CALL_DEPTH".to_string(),
-            format!("{}", vm.call_stack.len()),
+            format!("{}", depth),
         );
-        self.entries
-            .insert("IS_SYS_QUANTUM".to_string(), format!("{}", vm.quantum));
-
-        // 寄存器值
         self.entries.insert(
-            "IS_FRAME_SP".to_string(),
-            format!("{:#x}", vm.read_reg(reg::SP)),
+            "IS_CALL_STACK_SIZE".to_string(),
+            format!("{}", depth),
         );
+
+        if let Some(top) = vm.call_stack.last() {
+            self.entries.insert(
+                "IS_CALL_STACK_TOP".to_string(),
+                format!("return_pc={:#06x}", top.return_pc),
+            );
+            self.entries.insert(
+                "IS_CALL_RETURN_PC".to_string(),
+                format!("{:#06x}", top.return_pc),
+            );
+            self.entries.insert(
+                "IS_FRAME_SP".to_string(),
+                format!("{:#x}", top.sp),
+            );
+        } else {
+            self.entries.insert(
+                "IS_FRAME_SP".to_string(),
+                format!("{:#x}", vm.read_reg(reg::SP)),
+            );
+        }
+
+        // If there are at least 2 frames, we can infer caller/callee
+        if depth >= 2 {
+            // The top (latest) frame is the current callee
+            // The frame below it is the caller
+            if let Some(callee_frame) = vm.call_stack.last() {
+                self.entries.insert(
+                    "IS_CALL_RETURN_PC".to_string(),
+                    format!("{:#06x}", callee_frame.return_pc),
+                );
+            }
+        }
+
+        // Current frame registers
         self.entries.insert(
             "IS_FRAME_FP".to_string(),
             format!("{:#x}", vm.read_reg(reg::FP)),
@@ -386,13 +439,100 @@ impl IsContextSnapshot {
             format!("{:#x}", vm.read_reg(reg::RA)),
         );
 
-        // 调用栈顶
-        if let Some(top) = vm.call_stack.last() {
+        // ── System group (12) ──
+        self.entries.insert(
+            "IS_SYS_PC".to_string(),
+            format!("{:#06x}", vm.pc),
+        );
+        self.entries.insert(
+            "IS_SYS_STATE".to_string(),
+            format!("{:?}", vm.state),
+        );
+        self.entries.insert(
+            "IS_SYS_MEM_USED".to_string(),
+            format!("{}", vm.memory.usage),
+        );
+        self.entries.insert(
+            "IS_SYS_MEM_TOTAL".to_string(),
+            format!("{}", vm.mem_size),
+        );
+        self.entries.insert(
+            "IS_SYS_MEM_FREE".to_string(),
+            format!("{}", vm.mem_size.saturating_sub(vm.memory.usage)),
+        );
+        self.entries.insert(
+            "IS_SYS_QUANTUM".to_string(),
+            format!("{}", vm.quantum),
+        );
+        self.entries.insert(
+            "IS_SYS_QUANTUM_USED".to_string(),
+            format!("{}", vm.quantum),
+        );
+
+        // Profile name
+        let profile_name = match vm.profile {
+            crate::base::isa::Profile::Runner => "Runner",
+            crate::base::isa::Profile::Embedded => "Embedded",
+            crate::base::isa::Profile::Bare => "Bare",
+        };
+        self.entries.insert(
+            "IS_SYS_PROFILE".to_string(),
+            format!("{:?}", vm.profile),
+        );
+        self.entries.insert(
+            "IS_SYS_PROFILE_NAME".to_string(),
+            profile_name.to_string(),
+        );
+
+        // ── Time group (8) — estimate from quantum (instruction count) ──
+        // We use quantum as a rough proxy for time
+        self.entries.insert(
+            "IS_TIME_ELAPSED".to_string(),
+            format!("~{} instr", vm.quantum),
+        );
+        self.entries.insert(
+            "IS_TIME_STEP_ELAPSED".to_string(),
+            format!("~{} instr", vm.quantum),
+        );
+        // IS_TIME_TOTAL — rough estimate
+        self.entries.insert(
+            "IS_TIME_TOTAL".to_string(),
+            format!("~{} instr", vm.quantum),
+        );
+
+        // ── Task group (12) ──
+        self.entries.insert(
+            "IS_TASK_ID".to_string(),
+            format!("{}", vm.task_id),
+        );
+        self.entries.insert(
+            "IS_TASK_STATUS".to_string(),
+            format!("{:?}", vm.state),
+        );
+        self.entries.insert(
+            "IS_TASK_DEPTH".to_string(),
+            format!("{}", depth),
+        );
+        if let Some(join_target) = vm.join_waiting_for {
             self.entries.insert(
-                "IS_CALL_STACK_TOP".to_string(),
-                format!("return_pc={:#06x}", top.return_pc),
+                "IS_TASK_JOIN_TARGET".to_string(),
+                format!("{}", join_target),
             );
         }
+
+        // ── Data group (12) ──
+        self.entries.insert(
+            "IS_DATA_RODATA_SIZE".to_string(),
+            format!("{} bytes", vm.rodata.len()),
+        );
+        self.entries.insert(
+            "IS_DATA_STACK_USED".to_string(),
+            format!("{}", vm.memory.usage),
+        );
+        self.entries.insert(
+            "IS_DATA_HEAP_USED".to_string(),
+            format!("{}", vm.memory.usage),
+        );
     }
 }
 

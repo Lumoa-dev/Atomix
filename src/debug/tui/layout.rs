@@ -18,11 +18,19 @@ pub struct LayoutChunks {
     pub command_bar: Rect,
 }
 
-pub struct TuiLayout {}
+pub struct TuiLayout {
+    pub right_panel_mode: String,
+}
 
 impl TuiLayout {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            right_panel_mode: "regs".to_string(),
+        }
+    }
+
+    pub fn set_right_panel_mode(&mut self, mode: &str) {
+        self.right_panel_mode = mode.to_string();
     }
 
     pub fn calculate_layout(&self, area: Rect) -> LayoutChunks {
@@ -110,84 +118,141 @@ impl TuiLayout {
         if area.width < 20 || area.height < 5 {
             return;
         }
+
+        match self.right_panel_mode.as_str() {
+            "mem" => self.render_right_panel_mem(frame, area, session),
+            "is" => self.render_right_panel_is(frame, area, session),
+            _ => self.render_right_panel_regs(frame, area, session),
+        }
+    }
+
+    fn render_right_panel_regs(&self, frame: &mut Frame, area: Rect, session: &LocalDebugSession) {
         let vertical = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(3),
                 Constraint::Length(1),
-                Constraint::Min(2),
+                Constraint::Min(3),
             ])
             .split(area);
 
-        // IS* Context
-        let ctx = &session.is_context;
-        let is_spans = vec![
-            Line::from(Span::styled(
-                " IS* Context",
+        // Title
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                " Registers ",
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(Span::raw(format!(
-                "  PC: {}",
-                ctx.entries
-                    .get("IS_SYS_PC")
-                    .map(|s| s.as_str())
-                    .unwrap_or("—")
             ))),
-            Line::from(Span::raw(format!(
-                "  State: {}",
-                ctx.entries
-                    .get("IS_SYS_STATE")
-                    .map(|s| s.as_str())
-                    .unwrap_or("—")
-            ))),
-            Line::from(Span::raw(format!(
-                "  Frames: {}",
-                ctx.entries
-                    .get("IS_CALL_STACK_SIZE")
-                    .map(|s| s.as_str())
-                    .unwrap_or("—")
-            ))),
-            Line::from(Span::raw(format!(
-                "  Mem: {}",
-                ctx.entries
-                    .get("IS_SYS_MEM_USED")
-                    .map(|s| s.as_str())
-                    .unwrap_or("—")
-            ))),
-        ];
+            vertical[0],
+        );
+
+        // Register values
+        let var_lines: Vec<Line> = (0..16.min(vertical[1].height as usize - 1))
+            .map(|i| {
+                let name = crate::base::isa::reg_name(i).to_uppercase();
+                let val = session.vm.read_reg(i);
+                Line::from(Span::raw(format!("  {:>8}: {:#018x}  ({})", name, val, val as i64)))
+            })
+            .collect();
         frame.render_widget(
-            Paragraph::new(is_spans)
+            Paragraph::new(var_lines)
+                .style(Style::default().fg(Color::White))
                 .block(
                     Block::default()
                         .borders(Borders::TOP)
                         .border_style(Style::default().fg(Color::DarkGray)),
                 )
                 .wrap(Wrap { trim: false }),
-            vertical[0],
-        );
-
-        // separator
-        frame.render_widget(
-            Paragraph::new(Line::from(Span::raw("─ Variables / Watch ─")))
-                .style(Style::default().fg(Color::DarkGray)),
             vertical[1],
         );
+    }
 
-        // Variables
-        let var_lines: Vec<Line> = (0..16.min(vertical[2].height as usize - 1))
-            .map(|i| {
-                let name = crate::base::isa::reg_name(i).to_uppercase();
-                let val = session.vm.read_reg(i);
-                Line::from(Span::raw(format!("  {:>8}: {:#018x}", name, val)))
-            })
-            .collect();
+    fn render_right_panel_mem(&self, frame: &mut Frame, area: Rect, session: &LocalDebugSession) {
+        // Memory hex dump starting at address 0
+        let bytes_per_line = 8;
+        let max_lines = (area.height as usize).saturating_sub(2);
+
+        let mut mem_lines = Vec::new();
+        mem_lines.push(Line::from(Span::styled(
+            " Memory Hex Dump ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+
+        for line_idx in 0..max_lines {
+            let addr = (line_idx * bytes_per_line) as u64;
+            let mut hex = String::new();
+            let mut ascii = String::new();
+            for byte_idx in 0..bytes_per_line {
+                let a = addr.wrapping_add(byte_idx as u64);
+                if let Some(byte) = session.vm.memory.read_u8(a) {
+                    hex.push_str(&format!("{:02x} ", byte));
+                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' {
+                        byte as char
+                    } else {
+                        '.'
+                    });
+                } else {
+                    hex.push_str("   ");
+                    ascii.push('.');
+                }
+            }
+            mem_lines.push(Line::from(Span::styled(
+                format!("  {:#010x}:  {:24}  {}", addr, hex, ascii),
+                Style::default().fg(Color::White),
+            )));
+        }
+
         frame.render_widget(
-            Paragraph::new(var_lines)
-                .style(Style::default().fg(Color::White))
+            Paragraph::new(mem_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
                 .wrap(Wrap { trim: false }),
-            vertical[2],
+            area,
+        );
+    }
+
+    fn render_right_panel_is(&self, frame: &mut Frame, area: Rect, session: &LocalDebugSession) {
+        let ctx = &session.is_context;
+
+        // Collect IS* entries into grouped lines.
+        let groups = [
+            ("Exception", &["IS_EXCEPTION", "IS_EXCEPTION_MSG", "IS_EXCEPTION_PC"] as &[&str]),
+            ("Count", &["IS_COUNT_INSTR", "IS_COUNT_STEP", "IS_COUNT_CALL", "IS_COUNT_ALLOC"]),
+            ("CallCtx", &["IS_CALL_DEPTH", "IS_CALL_STACK_SIZE", "IS_FRAME_SP", "IS_FRAME_FP", "IS_FRAME_RA"]),
+            ("System", &["IS_SYS_PC", "IS_SYS_STATE", "IS_SYS_MEM_USED", "IS_SYS_MEM_TOTAL", "IS_SYS_QUANTUM", "IS_SYS_PROFILE"]),
+            ("Task", &["IS_TASK_ID", "IS_TASK_STATUS", "IS_TASK_DEPTH", "IS_TASK_JOIN_TARGET"]),
+            ("Data", &["IS_DATA_RODATA_SIZE", "IS_DATA_STACK_USED", "IS_DATA_HEAP_USED"]),
+        ];
+
+        let mut is_lines = Vec::new();
+        is_lines.push(Line::from(Span::styled(
+            " IS* Context ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+
+        for (_group_name, keys) in &groups {
+            for key in *keys {
+                let val = ctx.entries.get(*key).map(|s| s.as_str()).unwrap_or("—");
+                is_lines.push(Line::from(Span::raw(format!("  {}: {}", key, val))));
+            }
+        }
+
+        frame.render_widget(
+            Paragraph::new(is_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
+                .wrap(Wrap { trim: false }),
+            area,
         );
     }
 

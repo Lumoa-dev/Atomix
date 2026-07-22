@@ -269,12 +269,21 @@ impl TuiApp {
             ":deps" | ":tasks" => self.navigate_to(PageId::TaskDependency),
             ":binary" => self.navigate_to(PageId::BinaryView),
             ":disasm" | ":ir" => self.navigate_to(PageId::DisasmView),
-            ":regs" => self.navigate_to(PageId::RegsMemory),
-            ":mem" => self.navigate_to(PageId::RegsMemory),
+            ":regs" => {
+                self.navigate_to(PageId::RegsMemory);
+                self.layout.set_right_panel_mode("regs");
+            }
+            ":mem" => {
+                self.navigate_to(PageId::RegsMemory);
+                self.layout.set_right_panel_mode("mem");
+            }
             ":zones" => self.navigate_to(PageId::ZoneStatus),
             ":bt" | ":callstack" => self.navigate_to(PageId::CallStack),
             ":breaks" => self.navigate_to(PageId::Breakpoints),
-            ":is" => self.navigate_to(PageId::IsContext),
+            ":is" => {
+                self.navigate_to(PageId::IsContext);
+                self.layout.set_right_panel_mode("is");
+            }
             ":segments" => self.navigate_to(PageId::SegmentInfo),
             ":perf" | ":profile" => self.navigate_to(PageId::PerfAnalysis),
 
