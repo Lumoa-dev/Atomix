@@ -1136,6 +1136,27 @@ fn cmd_task(
             }
         }
 
+        if export_dataflow {
+            // 导出数据追踪图（DOT 格式，可用 Graphviz 转换为 SVG）
+            let trace = &session.trace;
+            let mut dot = String::from("digraph dataflow {\n  rankdir=LR;\n  node [shape=box,style=filled,fillcolor=lightblue];\n");
+            let mut edges = String::new();
+            for event in &trace.variable_events {
+                let var_node = format!("  var_{} [label=\"{}\",shape=oval,fillcolor=lightyellow];\n", event.name, event.name);
+                if !dot.contains(&var_node) { dot.push_str(&var_node); }
+                edges.push_str(&format!("  var_{} -> step_{} [label=\"{:#x}\"];\n", event.name, event.step_name, event.pc));
+            }
+            for step in &trace.steps {
+                let step_node = format!("  step_{} [label=\"{}\"];\n", step.name, step.name);
+                if !dot.contains(&step_node) { dot.push_str(&step_node); }
+            }
+            dot.push_str(&edges);
+            dot.push_str("}\n");
+            let path = "dataflow.dot";
+            if fs::write(path, &dot).is_ok() {
+                println!("数据追踪图已导出至: {} (DOT 格式, 可用 dot -Tsvg {} -o dataflow.svg 转换)", path, path);
+            }
+        }
         return;
     }
 
