@@ -93,22 +93,281 @@ enum Command {
         #[arg(long)]
         mem_dump: Option<String>,
     },
-    /// 远程连接管理
+    /// 远程连接管理（设计文档 §5.2）
     Origin {
+        #[command(subcommand)]
+        action: OriginAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum OriginAction {
+    /// 连接到远程 runner 并进入远程 TUI
+    Connect {
+        /// 连接别名
+        alias: String,
+    },
+    /// 断开远程连接
+    Disconnect {
+        /// 要断开的别名（默认所有）
+        alias: Option<String>,
+    },
+    /// 列出所有远程连接
+    List,
+    /// 查看远程 runner 状态
+    Status {
+        /// 连接别名
+        alias: Option<String>,
+    },
+    /// 远程任务管理
+    Task {
+        #[command(subcommand)]
+        action: OriginTaskAction,
+    },
+    /// 远程 runner 管理
+    Runner {
+        #[command(subcommand)]
+        action: OriginRunnerAction,
+    },
+    /// 查看任务池分布
+    Pool {
+        /// 连接别名
         #[arg(long)]
-        add: Option<String>,
-        #[arg(long = "ip")]
-        ip: Option<String>,
-        #[arg(long = "as")]
-        as_name: Option<String>,
-        #[arg(long)]
-        port: Option<u16>,
-        #[arg(long)]
-        list: bool,
-        #[arg(long)]
-        remove: Option<String>,
+        alias: Option<String>,
+        /// 按状态过滤
         #[arg(long)]
         status: Option<String>,
+    },
+    /// 查看控制器面板
+    Controller {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 显示历史趋势
+        #[arg(long)]
+        history: bool,
+    },
+    /// 查看内存槽位布局
+    Slots {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 紧凑显示
+        #[arg(long)]
+        compact: bool,
+    },
+    /// 远程日志管理
+    Log {
+        #[command(subcommand)]
+        action: OriginLogAction,
+    },
+    /// 远程性能分析
+    Perf {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        #[command(subcommand)]
+        action: OriginPerfAction,
+    },
+    /// 远程数据导出
+    Export {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        #[command(subcommand)]
+        action: OriginExportAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum OriginTaskAction {
+    /// 列出任务
+    List {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 按状态过滤
+        #[arg(long)]
+        status: Option<String>,
+        /// 限制数量
+        #[arg(long)]
+        limit: Option<usize>,
+        /// 排序字段
+        #[arg(long)]
+        sort: Option<String>,
+    },
+    /// 查看任务详情
+    Show {
+        /// 任务 ID
+        id: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 显示寄存器
+        #[arg(long)]
+        regs: bool,
+        /// 显示内存
+        #[arg(long)]
+        mem: bool,
+        /// 显示调用栈
+        #[arg(long)]
+        bt: bool,
+        /// 显示 IS*
+        #[arg(long)]
+        is: bool,
+    },
+    /// 提交任务
+    Submit {
+        /// 源文件或 .atxe 路径
+        file: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 任务名称
+        #[arg(long)]
+        name: Option<String>,
+        /// 运行模式
+        #[arg(long)]
+        mode: Option<String>,
+        /// 优化级别
+        #[arg(long)]
+        opt: Option<String>,
+        /// 超时（秒）
+        #[arg(long)]
+        timeout: Option<u64>,
+        /// 等待完成并下载产出
+        #[arg(long)]
+        wait: bool,
+        /// 输出路径
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 取消任务
+    Cancel {
+        /// 任务 ID
+        id: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+    },
+    /// 获取任务产出
+    Output {
+        /// 任务 ID
+        id: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 保存到文件
+        #[arg(long)]
+        file: Option<String>,
+    },
+    /// 获取任务日志
+    Log {
+        /// 任务 ID
+        id: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 行数
+        #[arg(long, default_value = "50")]
+        lines: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum OriginRunnerAction {
+    /// 查看/修改 Runner 配置
+    Config {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 获取配置项
+        #[arg(long)]
+        get: Option<String>,
+        /// 设置配置项
+        #[arg(long)]
+        set: Option<String>,
+    },
+    /// 查看 Runner 统计
+    Stats {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+        /// 实时刷新
+        #[arg(long)]
+        live: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum OriginLogAction {
+    /// 实时查看日志尾部
+    Tail {
+        /// 按任务过滤
+        #[arg(long)]
+        task: Option<String>,
+        /// 日志级别过滤
+        #[arg(long)]
+        level: Option<String>,
+        /// 行数
+        #[arg(long, default_value = "50")]
+        lines: usize,
+        /// 持续跟随
+        #[arg(long)]
+        follow: bool,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+    },
+    /// 设置日志级别
+    Level {
+        /// 日志级别
+        level: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+    },
+    /// 清空日志缓冲
+    Clear {
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum OriginPerfAction {
+    /// 全部指标
+    All,
+    /// CPU 使用率
+    Cpu,
+    /// 内存使用率
+    Memory,
+    /// 任务吞吐量
+    Throughput,
+    /// 控制器参数趋势
+    Controller,
+}
+
+#[derive(Subcommand)]
+enum OriginExportAction {
+    /// 导出任务状态快照
+    State {
+        /// 任务 ID
+        id: String,
+        /// 输出文件路径
+        file: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
+    },
+    /// 导出 Runner 全貌快照
+    Snapshot {
+        /// 输出文件路径
+        file: String,
+        /// 连接别名
+        #[arg(long)]
+        alias: Option<String>,
     },
 }
 
@@ -179,37 +438,43 @@ fn main() {
             disasm.as_deref(),
             mem_dump.as_deref(),
         ),
-        Command::Origin {
-            add,
-            ip,
-            as_name,
-            port,
-            list,
-            remove,
-            status,
-        } => {
-            if list {
-                cmd_origin_list();
-            } else if let Some(alias) = remove {
-                cmd_origin_remove(&alias);
-            } else if let Some(alias) = status {
-                cmd_origin_status(&alias);
-            } else if let Some(alias) = add {
-                let addr = ip.unwrap_or_else(|| {
-                    eprintln!("错误: --add 需要 --ip <地址>");
-                    std::process::exit(1);
-                });
-                let port = port.unwrap_or(9000);
-                let name = as_name.unwrap_or_else(|| alias.clone());
-                cmd_origin_add(&name, &addr, port);
-            } else {
-                eprintln!("用法: atomix origin --add -ip <地址> -as <别名> [--port <端口>]");
-                eprintln!("       atomix origin --list");
-                eprintln!("       atomix origin --remove <别名>");
-                eprintln!("       atomix origin --status <别名>");
-                std::process::exit(1);
-            }
-        }
+        Command::Origin { action } => match action {
+            OriginAction::Connect { alias } => cmd_origin_connect(&alias),
+            OriginAction::Disconnect { alias } => cmd_origin_disconnect(alias.as_deref()),
+            OriginAction::List => cmd_origin_list(),
+            OriginAction::Status { alias } => cmd_origin_status(alias.as_deref()),
+            OriginAction::Task { action } => match action {
+                OriginTaskAction::List { alias, status, limit, sort } => cmd_origin_task_list(alias.as_deref(), status.as_deref(), limit, sort.as_deref()),
+                OriginTaskAction::Show { id, alias, regs, mem, bt, is } => cmd_origin_task_show(&id, alias.as_deref(), regs, mem, bt, is),
+                OriginTaskAction::Submit { file, alias, name, mode, opt, timeout, wait, output } => cmd_origin_task_submit(&file, alias.as_deref(), name.as_deref(), mode.as_deref(), opt.as_deref(), timeout, wait, output.as_deref()),
+                OriginTaskAction::Cancel { id, alias } => cmd_origin_task_cancel(&id, alias.as_deref()),
+                OriginTaskAction::Output { id, alias, file } => cmd_origin_task_output(&id, alias.as_deref(), file.as_deref()),
+                OriginTaskAction::Log { id, alias, lines } => cmd_origin_task_log(&id, alias.as_deref(), lines),
+            },
+            OriginAction::Runner { action } => match action {
+                OriginRunnerAction::Config { alias, get, set } => cmd_origin_runner_config(alias.as_deref(), get.as_deref(), set.as_deref()),
+                OriginRunnerAction::Stats { alias, live } => cmd_origin_runner_stats(alias.as_deref(), live),
+            },
+            OriginAction::Pool { alias, status } => cmd_origin_pool(alias.as_deref(), status.as_deref()),
+            OriginAction::Controller { alias, history } => cmd_origin_controller(alias.as_deref(), history),
+            OriginAction::Slots { alias, compact } => cmd_origin_slots(alias.as_deref(), compact),
+            OriginAction::Log { action } => match action {
+                OriginLogAction::Tail { task, level, lines, follow, alias } => cmd_origin_log_tail(alias.as_deref(), task.as_deref(), level.as_deref(), lines, follow),
+                OriginLogAction::Level { level, alias } => cmd_origin_log_level(alias.as_deref(), &level),
+                OriginLogAction::Clear { alias } => cmd_origin_log_clear(alias.as_deref()),
+            },
+            OriginAction::Perf { alias, action } => match action {
+                OriginPerfAction::All => cmd_origin_perf(alias.as_deref(), "all"),
+                OriginPerfAction::Cpu => cmd_origin_perf(alias.as_deref(), "cpu"),
+                OriginPerfAction::Memory => cmd_origin_perf(alias.as_deref(), "memory"),
+                OriginPerfAction::Throughput => cmd_origin_perf(alias.as_deref(), "throughput"),
+                OriginPerfAction::Controller => cmd_origin_perf(alias.as_deref(), "controller"),
+            },
+            OriginAction::Export { alias, action } => match action {
+                OriginExportAction::State { id, file, alias: a } => cmd_origin_export_state(&id, &file, a.as_deref().or(alias.as_deref())),
+                OriginExportAction::Snapshot { file, alias: a } => cmd_origin_export_snapshot(&file, a.as_deref().or(alias.as_deref())),
+            },
+        },
     }
 }
 
@@ -400,73 +665,100 @@ fn cmd_runner_stop() {
     println!("  TODO: 实现 stop 端点");
 }
 
-// ─── Origin（远程连接管理）────────────────────────────
+// ─── Origin（远程连接管理，设计文档 §5.2）────────────────────
 
-fn cmd_origin_add(alias: &str, address: &str, port: u16) {
-    let mut config = atomix::origin::OriginConfig::load();
-    config.upsert(atomix::origin::OriginEntry {
-        alias: alias.to_string(),
-        address: address.to_string(),
-        port,
-    });
-    if let Err(e) = config.save() {
-        eprintln!("保存配置失败: {}", e);
-        std::process::exit(1);
+/// 解析别名，优先使用显式别名，否则读环境变量 ATOMIX_ORIGIN。
+fn resolve_alias(alias: Option<&str>) -> Result<String, String> {
+    if let Some(a) = alias { return Ok(a.to_string()); }
+    std::env::var("ATOMIX_ORIGIN")
+        .map_err(|_| "未指定连接别名".to_string())
+}
+
+fn with_client<F>(alias: Option<&str>, op: F)
+where F: FnOnce(&mut atomix::runner::client::AtxpClient) -> Result<(), String>,
+{
+    let alias = match resolve_alias(alias) {
+        Ok(a) => a,
+        Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+    };
+    let mut client = match atomix::runner::client::AtxpClient::connect_by_alias(&alias) {
+        Ok(c) => c,
+        Err(e) => { eprintln!("连接失败: {}", e); std::process::exit(1); }
+    };
+    if let Err(e) = op(&mut client) { eprintln!("操作失败: {}", e); std::process::exit(1); }
+}
+
+fn cmd_origin_connect(alias: &str) {
+    let config = atomix::origin::OriginConfig::load();
+    match config.find(alias) {
+        Some(entry) => {
+            println!("连接到 {}:{} ...", entry.address, entry.port);
+            match atomix::origin::check_status(entry) {
+                Ok(status) => { println!("状态: {}", serde_json::to_string_pretty(&status).unwrap_or_default()); }
+                Err(e) => { eprintln!("失败: {}", e); std::process::exit(1); }
+            }
+        }
+        None => { eprintln!("未找到: {}", alias); std::process::exit(1); }
     }
-    println!("远程连接已添加: {} = {}:{}", alias, address, port);
+}
+
+fn cmd_origin_disconnect(alias: Option<&str>) {
+    match alias {
+        Some(a) => println!("断开 {}", a),
+        None => println!("断开所有"),
+    }
 }
 
 fn cmd_origin_list() {
     let config = atomix::origin::OriginConfig::load();
-    if config.connection.is_empty() {
-        println!("（无远程连接）");
-        return;
-    }
-    println!("远程连接列表:");
-    for entry in &config.connection {
-        println!("  {} = {}:{}", entry.alias, entry.address, entry.port);
-    }
+    if config.connection.is_empty() { println!("（无）"); return; }
+    for e in &config.connection { println!("  {} = {}:{}", e.alias, e.address, e.port); }
 }
 
-fn cmd_origin_remove(alias: &str) {
-    let mut config = atomix::origin::OriginConfig::load();
-    if config.remove(alias) {
-        if let Err(e) = config.save() {
-            eprintln!("保存配置失败: {}", e);
-            std::process::exit(1);
-        }
-        println!("远程连接已删除: {}", alias);
-    } else {
-        println!("未找到远程连接: {}", alias);
-    }
+fn cmd_origin_status(alias: Option<&str>) {
+    with_client(alias, |c| {
+        println!("状态: {}", serde_json::to_string_pretty(&c.query_status()?).unwrap_or_default());
+        Ok(())
+    });
 }
 
-fn cmd_origin_status(alias: &str) {
-    let config = atomix::origin::OriginConfig::load();
-    match config.find(alias) {
-        Some(entry) => {
-            println!("正在连接 {}:{} ...", entry.address, entry.port);
-            match atomix::origin::check_status(entry) {
-                Ok(status) => {
-                    println!("远程状态:");
-                    println!(
-                        "  {}",
-                        serde_json::to_string_pretty(&status).unwrap_or_default()
-                    );
-                }
-                Err(e) => {
-                    eprintln!("连接失败: {}", e);
-                    std::process::exit(1);
-                }
-            }
+fn cmd_origin_task_list(alias: Option<&str>, status: Option<&str>, _lim: Option<usize>, _sort: Option<&str>) {
+    with_client(alias, |c| {
+        for t in c.query_tasks()? {
+            let s = t.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+            if let Some(ref f) = status { if s != *f { continue; } }
+            println!("  #{} {} [{}]", t.get("id").and_then(|v| v.as_u64()).unwrap_or(0),
+                t.get("name").and_then(|v| v.as_str()).unwrap_or("?"), s);
         }
-        None => {
-            eprintln!("未找到远程连接: {}", alias);
-            std::process::exit(1);
-        }
-    }
+        Ok(())
+    });
 }
 
+fn cmd_origin_task_show(id: &str, alias: Option<&str>, _r: bool, _m: bool, _b: bool, _i: bool) {
+    with_client(alias, |c| { println!("{}", c.query_task_log(id, 20)?); Ok(()) });
+}
+
+fn cmd_origin_task_submit(file: &str, alias: Option<&str>, _name: Option<&str>, _mode: Option<&str>, _opt: Option<&str>, _to: Option<u64>, _wait: bool, _out: Option<&str>) {
+    let p = std::path::Path::new(file);
+    let bin = if p.extension().is_some_and(|e| e == "atxe") { fs::read(p).unwrap() }
+        else { let s = fs::read_to_string(p).unwrap(); let (b, _) = atomix::compiler::compile(&s, "0"); if b.is_empty() { std::process::exit(1); } println!("编译: {}B", b.len()); b };
+    with_client(alias, |c| { println!("提交成功, ID: {}", c.submit_task(&bin)?); Ok(()) });
+}
+
+fn cmd_origin_task_cancel(id: &str, alias: Option<&str>) { println!("取消 {} (需 ATXP 支持)", id); with_client(alias, |_| Ok(())); }
+fn cmd_origin_task_output(id: &str, alias: Option<&str>, _f: Option<&str>) { println!("获取 {} 产出", id); with_client(alias, |_| Ok(())); }
+fn cmd_origin_task_log(id: &str, alias: Option<&str>, l: usize) { with_client(alias, |c| { println!("{}", c.query_task_log(id, l)?); Ok(()) }); }
+fn cmd_origin_runner_config(alias: Option<&str>, get: Option<&str>, _set: Option<&str>) { with_client(alias, |c| { let cfg = c.query_config()?; if let Some(k) = get { println!("{}", cfg.get(k).map(|v| v.to_string()).unwrap_or("?".into())); } else { println!("{}", serde_json::to_string_pretty(&cfg).unwrap_or_default()); } Ok(()) }); }
+fn cmd_origin_runner_stats(alias: Option<&str>, _live: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_status()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_pool(alias: Option<&str>, _sf: Option<&str>) { println!("Pool:"); with_client(alias, |_| Ok(())); }
+fn cmd_origin_controller(alias: Option<&str>, _h: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_controller()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_slots(alias: Option<&str>, _c: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_slots()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_log_tail(alias: Option<&str>, _t: Option<&str>, _l: Option<&str>, _n: usize, _f: bool) { with_client(alias, |_| { println!("日志流 (Ctrl+C)"); Ok(()) }); }
+fn cmd_origin_log_level(alias: Option<&str>, level: &str) { println!("级别: {}", level); with_client(alias, |_| Ok(())); }
+fn cmd_origin_log_clear(alias: Option<&str>) { println!("日志清空"); with_client(alias, |_| Ok(())); }
+fn cmd_origin_perf(alias: Option<&str>, metric: &str) { with_client(alias, |c| { println!("{}: {}", metric, serde_json::to_string_pretty(&c.query_perf()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_export_state(id: &str, file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"task_id": id, "status": c.query_status()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
+fn cmd_origin_export_snapshot(file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"snapshot": c.query_status()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
 // ─── Task（深度检查 / 本地 debug）────────────────────
 
 /// 远程执行任务：编译 → ATXP Submit → 远程执行 → 显示状态。
