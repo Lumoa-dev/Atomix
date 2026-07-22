@@ -717,14 +717,14 @@ fn cmd_origin_list() {
 
 fn cmd_origin_status(alias: Option<&str>) {
     with_client(alias, |c| {
-        println!("状态: {}", serde_json::to_string_pretty(&c.query_status()?).unwrap_or_default());
+        println!("状态: {}", serde_json::to_string_pretty(&c.query_status_json()?).unwrap_or_default());
         Ok(())
     });
 }
 
 fn cmd_origin_task_list(alias: Option<&str>, status: Option<&str>, _lim: Option<usize>, _sort: Option<&str>) {
     with_client(alias, |c| {
-        for t in c.query_tasks()? {
+        for t in c.query_tasks_json()? {
             let s = t.get("status").and_then(|v| v.as_str()).unwrap_or("?");
             if let Some(ref f) = status { if s != *f { continue; } }
             println!("  #{} {} [{}]", t.get("id").and_then(|v| v.as_u64()).unwrap_or(0),
@@ -748,17 +748,17 @@ fn cmd_origin_task_submit(file: &str, alias: Option<&str>, _name: Option<&str>, 
 fn cmd_origin_task_cancel(id: &str, alias: Option<&str>) { println!("取消 {} (需 ATXP 支持)", id); with_client(alias, |_| Ok(())); }
 fn cmd_origin_task_output(id: &str, alias: Option<&str>, _f: Option<&str>) { println!("获取 {} 产出", id); with_client(alias, |_| Ok(())); }
 fn cmd_origin_task_log(id: &str, alias: Option<&str>, l: usize) { with_client(alias, |c| { println!("{}", c.query_task_log(id, l)?); Ok(()) }); }
-fn cmd_origin_runner_config(alias: Option<&str>, get: Option<&str>, _set: Option<&str>) { with_client(alias, |c| { let cfg = c.query_config()?; if let Some(k) = get { println!("{}", cfg.get(k).map(|v| v.to_string()).unwrap_or("?".into())); } else { println!("{}", serde_json::to_string_pretty(&cfg).unwrap_or_default()); } Ok(()) }); }
-fn cmd_origin_runner_stats(alias: Option<&str>, _live: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_status()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_runner_config(alias: Option<&str>, get: Option<&str>, _set: Option<&str>) { with_client(alias, |c| { let cfg = c.query_config_json()?; if let Some(k) = get { println!("{}", cfg.get(k).map(|v| v.to_string()).unwrap_or("?".into())); } else { println!("{}", serde_json::to_string_pretty(&cfg).unwrap_or_default()); } Ok(()) }); }
+fn cmd_origin_runner_stats(alias: Option<&str>, _live: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_status_json()?).unwrap_or_default()); Ok(()) }); }
 fn cmd_origin_pool(alias: Option<&str>, _sf: Option<&str>) { println!("Pool:"); with_client(alias, |_| Ok(())); }
-fn cmd_origin_controller(alias: Option<&str>, _h: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_controller()?).unwrap_or_default()); Ok(()) }); }
-fn cmd_origin_slots(alias: Option<&str>, _c: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_slots()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_controller(alias: Option<&str>, _h: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_controller_json()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_slots(alias: Option<&str>, _c: bool) { with_client(alias, |c| { println!("{}", serde_json::to_string_pretty(&c.query_slots_json()?).unwrap_or_default()); Ok(()) }); }
 fn cmd_origin_log_tail(alias: Option<&str>, _t: Option<&str>, _l: Option<&str>, _n: usize, _f: bool) { with_client(alias, |_| { println!("日志流 (Ctrl+C)"); Ok(()) }); }
 fn cmd_origin_log_level(alias: Option<&str>, level: &str) { println!("级别: {}", level); with_client(alias, |_| Ok(())); }
 fn cmd_origin_log_clear(alias: Option<&str>) { println!("日志清空"); with_client(alias, |_| Ok(())); }
-fn cmd_origin_perf(alias: Option<&str>, metric: &str) { with_client(alias, |c| { println!("{}: {}", metric, serde_json::to_string_pretty(&c.query_perf()?).unwrap_or_default()); Ok(()) }); }
-fn cmd_origin_export_state(id: &str, file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"task_id": id, "status": c.query_status()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
-fn cmd_origin_export_snapshot(file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"snapshot": c.query_status()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
+fn cmd_origin_perf(alias: Option<&str>, metric: &str) { with_client(alias, |c| { println!("{}: {}", metric, serde_json::to_string_pretty(&c.query_status_json()?).unwrap_or_default()); Ok(()) }); }
+fn cmd_origin_export_state(id: &str, file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"task_id": id, "status": c.query_status_json()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
+fn cmd_origin_export_snapshot(file: &str, alias: Option<&str>) { with_client(alias, |c| { let s = serde_json::json!({"snapshot": c.query_status_json()?}); let _ = fs::write(file, &serde_json::to_string_pretty(&s).unwrap()); println!("导出 {}", file); Ok(()) }); }
 // ─── Task（深度检查 / 本地 debug）────────────────────
 
 /// 远程执行任务：编译 → ATXP Submit → 远程执行 → 显示状态。
@@ -805,7 +805,7 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
     };
 
     // 查询远程状态
-    match client.query_status() {
+    match client.query_status_json() {
         Ok(status) => println!(
             "远程状态: {}",
             serde_json::to_string_pretty(&status).unwrap_or_default()
@@ -824,7 +824,7 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
     }
 
     // 查询任务列表
-    match client.query_tasks() {
+    match client.query_tasks_json() {
         Ok(tasks) => {
             println!("\n任务列表:");
             for t in &tasks {
@@ -889,7 +889,7 @@ fn _cmd_task_remote(task_name: &str, alias: &str) {
     };
 
     // 查询远程状态
-    match client.query_status() {
+    match client.query_status_json() {
         Ok(status) => {
             println!("\n远程 runner 状态:");
             println!(
@@ -907,7 +907,7 @@ fn _cmd_task_remote(task_name: &str, alias: &str) {
     }
 
     // 查询任务列表
-    match client.query_tasks() {
+    match client.query_tasks_json() {
         Ok(tasks) => {
             println!("\n远程任务:");
             for t in &tasks {

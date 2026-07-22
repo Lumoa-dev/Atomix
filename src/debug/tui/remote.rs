@@ -47,10 +47,10 @@ impl RemoteSession {
     pub fn connect_by_alias(alias: &str) -> Result<Self, String> {
         let mut client = AtxpClient::connect_by_alias(alias)?;
         let status = client
-            .query_status()
+            .query_status_json()
             .unwrap_or(serde_json::json!({"error": "query failed"}));
-        let tasks = client.query_tasks().unwrap_or_default();
-        let config = client.query_config().unwrap_or(serde_json::json!({}));
+        let tasks = client.query_tasks_json().unwrap_or_default();
+        let config = client.query_config_json().unwrap_or(serde_json::json!({}));
 
         Ok(Self {
             alias: alias.to_string(),
@@ -68,9 +68,9 @@ impl RemoteSession {
         if !self.connected {
             return;
         }
-        self.status = self.client.query_status().unwrap_or(self.status.clone());
-        self.tasks = self.client.query_tasks().unwrap_or(self.tasks.clone());
-        self.config = self.client.query_config().unwrap_or(self.config.clone());
+        self.status = self.client.query_status_json().unwrap_or(self.status.clone());
+        self.tasks = self.client.query_tasks_json().unwrap_or(self.tasks.clone());
+        self.config = self.client.query_config_json().unwrap_or(self.config.clone());
         self.last_refresh = Instant::now();
     }
 
@@ -86,17 +86,23 @@ impl RemoteSession {
 
     /// 获取远程 perf 数据。
     pub fn perf_data(&mut self) -> Result<serde_json::Value, String> {
-        self.client.query_perf()
+        // v0.5 没有单独的 runner/perf 端点，通过 status + controller 合成
+        let status = self.client.query_status_json().unwrap_or_default();
+        let ctrl = self.client.query_controller_json().unwrap_or_default();
+        Ok(serde_json::json!({
+            "status": status,
+            "controller": ctrl,
+        }))
     }
 
     /// 获取槽位布局。
     pub fn slot_layout(&mut self) -> Result<serde_json::Value, String> {
-        self.client.query_slots()
+        self.client.query_slots_json()
     }
 
     /// 获取控制器状态。
     pub fn controller_status(&mut self) -> Result<serde_json::Value, String> {
-        self.client.query_controller()
+        self.client.query_controller_json()
     }
 }
 

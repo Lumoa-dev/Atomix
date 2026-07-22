@@ -18,47 +18,53 @@
 /// 帧头大小：16 字节。
 pub const FRAME_HEADER_SIZE: usize = 16;
 
-/// 消息类型。
+/// 消息类型 (v0.5, 共 10 种)。
+///
+/// 设计文档: docs/05-通信协议.md §3
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MsgType {
-    Capabilities = 0x01,
+    Hello = 0x01,
     Ack = 0x02,
     Error = 0x03,
-    Command = 0x04,
-    Query = 0x05,
-    QueryResult = 0x06,
-    Event = 0x07,
-    Stream = 0x08,
-    Inject = 0x09,
-    InjectResult = 0x0A,
-    Heartbeat = 0x0B,
-    Disconnect = 0x0C,
-    Submit = 0x0D,
-    SubmitResult = 0x0E,
-    TaskOutput = 0x0F,
-    OutputRequest = 0x10,
+    Request = 0x04,
+    Response = 0x05,
+    Event = 0x06,
+    Submit = 0x07,
+    SubmitResult = 0x08,
+    Heartbeat = 0x09,
+    Bye = 0x0A,
 }
 
 impl MsgType {
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
-            0x01 => Some(Self::Capabilities),
+            0x01 => Some(Self::Hello),
             0x02 => Some(Self::Ack),
             0x03 => Some(Self::Error),
-            0x04 => Some(Self::Command),
-            0x05 => Some(Self::Query),
-            0x06 => Some(Self::QueryResult),
-            0x07 => Some(Self::Event),
-            0x08 => Some(Self::Stream),
-            0x09 => Some(Self::Inject),
-            0x0A => Some(Self::InjectResult),
-            0x0B => Some(Self::Heartbeat),
-            0x0C => Some(Self::Disconnect),
-            0x0D => Some(Self::Submit),
-            0x0E => Some(Self::SubmitResult),
-            0x0F => Some(Self::TaskOutput),
-            0x10 => Some(Self::OutputRequest),
+            0x04 => Some(Self::Request),
+            0x05 => Some(Self::Response),
+            0x06 => Some(Self::Event),
+            0x07 => Some(Self::Submit),
+            0x08 => Some(Self::SubmitResult),
+            0x09 => Some(Self::Heartbeat),
+            0x0A => Some(Self::Bye),
             _ => None,
+        }
+    }
+
+    /// 人类可读的名称。
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Hello => "Hello",
+            Self::Ack => "Ack",
+            Self::Error => "Error",
+            Self::Request => "Request",
+            Self::Response => "Response",
+            Self::Event => "Event",
+            Self::Submit => "Submit",
+            Self::SubmitResult => "SubmitResult",
+            Self::Heartbeat => "Heartbeat",
+            Self::Bye => "Bye",
         }
     }
 }
@@ -269,8 +275,17 @@ mod tests {
     #[test]
     fn msg_type_conversion() {
         assert_eq!(MsgType::from_u8(0x01).unwrap() as u8, 0x01);
-        assert_eq!(MsgType::from_u8(0x0B).unwrap() as u8, 0x0B);
+        assert_eq!(MsgType::from_u8(0x09).unwrap() as u8, 0x09); // Heartbeat
+        assert_eq!(MsgType::from_u8(0x0A).unwrap() as u8, 0x0A); // Bye
         assert!(MsgType::from_u8(0xFF).is_none());
+    }
+
+    #[test]
+    fn msg_type_name() {
+        assert_eq!(MsgType::Hello.name(), "Hello");
+        assert_eq!(MsgType::Request.name(), "Request");
+        assert_eq!(MsgType::Response.name(), "Response");
+        assert_eq!(MsgType::Bye.name(), "Bye");
     }
 
     #[test]

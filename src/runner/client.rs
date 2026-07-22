@@ -1,34 +1,31 @@
-//! ATXP 客户端 — 连接远程 runner，发送查询/提交/控制命令。
+//! ATXP 客户端 — 远程 runner 操作封装。
+//!
+//! 基于 base::atxp_transport::AtxpTransport 的 Runner 专用客户端。
+//! 方法返回真实 Protobuf 类型（而非 JSON 字符串）。
 //!
 //! 用于 `atomix runner run --origin` 和 `atomix task --origin`。
 
 use crate::base::atxp;
+use crate::base::atxp_transport::{AtxpTransport, TransportConfig};
 use prost::Message;
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::time::Duration;
+use std::collections::HashMap;
 
-/// ATXP 客户端连接。
+/// ATXP Runner 客户端。
 pub struct AtxpClient {
-    stream: TcpStream,
-    seq_id: u32,
+    transport: AtxpTransport,
 }
 
 impl AtxpClient {
     /// 连接到远程 runner。
     pub fn connect(addr: &str, port: u16) -> Result<Self, String> {
-        let address = format!("{}:{}", addr, port);
-        let stream = TcpStream::connect_timeout(
-            &address
-                .parse()
-                .map_err(|e| format!("地址解析失败: {}", e))?,
-            Duration::from_secs(10),
-        )
-        .map_err(|e| format!("连接失败: {}", e))?;
-        stream
-            .set_read_timeout(Some(Duration::from_secs(30)))
-            .map_err(|e| format!("设置超时失败: {}", e))?;
-        Ok(Self { stream, seq_id: 0 })
+        let transport = AtxpTransport::connect(addr, port)?;
+        Ok(Self { transport })
+    }
+
+    /// 使用自定义配置连接。
+    pub fn connect_with_config(addr: &str, port: u16, config: TransportConfig) -> Result<Self, String> {
+        let transport = AtxpTransport::connect_with_config(addr, port, config)?;
+        Ok(Self { transport })
     }
 
     /// 从 OriginConfig 查找别名并连接。
@@ -40,166 +37,234 @@ impl AtxpClient {
         Self::connect(&entry.address, entry.port)
     }
 
-    /// 发送并接收一帧消息。
-    fn exchange(&mut self, msg_type: u8, payload: &[u8]) -> Result<(u8, Vec<u8>), String> {
-        self.seq_id += 1;
-        let frame = atxp::encode_frame(msg_type, self.seq_id, payload);
-        self.stream
-            .write_all(&frame)
-            .map_err(|e| format!("发送失败: {}", e))?;
-
-        // 读取响应
-        let mut buf = vec![0u8; 65536];
-        let n = self
-            .stream
-            .read(&mut buf)
-            .map_err(|e| format!("读取失败: {}", e))?;
-        buf.truncate(n);
-
-        match atxp::decode_frame(&buf) {
-            Some((hdr, resp_payload, _)) => Ok((hdr.msg_type, resp_payload)),
-            None => Err("无效的响应帧".to_string()),
-        }
-    }
+    // ─── Runner 操作 ─────────────────────────────
 
     /// 查询远程 runner 状态。
-    pub fn query_status(&mut self) -> Result<serde_json::Value, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/status".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
+    pub fn query_status(&mut self) -> Result<atxp::proto::RunnerStatus, String> {
+        let resp = self.transport.request("runner", "status", &empty_params())?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
         }
+        atxp::proto::RunnerStatus::decode(resp.data.as_slice())
+            .map_err(|e| format!("RunnerStatus 解码失败: {}", e))
     }
 
-    /// 查询远程任务列表。
-    pub fn query_tasks(&mut self) -> Result<Vec<serde_json::Value>, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/tasks".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
+    /// 查询远程 Runner 配置。
+    pub fn query_config(&mut self) -> Result<atxp::proto::RunnerConfig, String> {
+        let resp = self.transport.request("runner", "config", &empty_params())?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
         }
+        atxp::proto::RunnerConfig::decode(resp.data.as_slice())
+            .map_err(|e| format!("RunnerConfig 解码失败: {}", e))
+    }
+
+    // ─── 任务操作 ─────────────────────────────
+
+    /// 查询远程任务列表。
+    pub fn query_tasks(&mut self) -> Result<atxp::proto::TaskList, String> {
+        let resp = self.transport.request("task", "list", &empty_params())?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
+        }
+        atxp::proto::TaskList::decode(resp.data.as_slice())
+            .map_err(|e| format!("TaskList 解码失败: {}", e))
+    }
+
+    /// 查询指定任务的状态。
+    pub fn query_task_status(&mut self, task_id: &str) -> Result<atxp::proto::TaskStatus, String> {
+        let mut params = HashMap::new();
+        params.insert("task_id".into(), task_id.as_bytes().to_vec());
+        let resp = self.transport.request("task", "status", &params)?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
+        }
+        atxp::proto::TaskStatus::decode(resp.data.as_slice())
+            .map_err(|e| format!("TaskStatus 解码失败: {}", e))
+    }
+
+    /// 查询任务日志。
+    pub fn query_task_log(&mut self, task_id: &str, lines: usize) -> Result<String, String> {
+        let mut params = HashMap::new();
+        params.insert("task_id".into(), task_id.as_bytes().to_vec());
+        params.insert("lines".into(), (lines as u64).to_le_bytes().to_vec());
+        let resp = self.transport.request("task", "log", &params)?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
+        }
+        String::from_utf8(resp.data).map_err(|e| format!("日志解码失败: {}", e))
+    }
+
+    /// 查询任务执行统计。
+    pub fn query_task_stats(&mut self, task_id: &str) -> Result<atxp::proto::TaskStats, String> {
+        let mut params = HashMap::new();
+        params.insert("task_id".into(), task_id.as_bytes().to_vec());
+        let resp = self.transport.request("task", "stats", &params)?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
+        }
+        atxp::proto::TaskStats::decode(resp.data.as_slice())
+            .map_err(|e| format!("TaskStats 解码失败: {}", e))
     }
 
     /// 提交任务到远程 runner 执行。
     pub fn submit_task(&mut self, binary: &[u8]) -> Result<String, String> {
         let submit = atxp::proto::Submit {
-            mode: 0,
+            mode: 1, // SUBMIT_BINARY
             source: String::new(),
             binary: binary.to_vec(),
             task_name: String::new(),
-            output_mode: 0,
+            output_mode: 0, // OUTPUT_POLL
             ..Default::default()
         };
-        let (_, resp) = self.exchange(0x0D, &submit.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::SubmitResult::decode(resp.as_slice()) {
-            if result.status == 0 {
-                Ok(result.task_id)
-            } else {
-                Err(format!("任务提交失败: {}", result.message))
-            }
+        let result = self.transport.submit(&submit)?;
+        if result.status == 0 { // STATUS_ACCEPTED
+            Ok(result.task_id)
         } else {
-            Err("SubmitResult 解码失败".to_string())
+            Err(format!(
+                "任务提交失败: {}",
+                result.message
+            ))
         }
     }
 
-    /// 发送心跳。
-    pub fn heartbeat(&mut self) -> Result<(), String> {
-        let hb = atxp::proto::Ack {
-            status: 0,
-            message: "ping".into(),
-        };
-        let (msg_type, _) = self.exchange(0x0B, &hb.encode_to_vec())?;
-        if msg_type == 0x02 {
-            Ok(())
-        } else {
-            Err("心跳响应异常".to_string())
-        }
-    }
+    // ─── 控制器 & 槽位 ─────────────────────────
 
-    /// 查询远程 Runner 配置。
-    pub fn query_config(&mut self) -> Result<serde_json::Value, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/config".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
+    /// 查询控制器状态。
+    pub fn query_controller(&mut self) -> Result<atxp::proto::ControllerState, String> {
+        let resp = self.transport.request("controller", "status", &empty_params())?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
         }
-    }
-
-    /// 查询指定任务的日志。
-    pub fn query_task_log(&mut self, task_id: &str, _lines: usize) -> Result<String, String> {
-        let query = atxp::proto::Query {
-            endpoint: format!("task/{}/log", task_id),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            String::from_utf8(result.data).map_err(|e| format!("UTF-8 解码失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
-        }
-    }
-
-    /// 查询远程性能指标。
-    pub fn query_perf(&mut self) -> Result<serde_json::Value, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/perf".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
-        }
+        atxp::proto::ControllerState::decode(resp.data.as_slice())
+            .map_err(|e| format!("ControllerState 解码失败: {}", e))
     }
 
     /// 查询内存槽位布局。
-    pub fn query_slots(&mut self) -> Result<serde_json::Value, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/slots".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
+    pub fn query_slots(&mut self) -> Result<atxp::proto::SlotLayout, String> {
+        let resp = self.transport.request("slots", "layout", &empty_params())?;
+        if !resp.error.is_empty() {
+            return Err(resp.error);
         }
+        atxp::proto::SlotLayout::decode(resp.data.as_slice())
+            .map_err(|e| format!("SlotLayout 解码失败: {}", e))
     }
 
-    /// 查询控制器状态。
-    pub fn query_controller(&mut self) -> Result<serde_json::Value, String> {
-        let query = atxp::proto::Query {
-            endpoint: "runner/controller".into(),
-            operation: 0,
-            params: Vec::new(),
-        };
-        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
-        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
-        } else {
-            Err("QueryResult 解码失败".to_string())
-        }
+    // ─── 生命周期 ─────────────────────────────
+
+    /// 发送心跳。
+    pub fn heartbeat(&mut self) -> Result<(), String> {
+        self.transport.heartbeat()
     }
+
+    /// 断开连接。
+    pub fn disconnect(&mut self) -> Result<(), String> {
+        self.transport.disconnect()
+    }
+
+    /// 获取底层传输层引用。
+    pub fn transport(&self) -> &AtxpTransport {
+        &self.transport
+    }
+
+    /// 检查是否仍连接。
+    pub fn is_connected(&self) -> bool {
+        self.transport.is_connected()
+    }
+
+    // ─── JSON 兼容方法（供 TUI 等使用） ──────────
+
+    /// 查询状态并以 JSON 返回。
+    pub fn query_status_json(&mut self) -> Result<serde_json::Value, String> {
+        self.query_status().map(|s| {
+            serde_json::json!({
+                "state": s.state,
+                "version": s.version,
+                "task_count": s.task_count,
+                "running_count": s.running_count,
+                "total_instrs": s.total_instrs,
+                "completed_count": s.completed_count,
+                "mem_used_mb": s.mem_used_mb,
+                "mem_limit_mb": s.mem_limit_mb,
+            })
+        })
+    }
+
+    /// 查询任务列表并以 JSON 返回。
+    pub fn query_tasks_json(&mut self) -> Result<Vec<serde_json::Value>, String> {
+        self.query_tasks().map(|list| {
+            list.tasks
+                .into_iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "id": t.task_id,
+                        "name": t.name,
+                        "state": t.state,
+                        "cycles": t.cycles,
+                        "memory_mb": t.memory_mb,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// 查询配置并以 JSON 返回。
+    pub fn query_config_json(&mut self) -> Result<serde_json::Value, String> {
+        self.query_config().map(|c| {
+            serde_json::json!({
+                "max_concurrent": c.max_concurrent,
+                "quantum": c.quantum,
+                "heartbeat_ms": c.heartbeat_ms,
+                "trace_level": c.trace_level,
+                "tls_enabled": c.tls_enabled,
+            })
+        })
+    }
+
+    /// 查询槽位布局并以 JSON 返回。
+    pub fn query_slots_json(&mut self) -> Result<serde_json::Value, String> {
+        self.query_slots().map(|layout| {
+            let slots: Vec<serde_json::Value> = layout
+                .slots
+                .into_iter()
+                .map(|s| {
+                    serde_json::json!({
+                        "slot_id": s.slot_id,
+                        "task_id": s.task_id,
+                        "base_addr": s.base_addr,
+                        "size": s.size,
+                        "used": s.used,
+                        "status": s.status,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "slots": slots,
+                "fragmentation": layout.fragmentation,
+            })
+        })
+    }
+
+    /// 查询控制器状态并以 JSON 返回。
+    pub fn query_controller_json(&mut self) -> Result<serde_json::Value, String> {
+        self.query_controller().map(|c| {
+            serde_json::json!({
+                "n_batch": c.n_batch,
+                "hard_ceiling": c.hard_ceiling,
+                "backlog_depth": c.backlog_depth,
+                "oom_count": c.oom_count,
+                "alpha_mem_current": c.alpha_mem_current,
+                "beta": c.beta,
+                "lambda_speed": c.lambda_speed,
+                "sigma_volume": c.sigma_volume,
+                "merged_factor": c.merged_factor,
+                "total_slots": c.total_slots,
+            })
+        })
+    }
+}
+
+/// 空的参数 map。
+fn empty_params() -> HashMap<String, Vec<u8>> {
+    HashMap::new()
 }

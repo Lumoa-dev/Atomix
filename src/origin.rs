@@ -100,44 +100,48 @@ impl OriginConfig {
 
 /// 检查远程连接是否可达，返回 JSON 状态。
 pub fn check_status(entry: &OriginEntry) -> Result<serde_json::Value, String> {
-    use std::io::{Read, Write};
-    use std::net::TcpStream;
-    use std::time::Duration;
+    use crate::base::atxp_transport::AtxpTransport;
 
-    let addr = format!("{}:{}", entry.address, entry.port);
-    let mut stream = TcpStream::connect_timeout(
-        &addr.parse().map_err(|e| format!("地址解析失败: {}", e))?,
-        Duration::from_secs(5),
-    )
-    .map_err(|e| format!("连接失败: {}", e))?;
+    let mut transport = AtxpTransport::connect(&entry.address, entry.port)?;
 
-    // 发送 Query runner/status
+    // 发送 Request runner/status
     use prost::Message;
-    let query = crate::base::atxp::proto::Query {
-        endpoint: "runner/status".into(),
-        operation: 0, // GET
-        params: Vec::new(),
+    let req = crate::base::atxp::proto::Request {
+        resource: "runner".into(),
+        action: "status".into(),
+        params: std::collections::HashMap::new(),
     };
-    let payload = query.encode_to_vec();
-    let frame = crate::base::atxp::encode_frame(0x05, 1, &payload);
+    let payload = req.encode_to_vec();
+    let (hdr, resp_payload) = transport.exchange(
+        crate::base::atxp::MsgType::Request as u8,
+        &payload,
+    )?;
 
-    stream
-        .write_all(&frame)
-        .map_err(|e| format!("发送失败: {}", e))?;
+    if hdr.msg_type == crate::base::atxp::MsgType::Error as u8 {
+        if let Ok(err) = crate::base::atxp::proto::Error::decode(resp_payload.as_slice()) {
+            return Err(format!("查询被拒绝: {}", err.message));
+        }
+        return Err("查询被拒绝".to_string());
+    }
 
-    // 读取响应
-    let mut buf = vec![0u8; 4096];
-    let n = stream
-        .read(&mut buf)
-        .map_err(|e| format!("读取失败: {}", e))?;
-    buf.truncate(n);
+    if hdr.msg_type != crate::base::atxp::MsgType::Response as u8 {
+        return Err("响应类型异常".to_string());
+    }
 
-    // 解码帧
-    if let Some((_hdr, resp_payload, _rest)) = crate::base::atxp::decode_frame(&buf) {
-        if let Ok(result) = crate::base::atxp::proto::QueryResult::decode(resp_payload.as_slice()) {
-            let status: serde_json::Value = serde_json::from_slice(&result.data)
-                .unwrap_or(serde_json::json!({"raw": "unknown"}));
-            return Ok(status);
+    if let Ok(response) = crate::base::atxp::proto::Response::decode(resp_payload.as_slice()) {
+        if !response.error.is_empty() {
+            return Err(response.error);
+        }
+        if let Ok(status) = crate::base::atxp::proto::RunnerStatus::decode(response.data.as_slice()) {
+            return Ok(serde_json::json!({
+                "state": status.state,
+                "version": status.version,
+                "task_count": status.task_count,
+                "running_count": status.running_count,
+                "total_instrs": status.total_instrs,
+                "mem_used_mb": status.mem_used_mb,
+                "mem_limit_mb": status.mem_limit_mb,
+            }));
         }
     }
 
