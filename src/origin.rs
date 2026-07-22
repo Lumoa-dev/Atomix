@@ -5,7 +5,6 @@
 //!
 //! 详见 docs/10-命令行规范.md §4.3。
 
-use std::collections::HashMap;
 use std::path::Path;
 
 /// 远程连接配置。
@@ -49,7 +48,7 @@ impl OriginConfig {
     /// 保存 origin 配置到 `atomix.toml`。
     pub fn save(&self) -> Result<(), String> {
         let path = Path::new("atomix.toml");
-        let mut content = if path.exists() {
+        let content = if path.exists() {
             std::fs::read_to_string(path).unwrap_or_default()
         } else {
             String::new()

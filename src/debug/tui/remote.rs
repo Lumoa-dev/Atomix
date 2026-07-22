@@ -7,18 +7,17 @@
 //! 注意：远程模式不支持断点、单步、watch、时间轴、数据追踪等深度调试功能。
 
 use crate::debug::session::LocalDebugSession;
-use crate::debug::tui::pages::{Page, PageId};
+use crate::debug::tui::pages::Page;
 use crate::runner::client::AtxpClient;
 
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph},
 };
 
-use std::collections::HashMap;
 use std::time::Instant;
 
 // ═══════════════════════════════════════════════════════════
@@ -220,7 +219,7 @@ impl Page for DashboardPage {
     }
     fn render(&mut self, frame: &mut Frame, area: Rect, _session: &mut LocalDebugSession) {
         let d = &self.data;
-        let mut lines = vec![
+        let lines = vec![
             Line::from(Span::styled(
                 " Runner 状态概览",
                 Style::default()
@@ -456,7 +455,7 @@ impl Page for ControllerPage {
     }
     fn render(&mut self, frame: &mut Frame, area: Rect, _session: &mut LocalDebugSession) {
         let d = &self.data;
-        let mut lines = vec![
+        let lines = vec![
             Line::from(Span::styled(
                 " 自适应控制器状态",
                 Style::default()
@@ -601,7 +600,7 @@ impl Page for SubmitPage {
         "Submit Task — 提交任务"
     }
     fn render(&mut self, frame: &mut Frame, area: Rect, _session: &mut LocalDebugSession) {
-        let mut lines = vec![
+        let lines = vec![
             Line::from(Span::styled(
                 " 提交任务到远程 Runner",
                 Style::default()

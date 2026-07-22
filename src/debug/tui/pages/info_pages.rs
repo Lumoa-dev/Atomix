@@ -10,7 +10,7 @@ use crate::debug::tui::pages::Page;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -21,16 +21,16 @@ use ratatui::{
 
 pub struct CallStackPage {
     title: String,
-    pub selected: usize,
-    pub scroll: usize,
+    pub _selected: usize,
+    pub _scroll: usize,
 }
 
 impl CallStackPage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
             title: "Call Stack — 调用栈".to_string(),
-            selected: 0,
-            scroll: 0,
+            _selected: 0,
+            _scroll: 0,
         }
     }
 }
@@ -43,7 +43,7 @@ impl Page for CallStackPage {
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let cs = &session.vm.call_stack;
         let selected = session.frame_state.current_index();
-        let max_visible = (area.height as usize).saturating_sub(2);
+        let _max_visible = (area.height as usize).saturating_sub(2);
 
         let mut lines = vec![
             Line::from(Span::styled(
@@ -344,7 +344,7 @@ impl Page for ZoneStatusPage {
 pub struct IsContextPage {
     title: String,
     pub selected_group: usize,
-    pub search_query: String,
+    pub _search_query: String,
     groups: [IsGroup; 7],
 }
 
@@ -353,7 +353,7 @@ impl IsContextPage {
         Self {
             title: "IS* Context — IS* 全览".to_string(),
             selected_group: 0,
-            search_query: String::new(),
+            _search_query: String::new(),
             groups: [
                 IsGroup::Exception,
                 IsGroup::Count,
@@ -551,14 +551,14 @@ impl Page for SegmentInfoPage {
 
 pub struct PerfAnalysisPage {
     title: String,
-    pub show_hot_path: bool,
+    pub _show_hot_path: bool,
 }
 
 impl PerfAnalysisPage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
             title: "Performance Analysis — 性能分析".to_string(),
-            show_hot_path: false,
+            _show_hot_path: false,
         }
     }
 }
@@ -570,7 +570,7 @@ impl Page for PerfAnalysisPage {
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let perf = &session.perf;
-        let max_visible = (area.height as usize).saturating_sub(3);
+        let _max_visible = (area.height as usize).saturating_sub(3);
 
         let mut lines = vec![
             Line::from(Span::styled(

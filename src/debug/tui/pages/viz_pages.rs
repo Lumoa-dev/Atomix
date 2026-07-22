@@ -5,13 +5,13 @@
 //! 使用 Unicode 框线字符绘制树形/时间轴可视化。
 
 use crate::debug::session::LocalDebugSession;
-use crate::debug::trace::{ExecutionPhase, StepStatus};
+use crate::debug::trace::ExecutionPhase;
 use crate::debug::tui::pages::Page;
 
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -24,7 +24,7 @@ pub struct DataTimelinePage {
     title: String,
     pub selected_var: usize,
     pub zoom_level: f32,
-    pub show_all_events: bool,
+    pub _show_all_events: bool,
 }
 
 impl DataTimelinePage {
@@ -33,7 +33,7 @@ impl DataTimelinePage {
             title: "Data Timeline — 数据时间轴".to_string(),
             selected_var: 0,
             zoom_level: 1.0,
-            show_all_events: false,
+            _show_all_events: false,
         }
     }
 }
@@ -190,7 +190,7 @@ impl Page for DataTimelinePage {
 
 pub struct HookTimelinePage {
     title: String,
-    pub selected_branch: usize,
+    pub _selected_branch: usize,
     pub zoom_level: f32,
 }
 
@@ -198,7 +198,7 @@ impl HookTimelinePage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
             title: "Hook Timeline — 钩子时间轴".to_string(),
-            selected_branch: 0,
+            _selected_branch: 0,
             zoom_level: 1.0,
         }
     }
@@ -308,7 +308,7 @@ impl Page for HookTimelinePage {
 pub struct TaskDependencyPage {
     title: String,
     pub selected_task: usize,
-    pub show_detail: bool,
+    pub _show_detail: bool,
 }
 
 impl TaskDependencyPage {
@@ -316,7 +316,7 @@ impl TaskDependencyPage {
         Self {
             title: "Task Dependency — 任务依赖树".to_string(),
             selected_task: 0,
-            show_detail: false,
+            _show_detail: false,
         }
     }
 }

@@ -546,7 +546,7 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
 }
 
 /// 远程任务监控：连接远程 runner，查询任务状态。
-fn cmd_task_remote(task_name: &str, alias: &str) {
+fn _cmd_task_remote(task_name: &str, alias: &str) {
     let path = Path::new(task_name);
 
     // 编译 .atx → .atxe（为了获取任务信息）

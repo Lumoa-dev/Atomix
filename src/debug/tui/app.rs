@@ -3,13 +3,11 @@
 //! 对应设计文档 §3.0（导航模型）、§3.1–3.18（18 页面）、§4（命令体系）。
 
 use crate::debug::session::{DebugSession, DisplayFormat, LocalDebugSession};
-use crate::debug::trace::ExecutionPhase;
 use crate::debug::tui::layout::TuiLayout;
-use crate::debug::tui::pages::{Page, PageId, PageRegistry};
+use crate::debug::tui::pages::{PageId, PageRegistry};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::Rect;
 
 use std::time::Duration;
 

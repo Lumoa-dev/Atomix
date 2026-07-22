@@ -9,7 +9,7 @@ use crate::debug::tui::pages::Page;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -21,7 +21,7 @@ use ratatui::{
 pub struct StepDetailPage {
     title: String,
     pub step_index: usize,
-    pub scroll: usize,
+    pub _scroll: usize,
 }
 
 impl StepDetailPage {
@@ -29,12 +29,8 @@ impl StepDetailPage {
         Self {
             title: "Step Detail — Step 详情".to_string(),
             step_index: 0,
-            scroll: 0,
+            _scroll: 0,
         }
-    }
-
-    pub fn set_step_index(&mut self, index: usize) {
-        self.step_index = index;
     }
 }
 
@@ -45,7 +41,7 @@ impl Page for StepDetailPage {
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let trace = &session.trace;
-        let max_visible = (area.height as usize).saturating_sub(2);
+        let _max_visible = (area.height as usize).saturating_sub(2);
 
         // 优先使用 session.selected_step_index，其次使用 self.step_index
         let effective_index = session.selected_step_index.unwrap_or(self.step_index);

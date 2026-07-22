@@ -77,10 +77,6 @@ impl RemoteTuiApp {
         })
     }
 
-    fn current_page_mut(&mut self) -> Option<&mut Box<dyn Page>> {
-        self.page_registry.get_mut(&self.active_page)
-    }
-
     pub fn navigate_to(&mut self, page_id: PageId) {
         self.page_stack.push(page_id.clone());
         self.active_page = page_id;

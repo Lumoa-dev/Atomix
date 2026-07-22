@@ -8,7 +8,7 @@ use crate::debug::tui::pages::Page;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
@@ -19,16 +19,16 @@ use ratatui::{
 
 pub struct SourceViewPage {
     title: String,
-    pub scroll: usize,
-    pub selected_line: usize,
+    pub _scroll: usize,
+    pub _selected_line: usize,
 }
 
 impl SourceViewPage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
             title: "Source View — 源码视图".to_string(),
-            scroll: 0,
-            selected_line: 0,
+            _scroll: 0,
+            _selected_line: 0,
         }
     }
 }
@@ -269,14 +269,14 @@ impl Page for BinaryViewPage {
 
 pub struct DisasmViewPage {
     title: String,
-    pub scroll: usize,
+    pub _scroll: usize,
 }
 
 impl DisasmViewPage {
     pub fn new(_session: &LocalDebugSession) -> Self {
         Self {
             title: "Disassembly — 反汇编视图".to_string(),
-            scroll: 0,
+            _scroll: 0,
         }
     }
 
@@ -378,13 +378,6 @@ impl RegsMemPage {
         }
     }
 
-    fn sv(value: u64) -> String {
-        if value < 10_000 {
-            format!("{} ({:#x})", value, value)
-        } else {
-            format!("{:#x} ({})", value, value as i64)
-        }
-    }
 }
 
 impl Page for RegsMemPage {

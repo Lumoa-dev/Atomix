@@ -5,7 +5,7 @@ use crate::debug::session::LocalDebugSession;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
@@ -121,7 +121,7 @@ impl TuiLayout {
 
         // IS* Context
         let ctx = &session.is_context;
-        let mut is_spans = vec![
+        let is_spans = vec![
             Line::from(Span::styled(
                 " IS* Context",
                 Style::default()

@@ -621,7 +621,7 @@ impl LocalDebugSession {
 
                 // 检测 JMPR (0x54) — 函数返回指令 —— 结束当前 Step
                 if op == 0x54 {
-                    let current_depth = self.vm.call_stack.len();
+                    let _current_depth = self.vm.call_stack.len();
                     // 从 CALL 进入时 call_stack 加深，JMPR 返回时 call_stack 变浅
                     // 当发现 JMPR 且 call_stack 变浅，说明函数返回，结束当前 Step
                     collector.end_step(pc_before + 1);
