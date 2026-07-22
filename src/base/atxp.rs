@@ -79,7 +79,7 @@ pub struct FrameHeader {
     pub seq_id: u32,
     pub flags: u8,
     pub payload_len: u32,
-    pub req_type: u8,       // 响应时回显请求的 msg_type
+    pub req_type: u8, // 响应时回显请求的 msg_type
     pub checksum: u16,
 }
 
@@ -124,7 +124,7 @@ impl FrameHeader {
 /// 将帧头编码为 16 字节。
 pub fn encode_header(hdr: &FrameHeader) -> [u8; FRAME_HEADER_SIZE] {
     let mut buf = [0u8; FRAME_HEADER_SIZE];
-    buf[0..2].copy_from_slice(b"AT");       // magic
+    buf[0..2].copy_from_slice(b"AT"); // magic
     buf[2] = hdr.version;
     buf[3] = hdr.msg_type;
     buf[4..8].copy_from_slice(&hdr.seq_id.to_le_bytes());
@@ -278,7 +278,20 @@ mod tests {
         let payload = b"";
         let hdr = FrameHeader::new(0x01, 0, payload);
         let crc1 = hdr.compute_checksum(payload);
-        let crc2 = calc_crc(&[hdr.version, hdr.msg_type, 0, 0, 0, 0, hdr.flags, 0, 0, 0, 0, hdr.req_type]);
+        let crc2 = calc_crc(&[
+            hdr.version,
+            hdr.msg_type,
+            0,
+            0,
+            0,
+            0,
+            hdr.flags,
+            0,
+            0,
+            0,
+            0,
+            hdr.req_type,
+        ]);
         assert_eq!(crc1, crc2);
     }
 }

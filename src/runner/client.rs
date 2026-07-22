@@ -19,10 +19,14 @@ impl AtxpClient {
     pub fn connect(addr: &str, port: u16) -> Result<Self, String> {
         let address = format!("{}:{}", addr, port);
         let stream = TcpStream::connect_timeout(
-            &address.parse().map_err(|e| format!("地址解析失败: {}", e))?,
+            &address
+                .parse()
+                .map_err(|e| format!("地址解析失败: {}", e))?,
             Duration::from_secs(10),
-        ).map_err(|e| format!("连接失败: {}", e))?;
-        stream.set_read_timeout(Some(Duration::from_secs(30)))
+        )
+        .map_err(|e| format!("连接失败: {}", e))?;
+        stream
+            .set_read_timeout(Some(Duration::from_secs(30)))
             .map_err(|e| format!("设置超时失败: {}", e))?;
         Ok(Self { stream, seq_id: 0 })
     }
@@ -30,7 +34,8 @@ impl AtxpClient {
     /// 从 OriginConfig 查找别名并连接。
     pub fn connect_by_alias(alias: &str) -> Result<Self, String> {
         let config = crate::origin::OriginConfig::load();
-        let entry = config.find(alias)
+        let entry = config
+            .find(alias)
             .ok_or_else(|| format!("未找到远程连接: {}", alias))?;
         Self::connect(&entry.address, entry.port)
     }
@@ -39,12 +44,15 @@ impl AtxpClient {
     fn exchange(&mut self, msg_type: u8, payload: &[u8]) -> Result<(u8, Vec<u8>), String> {
         self.seq_id += 1;
         let frame = atxp::encode_frame(msg_type, self.seq_id, payload);
-        self.stream.write_all(&frame)
+        self.stream
+            .write_all(&frame)
             .map_err(|e| format!("发送失败: {}", e))?;
 
         // 读取响应
         let mut buf = vec![0u8; 65536];
-        let n = self.stream.read(&mut buf)
+        let n = self
+            .stream
+            .read(&mut buf)
             .map_err(|e| format!("读取失败: {}", e))?;
         buf.truncate(n);
 
@@ -63,8 +71,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }
@@ -79,8 +86,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }
@@ -110,10 +116,16 @@ impl AtxpClient {
 
     /// 发送心跳。
     pub fn heartbeat(&mut self) -> Result<(), String> {
-        let hb = atxp::proto::Ack { status: 0, message: "ping".into() };
+        let hb = atxp::proto::Ack {
+            status: 0,
+            message: "ping".into(),
+        };
         let (msg_type, _) = self.exchange(0x0B, &hb.encode_to_vec())?;
-        if msg_type == 0x02 { Ok(()) }
-        else { Err("心跳响应异常".to_string()) }
+        if msg_type == 0x02 {
+            Ok(())
+        } else {
+            Err("心跳响应异常".to_string())
+        }
     }
 
     /// 查询远程 Runner 配置。
@@ -125,8 +137,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }
@@ -156,8 +167,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }
@@ -172,8 +182,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }
@@ -188,8 +197,7 @@ impl AtxpClient {
         };
         let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
         if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
-            serde_json::from_slice(&result.data)
-                .map_err(|e| format!("JSON 解析失败: {}", e))
+            serde_json::from_slice(&result.data).map_err(|e| format!("JSON 解析失败: {}", e))
         } else {
             Err("QueryResult 解码失败".to_string())
         }

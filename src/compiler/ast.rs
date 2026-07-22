@@ -183,15 +183,9 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
     /// BREAK [cond]
-    Break {
-        line: usize,
-        cond: Option<Expr>,
-    },
+    Break { line: usize, cond: Option<Expr> },
     /// CONTINUE [cond]
-    Continue {
-        line: usize,
-        cond: Option<Expr>,
-    },
+    Continue { line: usize, cond: Option<Expr> },
     /// ASSERT expr [, msg]
     Assert {
         line: usize,
@@ -205,10 +199,7 @@ pub enum Stmt {
         msg: Option<String>,
     },
     /// return [expr]
-    Return {
-        line: usize,
-        value: Option<Expr>,
-    },
+    Return { line: usize, value: Option<Expr> },
     /// 语句块 { stmt* }
     Block { line: usize, stmts: Vec<Stmt> },
     /// 函数定义（TOOLS/WORKS 中出现在语句位置）

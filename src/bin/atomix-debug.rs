@@ -43,7 +43,8 @@ fn main() {
         }
     };
 
-    println!("Loaded: {} ({} instructions, {} bytes debug)", 
+    println!(
+        "Loaded: {} ({} instructions, {} bytes debug)",
         path,
         vm.text.len(),
         vm.debug_info.len(),

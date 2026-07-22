@@ -8,16 +8,15 @@ use std::path::Path;
 
 /// 编译一个 .atx 文件，返回 (atxe_bytes, errors)。
 fn compile_file(path: &Path) -> (Vec<u8>, Vec<String>) {
-    let source = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("无法读取 {}: {}", path.display(), e));
+    let source =
+        fs::read_to_string(path).unwrap_or_else(|e| panic!("无法读取 {}: {}", path.display(), e));
     atomix::compiler::compile(&source, "0")
 }
 
 /// 递归收集目录下所有 .atx 文件。
 fn collect_atx_files(dir: &str) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
-    let entries = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("无法读取目录 {}: {}", dir, e));
+    let entries = fs::read_dir(dir).unwrap_or_else(|e| panic!("无法读取目录 {}: {}", dir, e));
     for entry in entries {
         let entry = entry.unwrap();
         let path = entry.path();
@@ -35,7 +34,12 @@ fn collect_atx_files(dir: &str) -> Vec<std::path::PathBuf> {
 fn valid_hello_world() {
     let path = Path::new("tests/fixtures/valid/hello_world.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty(), "{} 产生空输出", path.display());
 }
 
@@ -43,7 +47,12 @@ fn valid_hello_world() {
 fn valid_expressions() {
     let path = Path::new("tests/fixtures/valid/expressions.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -51,7 +60,12 @@ fn valid_expressions() {
 fn valid_control_flow() {
     let path = Path::new("tests/fixtures/valid/control_flow.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -59,7 +73,12 @@ fn valid_control_flow() {
 fn valid_functions() {
     let path = Path::new("tests/fixtures/valid/functions.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -67,7 +86,12 @@ fn valid_functions() {
 fn valid_generics() {
     let path = Path::new("tests/fixtures/valid/generics.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -75,7 +99,12 @@ fn valid_generics() {
 fn valid_builtins() {
     let path = Path::new("tests/fixtures/valid/builtins.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -83,7 +112,12 @@ fn valid_builtins() {
 fn valid_all_zones() {
     let path = Path::new("tests/fixtures/valid/all_zones.atx");
     let (bytes, errors) = compile_file(path);
-    assert!(errors.is_empty(), "{}\n{}", path.display(), errors.join("\n"));
+    assert!(
+        errors.is_empty(),
+        "{}\n{}",
+        path.display(),
+        errors.join("\n")
+    );
     assert!(!bytes.is_empty());
 }
 
@@ -130,22 +164,28 @@ TASK : {
     let (bytes, errors) = atomix::compiler::compile(source, "0");
     assert!(errors.is_empty(), "编译错误:\n{}", errors.join("\n"));
 
-    let bin = atomix::base::ir::AtxeBinary::from_bytes(&bytes)
-        .expect("应能解析 .atxe");
-    
+    let bin = atomix::base::ir::AtxeBinary::from_bytes(&bytes).expect("应能解析 .atxe");
+
     let map = atomix::debug::debug_segment::DebugMap::from_bytes(&bin.debug_info)
         .expect("应能解析 .debug 段");
     let lines = map.line_entries();
     // 至少应包含每个 zone 和主要语句的行号
-    assert!(lines.len() >= 3, "应至少有 3 条行号映射, 实际 {}", lines.len());
+    assert!(
+        lines.len() >= 3,
+        "应至少有 3 条行号映射, 实际 {}",
+        lines.len()
+    );
     // 验证行号不同（不是所有指令映射到同一行）
     let unique_lines: std::collections::HashSet<u32> =
         lines.iter().map(|e| e.source_line).collect();
-    assert!(unique_lines.len() >= 3, "应至少有 3 个不同行号, 实际 {}", unique_lines.len());
+    assert!(
+        unique_lines.len() >= 3,
+        "应至少有 3 个不同行号, 实际 {}",
+        unique_lines.len()
+    );
 
     // 端到端验证：执行 VM，确认每条指令都能映射到有效行号
-    let mut vm = atomix::runner::VmState::load_atxe(&bytes)
-        .expect("应能加载 .atxe");
+    let mut vm = atomix::runner::VmState::load_atxe(&bytes).expect("应能加载 .atxe");
     while vm.is_running() {
         let pc = vm.pc;
         let line = map.line_for_pc(pc);

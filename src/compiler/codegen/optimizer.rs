@@ -115,42 +115,43 @@ impl Optimizer {
 
                     // 第三个指令使用它们: OP rd, rd, rs
                     if i + 2 < text.len() && self.is_alu_op(op3_kind) {
-                            let op3_rd = ((op3 >> 20) & 0x0F) as u8;
-                            let op3_rs1 = ((op3 >> 16) & 0x0F) as u8;
-                            let op3_rs2 = ((op3 >> 12) & 0x0F) as u8;
+                        let op3_rd = ((op3 >> 20) & 0x0F) as u8;
+                        let op3_rs1 = ((op3 >> 16) & 0x0F) as u8;
+                        let op3_rs2 = ((op3 >> 12) & 0x0F) as u8;
 
-                            // 检查操作数是否匹配: OP rd1, rd1, rd2 或 OP rd, rd1, rd2
-                            let mut match_first = op3_rs1 == rd1 && op3_rs2 == rd2;
-                            let mut match_second = op3_rs1 == rd2 && op3_rs2 == rd1;
+                        // 检查操作数是否匹配: OP rd1, rd1, rd2 或 OP rd, rd1, rd2
+                        let mut match_first = op3_rs1 == rd1 && op3_rs2 == rd2;
+                        let mut match_second = op3_rs1 == rd2 && op3_rs2 == rd1;
 
-                            // 对于 ADD/MUL 等交换律运算，操作数可交换
-                            let is_commutative = matches!(
-                                op3_kind,
-                                opcode::ADD | opcode::MUL | opcode::AND | opcode::OR | opcode::XOR
-                            );
-                            if is_commutative {
-                                match_first = match_first || (op3_rs1 == rd1 && op3_rs2 == rd2);
-                                match_second = match_second || (op3_rs1 == rd2 && op3_rs2 == rd1);
-                            }
+                        // 对于 ADD/MUL 等交换律运算，操作数可交换
+                        let is_commutative = matches!(
+                            op3_kind,
+                            opcode::ADD | opcode::MUL | opcode::AND | opcode::OR | opcode::XOR
+                        );
+                        if is_commutative {
+                            match_first = match_first || (op3_rs1 == rd1 && op3_rs2 == rd2);
+                            match_second = match_second || (op3_rs1 == rd2 && op3_rs2 == rd1);
+                        }
 
-                            if (match_first || match_second)
-                                && let Some(folded) = try_fold(op3_kind, imm1 as i64, imm2 as i64) {
-                                    let target_rd = op3_rd;
-                                    if folded >= 0 && folded <= u16::MAX as i64 {
-                                        result.push(isa::encode_r2i(
-                                            opcode::MOVI,
-                                            target_rd,
-                                            0,
-                                            folded as u16,
-                                        ));
-                                        self.stats.constant_folds += 1;
-                                        i += 3;
-                                        continue;
-                                    }
-                                }
+                        if (match_first || match_second)
+                            && let Some(folded) = try_fold(op3_kind, imm1 as i64, imm2 as i64)
+                        {
+                            let target_rd = op3_rd;
+                            if folded >= 0 && folded <= u16::MAX as i64 {
+                                result.push(isa::encode_r2i(
+                                    opcode::MOVI,
+                                    target_rd,
+                                    0,
+                                    folded as u16,
+                                ));
+                                self.stats.constant_folds += 1;
+                                i += 3;
+                                continue;
                             }
                         }
                     }
+                }
+            }
 
             result.push(text[i]);
             i += 1;

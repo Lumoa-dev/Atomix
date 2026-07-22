@@ -279,9 +279,10 @@ impl SemanticAnalyzer {
         // WORKS 模板注册
         for works in &file.works_defs {
             // 注册模板名
-            if let Err(e) = self.symbols.declare(
-                Symbol::new(works.name.clone(), SymbolKind::Works)
-            ) {
+            if let Err(e) = self
+                .symbols
+                .declare(Symbol::new(works.name.clone(), SymbolKind::Works))
+            {
                 self.errors.push(SemanticError::new(e));
             }
             // 注册模板方法
@@ -289,7 +290,8 @@ impl SemanticAnalyzer {
                 let mut sym = Symbol::new(
                     format!("{}::{}", works.name, method.name),
                     SymbolKind::Function,
-                ).with_public(method.is_pub);
+                )
+                .with_public(method.is_pub);
                 if let Some(ret) = &method.ret_type {
                     sym = sym.with_type(resolve_type(ret));
                 } else {
@@ -620,9 +622,8 @@ impl SemanticAnalyzer {
 
         // 为每个不可达的函数生成警告
         for sym in self.symbols.functions() {
-            if !reachable.contains(&sym.name)
-                && !sym.name.is_empty()
-                && !sym.name.contains("::") // 单态化函数由编译器自动生成，不报可达性警告
+            if !reachable.contains(&sym.name) && !sym.name.is_empty() && !sym.name.contains("::")
+            // 单态化函数由编译器自动生成，不报可达性警告
             {
                 // 不可达函数产生警告（非错误）
                 self.warnings.push(format!(
@@ -807,17 +808,18 @@ impl SemanticAnalyzer {
                     .lookup(func_name)
                     .and_then(|sym| sym.func_def.clone());
                 if let Some(func_def) = func_def_opt
-                    && !func_def.type_params.is_empty() {
-                        let arg_types: Vec<Type> = args
-                            .iter()
-                            .map(|a| self.type_checker.infer_expr(a, &self.symbols))
-                            .collect();
-                        pending.push(PendingCall {
-                            old_name: func_name.clone(),
-                            func_def: *func_def,
-                            arg_types,
-                        });
-                    }
+                    && !func_def.type_params.is_empty()
+                {
+                    let arg_types: Vec<Type> = args
+                        .iter()
+                        .map(|a| self.type_checker.infer_expr(a, &self.symbols))
+                        .collect();
+                    pending.push(PendingCall {
+                        old_name: func_name.clone(),
+                        func_def: *func_def,
+                        arg_types,
+                    });
+                }
             }
         }
         // 注册单态化并记录改名映射
@@ -964,18 +966,19 @@ impl SemanticAnalyzer {
                 .lookup(name)
                 .and_then(|sym| sym.func_def.clone());
             if let Some(func_def) = func_def_opt
-                && !func_def.type_params.is_empty() {
-                    let arg_types: Vec<Type> = args
-                        .iter()
-                        .map(|a| self.type_checker.infer_expr(a, &self.symbols))
-                        .collect();
-                    pending.push(PendingCall {
-                        old_name: name.clone(),
-                        func_def: *func_def,
-                        arg_types,
-                    });
-                }
+                && !func_def.type_params.is_empty()
+            {
+                let arg_types: Vec<Type> = args
+                    .iter()
+                    .map(|a| self.type_checker.infer_expr(a, &self.symbols))
+                    .collect();
+                pending.push(PendingCall {
+                    old_name: name.clone(),
+                    func_def: *func_def,
+                    arg_types,
+                });
             }
+        }
         match expr {
             Expr::Binary { lhs, rhs, .. } => {
                 self.gather_generic_expr_calls(lhs, pending);

@@ -36,7 +36,8 @@ pub fn assemble(
     header.total_instrs = emit.text.len() as u32;
     header.compute_memory_profile(emit.text.len() * 4, rodata.len());
 
-    let zone_tuples: Vec<(ZoneKind, String)> = zones.iter().map(|(k, n, _, _)| (*k, n.clone())).collect();
+    let zone_tuples: Vec<(ZoneKind, String)> =
+        zones.iter().map(|(k, n, _, _)| (*k, n.clone())).collect();
 
     let binary = AtxeBinary {
         header,
@@ -92,7 +93,10 @@ pub fn build_task_section(zones: &[(ZoneKind, String)]) -> Vec<u8> {
 
 /// 构建 .zones 段（每条目 12 字节：zone_id 2B + lifecycle 1B + flags 1B + text_start 4B + text_end 4B）。
 /// zones 参数为 (kind, name, text_start_instr, text_end_instr) 元组。
-pub fn build_zones_section(zones: &[(ZoneKind, String, usize, usize)], _emit: &InstrEmitter) -> Vec<u8> {
+pub fn build_zones_section(
+    zones: &[(ZoneKind, String, usize, usize)],
+    _emit: &InstrEmitter,
+) -> Vec<u8> {
     let mut data = Vec::new();
     // 按 zone_id 固定编号映射：区外=0, TOOLS=1, INPUT=2, WORKS=3, TASK=4, OUT=5, TEST=6
     let zone_id_map: &[(ZoneKind, u16)] = &[
@@ -115,7 +119,11 @@ pub fn build_zones_section(zones: &[(ZoneKind, String, usize, usize)], _emit: &I
 
     // 实际有 body 的 zone
     for (kind, _name, text_start, text_end) in zones {
-        if let Some(&zone_id) = zone_id_map.iter().find(|(k, _)| k == kind).map(|(_, id)| id) {
+        if let Some(&zone_id) = zone_id_map
+            .iter()
+            .find(|(k, _)| k == kind)
+            .map(|(_, id)| id)
+        {
             let (lifecycle, flags) = zone_lifecycle(zone_id);
             data.extend_from_slice(&zone_id.to_le_bytes());
             data.push(lifecycle);

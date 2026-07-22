@@ -47,8 +47,7 @@ fn compute_zone_line_ranges(
         let mut end_line = (source_lines.len() as u32).max(1);
         for (i, line) in source_lines.iter().enumerate() {
             let trimmed = line.trim().to_uppercase();
-            if trimmed.starts_with(keyword) || trimmed.starts_with(&format!("{}{}", keyword, ":"))
-            {
+            if trimmed.starts_with(keyword) || trimmed.starts_with(&format!("{}{}", keyword, ":")) {
                 start_line = (i + 1) as u32;
                 // 找到闭合的 } 作为 end_line
                 let mut brace_depth = 0;
@@ -192,22 +191,23 @@ pub fn compile(source: &str, opt_level: &str) -> (Vec<u8>, Vec<String>) {
     // 编译单态化函数体（在符号表中以 "func::type" 命名）
     for sym in analyzer.symbols.functions() {
         if sym.name.contains("::")
-            && let Some(func_def) = &sym.func_def {
-                // 为单态化函数生成标签和指令
-                emit.emit_label(&sym.name);
-                // 为参数分配虚拟寄存器（简化实现）
-                for param in &func_def.params {
-                    let _ = crate::compiler::codegen::expr::alloc_vreg();
-                    let _ = param;
-                }
-                stmt::compile_stmts(&mut emit, &mut pool, &func_def.body, &mut exn_entries);
-                // 函数末尾隐式 return
-                emit.emit_r1i(
-                    crate::base::isa::opcode::JMPR,
-                    crate::base::isa::reg::RA as u8,
-                    0,
-                );
+            && let Some(func_def) = &sym.func_def
+        {
+            // 为单态化函数生成标签和指令
+            emit.emit_label(&sym.name);
+            // 为参数分配虚拟寄存器（简化实现）
+            for param in &func_def.params {
+                let _ = crate::compiler::codegen::expr::alloc_vreg();
+                let _ = param;
             }
+            stmt::compile_stmts(&mut emit, &mut pool, &func_def.body, &mut exn_entries);
+            // 函数末尾隐式 return
+            emit.emit_r1i(
+                crate::base::isa::opcode::JMPR,
+                crate::base::isa::reg::RA as u8,
+                0,
+            );
+        }
     }
 
     emit.resolve_all();
@@ -528,11 +528,17 @@ mod tests {
         assert!(decoded.is_some(), "compiled binary should be valid .atxe");
         let binary = decoded.unwrap();
         // 应该包含指令（数据源的 FS_OPEN/READ/CLOSE 序列）
-        assert!(binary.text.len() > 0, "should generate instructions for I/O");
+        assert!(
+            binary.text.len() > 0,
+            "should generate instructions for I/O"
+        );
 
         // 验证路径字符串在 .rodata 中
         let rodata_str = String::from_utf8_lossy(&binary.rodata);
-        assert!(rodata_str.contains("/tmp/test.txt"), "rodata should contain the file path");
+        assert!(
+            rodata_str.contains("/tmp/test.txt"),
+            "rodata should contain the file path"
+        );
     }
 
     #[test]
@@ -555,7 +561,10 @@ mod tests {
 
         // 验证地址字符串在 .rodata 中
         let rodata_str = String::from_utf8_lossy(&binary.rodata);
-        assert!(rodata_str.contains("127.0.0.1"), "rodata should contain the address");
+        assert!(
+            rodata_str.contains("127.0.0.1"),
+            "rodata should contain the address"
+        );
     }
 
     #[test]

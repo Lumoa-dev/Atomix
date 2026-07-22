@@ -39,9 +39,7 @@ const EVENT_OOM: u8 = 0x04;
 const EVENT_HEARTBEAT: u8 = 0x05;
 
 fn encode_event(task_id: u16, event_type: u8, payload: u32) -> u64 {
-    (task_id as u64) << 48
-        | (event_type as u64) << 40
-        | (payload as u64)
+    (task_id as u64) << 48 | (event_type as u64) << 40 | (payload as u64)
 }
 
 fn decode_event(raw: u64) -> ExecutorEvent {
@@ -117,18 +115,17 @@ impl EventChannel {
         if let Some(slot) = self.events.get(idx) {
             let raw = match event {
                 ExecutorEvent::None => 0,
-                ExecutorEvent::Yield { task_id } => {
-                    encode_event(task_id, EVENT_YIELD, 0)
-                }
+                ExecutorEvent::Yield { task_id } => encode_event(task_id, EVENT_YIELD, 0),
                 ExecutorEvent::TaskDone { task_id, retval } => {
                     encode_event(task_id, EVENT_TASK_DONE, retval as u32)
                 }
                 ExecutorEvent::TaskError { task_id, errcode } => {
                     encode_event(task_id, EVENT_TASK_ERROR, errcode)
                 }
-                ExecutorEvent::Oom { task_id, memory_usage } => {
-                    encode_event(task_id, EVENT_OOM, memory_usage as u32)
-                }
+                ExecutorEvent::Oom {
+                    task_id,
+                    memory_usage,
+                } => encode_event(task_id, EVENT_OOM, memory_usage as u32),
                 ExecutorEvent::Heartbeat { task_id, instrs } => {
                     encode_event(task_id, EVENT_HEARTBEAT, instrs)
                 }
@@ -223,10 +220,13 @@ mod tests {
     fn channel_post_poll() {
         let ch = EventChannel::new(4);
         ch.post(0, ExecutorEvent::Yield { task_id: 1 });
-        ch.post(2, ExecutorEvent::TaskDone {
-            task_id: 2,
-            retval: 99,
-        });
+        ch.post(
+            2,
+            ExecutorEvent::TaskDone {
+                task_id: 2,
+                retval: 99,
+            },
+        );
         assert_eq!(ch.poll(0), ExecutorEvent::Yield { task_id: 1 });
         assert_eq!(ch.poll(1), ExecutorEvent::None);
         assert_eq!(
@@ -241,14 +241,20 @@ mod tests {
     #[test]
     fn channel_poll_all() {
         let ch = EventChannel::new(3);
-        ch.post(0, ExecutorEvent::Heartbeat {
-            task_id: 0,
-            instrs: 100,
-        });
-        ch.post(2, ExecutorEvent::TaskError {
-            task_id: 2,
-            errcode: 1,
-        });
+        ch.post(
+            0,
+            ExecutorEvent::Heartbeat {
+                task_id: 0,
+                instrs: 100,
+            },
+        );
+        ch.post(
+            2,
+            ExecutorEvent::TaskError {
+                task_id: 2,
+                errcode: 1,
+            },
+        );
 
         let events = ch.poll_all();
         assert_eq!(events.len(), 2);

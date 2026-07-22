@@ -295,7 +295,10 @@ impl Scheduler {
         // 处理完成任务（task 已被 unload，status 已更新）
         let (is_done, retval) = {
             let task = self.pool.get(task_id).unwrap();
-            (task.status == TaskStatus::Done || task.status == TaskStatus::Error, task.return_value)
+            (
+                task.status == TaskStatus::Done || task.status == TaskStatus::Error,
+                task.return_value,
+            )
         };
 
         if is_done {

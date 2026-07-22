@@ -56,21 +56,22 @@ impl OriginConfig {
         };
 
         // 用 toml::Value 操作现有的 atomix.toml
-        let mut value: toml::Value = content.parse().unwrap_or(toml::Value::Table(toml::value::Table::new()));
+        let mut value: toml::Value = content
+            .parse()
+            .unwrap_or(toml::Value::Table(toml::value::Table::new()));
 
         // 序列化 origin 配置
-        let origin_value = toml::Value::try_from(self)
-            .map_err(|e| format!("序列化 origin 配置失败: {}", e))?;
+        let origin_value =
+            toml::Value::try_from(self).map_err(|e| format!("序列化 origin 配置失败: {}", e))?;
 
         if let toml::Value::Table(ref mut table) = value {
             table.insert("origin".to_string(), origin_value);
         }
 
-        let new_content = toml::to_string_pretty(&value)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+        let new_content =
+            toml::to_string_pretty(&value).map_err(|e| format!("序列化配置失败: {}", e))?;
 
-        std::fs::write(path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+        std::fs::write(path, new_content).map_err(|e| format!("写入配置失败: {}", e))?;
 
         Ok(())
     }
@@ -108,7 +109,8 @@ pub fn check_status(entry: &OriginEntry) -> Result<serde_json::Value, String> {
     let mut stream = TcpStream::connect_timeout(
         &addr.parse().map_err(|e| format!("地址解析失败: {}", e))?,
         Duration::from_secs(5),
-    ).map_err(|e| format!("连接失败: {}", e))?;
+    )
+    .map_err(|e| format!("连接失败: {}", e))?;
 
     // 发送 Query runner/status
     use prost::Message;
@@ -120,11 +122,15 @@ pub fn check_status(entry: &OriginEntry) -> Result<serde_json::Value, String> {
     let payload = query.encode_to_vec();
     let frame = crate::base::atxp::encode_frame(0x05, 1, &payload);
 
-    stream.write_all(&frame).map_err(|e| format!("发送失败: {}", e))?;
+    stream
+        .write_all(&frame)
+        .map_err(|e| format!("发送失败: {}", e))?;
 
     // 读取响应
     let mut buf = vec![0u8; 4096];
-    let n = stream.read(&mut buf).map_err(|e| format!("读取失败: {}", e))?;
+    let n = stream
+        .read(&mut buf)
+        .map_err(|e| format!("读取失败: {}", e))?;
     buf.truncate(n);
 
     // 解码帧

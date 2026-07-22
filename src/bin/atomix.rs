@@ -3,10 +3,10 @@
 //! 按子命令派发到对应的后端逻辑（编译、执行、深度检查等）。
 //! 所有后端逻辑共享同一套库代码（src/lib.rs）。
 
+use atomix::debug::DebugSession;
 use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::Path;
-use atomix::debug::DebugSession;
 
 #[derive(Parser)]
 #[command(
@@ -140,26 +140,61 @@ fn main() {
         Command::Check { source } => cmd_check(&source),
         Command::Clean => cmd_clean(),
         Command::Runner { action } => match action {
-            RunnerAction::Run { name, origin } => cmd_runner_run(name.as_deref(), origin.as_deref()),
+            RunnerAction::Run { name, origin } => {
+                cmd_runner_run(name.as_deref(), origin.as_deref())
+            }
             RunnerAction::Status => cmd_runner_status(),
             RunnerAction::Stop => cmd_runner_stop(),
         },
         Command::Task {
-            name, origin, no_run, step, print, check,
-            break_line, export_state, export_dataflow, log,
-            list_steps, list_vars, list_is, disasm, mem_dump,
+            name,
+            origin,
+            no_run,
+            step,
+            print,
+            check,
+            break_line,
+            export_state,
+            export_dataflow,
+            log,
+            list_steps,
+            list_vars,
+            list_is,
+            disasm,
+            mem_dump,
         } => cmd_task(
-            &name, origin.as_deref(), no_run, step.as_deref(),
-            print.as_deref(), check, break_line,
-            export_state.as_deref(), export_dataflow, log.as_deref(),
-            list_steps, list_vars, list_is, disasm.as_deref(),
+            &name,
+            origin.as_deref(),
+            no_run,
+            step.as_deref(),
+            print.as_deref(),
+            check,
+            break_line,
+            export_state.as_deref(),
+            export_dataflow,
+            log.as_deref(),
+            list_steps,
+            list_vars,
+            list_is,
+            disasm.as_deref(),
             mem_dump.as_deref(),
         ),
-        Command::Origin { add, ip, as_name, port, list, remove, status } => {
-            if list { cmd_origin_list(); }
-            else if let Some(alias) = remove { cmd_origin_remove(&alias); }
-            else if let Some(alias) = status { cmd_origin_status(&alias); }
-            else if let Some(alias) = add {
+        Command::Origin {
+            add,
+            ip,
+            as_name,
+            port,
+            list,
+            remove,
+            status,
+        } => {
+            if list {
+                cmd_origin_list();
+            } else if let Some(alias) = remove {
+                cmd_origin_remove(&alias);
+            } else if let Some(alias) = status {
+                cmd_origin_status(&alias);
+            } else if let Some(alias) = add {
                 let addr = ip.unwrap_or_else(|| {
                     eprintln!("错误: --add 需要 --ip <地址>");
                     std::process::exit(1);
@@ -217,7 +252,12 @@ fn cmd_build(source: &str, opt_level: &str, output: Option<&str>) {
         std::process::exit(1);
     }
 
-    println!("编译成功: {} → {} ({} 字节)", source, output_path, binary.len());
+    println!(
+        "编译成功: {} → {} ({} 字节)",
+        source,
+        output_path,
+        binary.len()
+    );
 }
 
 fn cmd_check(source: &str) {
@@ -322,8 +362,8 @@ fn cmd_runner_run(name: Option<&str>, origin: Option<&str>) {
 }
 
 fn run_vm_and_report(mut vm: atomix::runner::VmState) {
-    use atomix::runner::execute::execute_instruction;
     use atomix::runner::VmStateKind;
+    use atomix::runner::execute::execute_instruction;
 
     let start = std::time::Instant::now();
     let mut instr_count = 0u64;
@@ -336,7 +376,10 @@ fn run_vm_and_report(mut vm: atomix::runner::VmState) {
     match vm.state {
         VmStateKind::Halted => {
             let retval = vm.read_reg(4); // A0
-            println!("任务完成: {} 条指令, {:.2?}, 返回值 = {}", instr_count, elapsed, retval as i64);
+            println!(
+                "任务完成: {} 条指令, {:.2?}, 返回值 = {}",
+                instr_count, elapsed, retval as i64
+            );
         }
         VmStateKind::Error(ref msg) => {
             eprintln!("任务错误 ({} 条指令后): {}", instr_count, msg);
@@ -406,7 +449,10 @@ fn cmd_origin_status(alias: &str) {
             match atomix::origin::check_status(entry) {
                 Ok(status) => {
                     println!("远程状态:");
-                    println!("  {}", serde_json::to_string_pretty(&status).unwrap_or_default());
+                    println!(
+                        "  {}",
+                        serde_json::to_string_pretty(&status).unwrap_or_default()
+                    );
                 }
                 Err(e) => {
                     eprintln!("连接失败: {}", e);
@@ -430,17 +476,27 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
     let binary = if path.extension().is_some_and(|e| e == "atxe") {
         match fs::read(path) {
             Ok(b) => b,
-            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: {}", e);
+                std::process::exit(1);
+            }
         }
     } else {
         let source = match fs::read_to_string(path) {
             Ok(c) => c,
-            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: {}", e);
+                std::process::exit(1);
+            }
         };
         let (bin, errors) = atomix::compiler::compile(&source, "0");
         if !errors.is_empty() {
-            for e in &errors { eprintln!("{}", e); }
-            if bin.is_empty() { std::process::exit(1); }
+            for e in &errors {
+                eprintln!("{}", e);
+            }
+            if bin.is_empty() {
+                std::process::exit(1);
+            }
         }
         println!("编译成功: {} 字节", bin.len());
         bin
@@ -450,12 +506,18 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
     println!("正在连接远程: {} ...", alias);
     let mut client = match atomix::runner::client::AtxpClient::connect_by_alias(alias) {
         Ok(c) => c,
-        Err(e) => { eprintln!("连接失败: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("连接失败: {}", e);
+            std::process::exit(1);
+        }
     };
 
     // 查询远程状态
     match client.query_status() {
-        Ok(status) => println!("远程状态: {}", serde_json::to_string_pretty(&status).unwrap_or_default()),
+        Ok(status) => println!(
+            "远程状态: {}",
+            serde_json::to_string_pretty(&status).unwrap_or_default()
+        ),
         Err(e) => eprintln!("查询状态失败: {}", e),
     }
 
@@ -463,7 +525,10 @@ fn cmd_runner_run_remote(task_name: &str, alias: &str) {
     println!("正在提交任务 ...");
     match client.submit_task(&binary) {
         Ok(task_id) => println!("任务已提交, ID: {}", task_id),
-        Err(e) => { eprintln!("提交失败: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("提交失败: {}", e);
+            std::process::exit(1);
+        }
     }
 
     // 查询任务列表
@@ -488,24 +553,36 @@ fn cmd_task_remote(task_name: &str, alias: &str) {
     let binary = if path.extension().is_some_and(|e| e == "atxe") {
         match fs::read(path) {
             Ok(b) => b,
-            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: {}", e);
+                std::process::exit(1);
+            }
         }
     } else {
         let source = match fs::read_to_string(path) {
             Ok(c) => c,
-            Err(e) => { eprintln!("错误: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: {}", e);
+                std::process::exit(1);
+            }
         };
         let (bin, errors) = atomix::compiler::compile(&source, "0");
         if !errors.is_empty() {
-            for e in &errors { eprintln!("{}", e); }
-            if bin.is_empty() { std::process::exit(1); }
+            for e in &errors {
+                eprintln!("{}", e);
+            }
+            if bin.is_empty() {
+                std::process::exit(1);
+            }
         }
         bin
     };
 
     // 解码获取任务信息
-    let atxe = atomix::base::ir::AtxeBinary::from_bytes(&binary)
-        .unwrap_or_else(|| { eprintln!("编译产物无效"); std::process::exit(1); });
+    let atxe = atomix::base::ir::AtxeBinary::from_bytes(&binary).unwrap_or_else(|| {
+        eprintln!("编译产物无效");
+        std::process::exit(1);
+    });
 
     println!("任务: {} ({} 条指令)", task_name, atxe.header.total_instrs);
 
@@ -513,14 +590,20 @@ fn cmd_task_remote(task_name: &str, alias: &str) {
     println!("正在连接远程: {} ...", alias);
     let mut client = match atomix::runner::client::AtxpClient::connect_by_alias(alias) {
         Ok(c) => c,
-        Err(e) => { eprintln!("连接失败: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("连接失败: {}", e);
+            std::process::exit(1);
+        }
     };
 
     // 查询远程状态
     match client.query_status() {
         Ok(status) => {
             println!("\n远程 runner 状态:");
-            println!("  {}", serde_json::to_string_pretty(&status).unwrap_or_default());
+            println!(
+                "  {}",
+                serde_json::to_string_pretty(&status).unwrap_or_default()
+            );
         }
         Err(e) => eprintln!("查询状态失败: {}", e),
     }
@@ -544,11 +627,21 @@ fn cmd_task_remote(task_name: &str, alias: &str) {
 }
 
 fn cmd_task(
-    name: &str, origin: Option<&str>, no_run: bool, step: Option<&str>,
-    print_expr: Option<&str>, check: bool, break_line: Option<u32>,
-    export_state: Option<&str>, export_dataflow: bool, log_file: Option<&str>,
-    list_steps: bool, list_vars: bool, list_is: bool,
-    disasm_addr: Option<&str>, mem_dump: Option<&str>,
+    name: &str,
+    origin: Option<&str>,
+    no_run: bool,
+    step: Option<&str>,
+    print_expr: Option<&str>,
+    check: bool,
+    break_line: Option<u32>,
+    export_state: Option<&str>,
+    export_dataflow: bool,
+    log_file: Option<&str>,
+    list_steps: bool,
+    list_vars: bool,
+    list_is: bool,
+    disasm_addr: Option<&str>,
+    mem_dump: Option<&str>,
 ) {
     let path = Path::new(name);
 
@@ -561,25 +654,47 @@ fn cmd_task(
     let vm = if path.extension().is_some_and(|e| e == "atx") {
         let source = match fs::read_to_string(path) {
             Ok(c) => c,
-            Err(e) => { eprintln!("错误: 无法读取源文件 `{name}`: {e}"); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: 无法读取源文件 `{name}`: {e}");
+                std::process::exit(1);
+            }
         };
         let (binary, errors) = atomix::compiler::compile(&source, "0");
         if !errors.is_empty() {
-            for err in &errors { eprintln!("{}", err); }
-            if binary.is_empty() { std::process::exit(1); }
+            for err in &errors {
+                eprintln!("{}", err);
+            }
+            if binary.is_empty() {
+                std::process::exit(1);
+            }
         }
         match atomix::runner::VmState::load_atxe(&binary) {
-            Ok(vm) => { println!("编译成功: {} ({} 指令)", name, vm.text.len()); vm }
-            Err(e) => { eprintln!("无法加载编译产物: {e}"); std::process::exit(1); }
+            Ok(vm) => {
+                println!("编译成功: {} ({} 指令)", name, vm.text.len());
+                vm
+            }
+            Err(e) => {
+                eprintln!("无法加载编译产物: {e}");
+                std::process::exit(1);
+            }
         }
     } else {
         let bytes = match fs::read(path) {
             Ok(b) => b,
-            Err(e) => { eprintln!("错误: 无法读取文件 `{name}`: {e}"); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("错误: 无法读取文件 `{name}`: {e}");
+                std::process::exit(1);
+            }
         };
         match atomix::runner::VmState::load_atxe(&bytes) {
-            Ok(vm) => { println!("加载成功: {} ({} 指令)", name, vm.text.len()); vm }
-            Err(e) => { eprintln!("无法加载 .atxe: {e}"); std::process::exit(1); }
+            Ok(vm) => {
+                println!("加载成功: {} ({} 指令)", name, vm.text.len());
+                vm
+            }
+            Err(e) => {
+                eprintln!("无法加载 .atxe: {e}");
+                std::process::exit(1);
+            }
         }
     };
 
@@ -597,10 +712,19 @@ fn cmd_task(
     }
 
     // 处理 CLI 标志（非交互模式）
-    let is_cli_mode = no_run || step.is_some() || print_expr.is_some() || check
-        || break_line.is_some() || export_state.is_some() || export_dataflow
-        || log_file.is_some() || list_steps || list_vars || list_is
-        || disasm_addr.is_some() || mem_dump.is_some();
+    let is_cli_mode = no_run
+        || step.is_some()
+        || print_expr.is_some()
+        || check
+        || break_line.is_some()
+        || export_state.is_some()
+        || export_dataflow
+        || log_file.is_some()
+        || list_steps
+        || list_vars
+        || list_is
+        || disasm_addr.is_some()
+        || mem_dump.is_some();
 
     if is_cli_mode {
         // CLI 非交互模式
@@ -614,7 +738,12 @@ fn cmd_task(
 
         if let Some(step_name) = step {
             if let Some(s) = session.trace.find_step_by_name(step_name) {
-                println!("Step: {} (line {}, {})", s.name, s.source_line, s.status.name());
+                println!(
+                    "Step: {} (line {}, {})",
+                    s.name,
+                    s.source_line,
+                    s.status.name()
+                );
             } else {
                 println!("未找到 Step: {}", step_name);
             }
@@ -630,7 +759,13 @@ fn cmd_task(
         if list_steps {
             println!("Step 列表:");
             for (i, s) in session.trace.steps.iter().enumerate() {
-                println!("  {}: {} [{}] line {}", i, s.name, s.status.symbol(), s.source_line);
+                println!(
+                    "  {}: {} [{}] line {}",
+                    i,
+                    s.name,
+                    s.status.symbol(),
+                    s.source_line
+                );
             }
         }
 
@@ -654,12 +789,17 @@ fn cmd_task(
         if let Some(addr_str) = disasm_addr {
             let addr = usize::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap_or(0);
             let lines = atomix::debug::disassemble::disassemble_range(&session.vm.text, addr, 8);
-            for l in lines { println!("{}", l); }
+            for l in lines {
+                println!("{}", l);
+            }
         }
 
         if let Some(dump) = mem_dump {
             let parts: Vec<&str> = dump.split(',').collect();
-            let addr = parts.get(0).and_then(|s| u64::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok()).unwrap_or(0);
+            let addr = parts
+                .get(0)
+                .and_then(|s| u64::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok())
+                .unwrap_or(0);
             let len: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(64);
             let end = addr.saturating_add(len as u64);
             let mut offset = addr;
@@ -670,7 +810,11 @@ fn cmd_task(
                 for a in offset..line_end {
                     if let Some(byte) = session.vm.memory.read_u8(a) {
                         hex.push_str(&format!("{:02x} ", byte));
-                        ascii.push(if byte.is_ascii_graphic() || byte == b' ' { byte as char } else { '.' });
+                        ascii.push(if byte.is_ascii_graphic() || byte == b' ' {
+                            byte as char
+                        } else {
+                            '.'
+                        });
                     }
                 }
                 println!("{:#010x}:  {:48}  {}", offset, hex, ascii);

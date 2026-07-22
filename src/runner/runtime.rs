@@ -3,11 +3,13 @@
 //! 覆盖设计文档 §1‒§7。
 
 use crate::base::ir::AtxeBinary;
+use crate::runner::VmState;
+use crate::runner::VmStateKind;
 use crate::runner::batch::BatchManager;
 use crate::runner::config::RunnerConfig;
 use crate::runner::event::{EventChannel, ExecutorEvent};
-use crate::runner::executor::{executor_main, Executor, ExecutorCommand};
-use crate::runner::hwinfo::{detect_hardware, HardwareInfo};
+use crate::runner::executor::{Executor, ExecutorCommand, executor_main};
+use crate::runner::hwinfo::{HardwareInfo, detect_hardware};
 use crate::runner::load_balancer::LoadBalancer;
 use crate::runner::loader::parse_task_section;
 use crate::runner::pool::TaskPool;
@@ -15,8 +17,6 @@ use crate::runner::prefetch::Prefetcher;
 use crate::runner::regression::RegressionModel;
 use crate::runner::slot::SlotManager;
 use crate::runner::task::{Task, TaskId, TaskStatus};
-use crate::runner::VmState;
-use crate::runner::VmStateKind;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -173,10 +173,10 @@ impl Runtime {
 
         // 加载回归模型
         let state_dir = cfg.runner.state_dir.clone();
-	        let regression = Self::load_regression_model(&state_dir);
-	        batch.regression = regression;
+        let regression = Self::load_regression_model(&state_dir);
+        batch.regression = regression;
 
-	        // 配置冷启动阈值
+        // 配置冷启动阈值
         let cold_start = if cfg.scheduler.cold_start_bootstrap > 0 {
             ColdStartPhase::Bootstrap
         } else {
@@ -227,10 +227,7 @@ impl Runtime {
         self.use_thread_pool = true;
 
         // 把 pool 放入 Arc<Mutex>
-        let pool = std::mem::replace(
-            &mut self.pool,
-            TaskPool::new(Vec::new()),
-        );
+        let pool = std::mem::replace(&mut self.pool, TaskPool::new(Vec::new()));
         let pool_arc = Arc::new(Mutex::new(pool));
         self.pool = TaskPool::new(Vec::new()); // 多线程模式下 pool 只通过 pool_arc 访问
         let event_channel = Arc::new(self.event_channel.clone());
@@ -257,8 +254,7 @@ impl Runtime {
         }
 
         self.executors = (0..n).map(Executor::new).collect();
-        self.event_channel = Arc::into_inner(event_channel)
-            .unwrap_or_else(|| EventChannel::new(n));
+        self.event_channel = Arc::into_inner(event_channel).unwrap_or_else(|| EventChannel::new(n));
         self.pool_arc = Some(pool_arc);
     }
 
@@ -336,7 +332,12 @@ impl Runtime {
 
         // 初始化：激活所有就绪任务
         {
-            let mut guard = self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned");
+            let mut guard = self
+                .pool_arc
+                .as_ref()
+                .expect("pool_arc not initialized")
+                .lock()
+                .expect("pool lock poisoned");
             guard.activate_ready_tasks();
         }
 
@@ -374,7 +375,14 @@ impl Runtime {
             }
 
             // 2. 检查是否全部完成
-            let all_done = { self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned").all_done() };
+            let all_done = {
+                self.pool_arc
+                    .as_ref()
+                    .expect("pool_arc not initialized")
+                    .lock()
+                    .expect("pool lock poisoned")
+                    .all_done()
+            };
             if all_done {
                 break;
             }
@@ -383,7 +391,14 @@ impl Runtime {
             self.recover_oom_tasks();
 
             // 4. 分发任务到空闲 executor
-            let ready = { self.pool_arc.as_ref().expect("pool_arc not initialized").lock().expect("pool lock poisoned").ready_tasks() };
+            let ready = {
+                self.pool_arc
+                    .as_ref()
+                    .expect("pool_arc not initialized")
+                    .lock()
+                    .expect("pool lock poisoned")
+                    .ready_tasks()
+            };
             if ready.is_empty() {
                 if !all_idle {
                     std::thread::sleep(std::time::Duration::from_micros(100));
@@ -396,11 +411,10 @@ impl Runtime {
                 // 找空闲 executor
                 if let Some(exec_idx) = executor_task.iter().position(|t| t.is_none()) {
                     executor_task[exec_idx] = Some(task_id);
-                    let _ = self.cmd_senders[exec_idx]
-                        .send(ExecutorCommand::Execute {
-                            task_id,
-                            quantum: self.quantum,
-                        });
+                    let _ = self.cmd_senders[exec_idx].send(ExecutorCommand::Execute {
+                        task_id,
+                        quantum: self.quantum,
+                    });
                     all_idle = false;
                 } else {
                     break;
@@ -483,7 +497,8 @@ impl Runtime {
             let wall_time_ms = (self.quantum as f64) * 0.001;
             let compiler_peak = self.batch.compiler_peak_current;
             self.collect_regression_sample(compiler_peak, actual_peak);
-            self.batch.update_stats(wall_time_ms, actual_peak, compiler_peak);
+            self.batch
+                .update_stats(wall_time_ms, actual_peak, compiler_peak);
             self.completed_count += 1;
             self.advance_cold_start();
         }
@@ -508,9 +523,10 @@ impl Runtime {
                         (old_size as f64 * 1.5).max((old_size as u64 + 8192) as f64) as usize;
                     vm.memory.data.resize(new_size, 0);
                     vm.memory.watermark_high = (new_size as u64) * 75 / 100;
-                    vm.memory.usage = vm.memory.usage.min(
-                        (new_size as u64).saturating_sub(vm.memory.heap_base) * 50 / 100,
-                    );
+                    vm.memory.usage = vm
+                        .memory
+                        .usage
+                        .min((new_size as u64).saturating_sub(vm.memory.heap_base) * 50 / 100);
                     vm.state = VmStateKind::Running;
                 }
                 task.status = TaskStatus::Ready;
@@ -546,7 +562,8 @@ impl Runtime {
         if compiler_peak_mb <= 0.0 || actual_peak_mb <= 0.0 {
             return;
         }
-        self.regression_samples.push((compiler_peak_mb, actual_peak_mb));
+        self.regression_samples
+            .push((compiler_peak_mb, actual_peak_mb));
 
         if self.regression_samples.len() as u64 >= RegressionModel::MIN_SAMPLES
             && self.batch.regression.should_retrain()
@@ -604,10 +621,7 @@ mod tests {
     use crate::base::ir::Header;
     use crate::base::isa::{self, opcode, reg};
 
-    fn make_multi_task_atxe(
-        texts: Vec<Vec<u32>>,
-        entries: Vec<(u16, u32, Vec<u16>)>,
-    ) -> Vec<u8> {
+    fn make_multi_task_atxe(texts: Vec<Vec<u32>>, entries: Vec<(u16, u32, Vec<u16>)>) -> Vec<u8> {
         let mut all_text = Vec::new();
         for t in &texts {
             all_text.extend_from_slice(t);
@@ -661,10 +675,7 @@ mod tests {
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 20),
             isa::encode_r1i(opcode::TASK_RET, reg::A0 as u8, 0),
         ];
-        let bytes = make_multi_task_atxe(
-            vec![task0, task1],
-            vec![(0, 0, vec![]), (1, 2, vec![0])],
-        );
+        let bytes = make_multi_task_atxe(vec![task0, task1], vec![(0, 0, vec![]), (1, 2, vec![0])]);
         let binary = AtxeBinary::from_bytes(&bytes).unwrap();
         let mut rt = Runtime::from_atxe(&binary, None, None).unwrap();
         rt.run().unwrap();

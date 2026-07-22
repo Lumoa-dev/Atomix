@@ -290,8 +290,15 @@ impl SlotManager {
 
     /// 当前已分配的槽位数。
     pub fn allocated_count(&self) -> usize {
-        self.slots.iter().filter(|s| s.status == SlotStatus::Occupied).count()
-            + self.slipway_slots.iter().filter(|s| s.status == SlotStatus::Occupied).count()
+        self.slots
+            .iter()
+            .filter(|s| s.status == SlotStatus::Occupied)
+            .count()
+            + self
+                .slipway_slots
+                .iter()
+                .filter(|s| s.status == SlotStatus::Occupied)
+                .count()
     }
 
     /// 空闲槽位数。

@@ -68,15 +68,12 @@ impl RegressionModel {
         }
 
         let predicted = self.alpha * compiler_peak + self.beta;
-        predicted
-            .max(compiler_peak * 0.5)
-            .min(compiler_peak * 3.0)
+        predicted.max(compiler_peak * 0.5).min(compiler_peak * 3.0)
     }
 
     /// 是否需要重新训练。
     pub fn should_retrain(&self) -> bool {
-        self.sample_count > 0
-            && self.sample_count - self.last_trained_at >= Self::RETRAIN_INTERVAL
+        self.sample_count > 0 && self.sample_count - self.last_trained_at >= Self::RETRAIN_INTERVAL
     }
 
     /// OLS 训练。
@@ -101,10 +98,7 @@ impl RegressionModel {
             .iter()
             .map(|(x, y)| (x - mean_x) * (y - mean_y))
             .sum();
-        let den: f64 = samples
-            .iter()
-            .map(|(x, _)| (x - mean_x).powi(2))
-            .sum();
+        let den: f64 = samples.iter().map(|(x, _)| (x - mean_x).powi(2)).sum();
 
         if den.abs() < 1e-10 {
             return; // 除零保护
@@ -174,8 +168,7 @@ impl RegressionModel {
     /// 保存模型到 JSON 文件。
     pub fn save_to_file(&self, path: &str) -> Result<(), String> {
         let json = self.to_json();
-        std::fs::write(path, &json)
-            .map_err(|e| format!("保存回归模型失败: {}", e))
+        std::fs::write(path, &json).map_err(|e| format!("保存回归模型失败: {}", e))
     }
 
     /// 从 JSON 文件加载模型。
@@ -246,7 +239,11 @@ mod tests {
         assert!(model.is_ready());
         assert!((model.alpha - 1.2).abs() < 0.01, "alpha={}", model.alpha);
         assert!((model.beta - 10.0).abs() < 0.5, "beta={}", model.beta);
-        assert!((model.r_squared - 1.0).abs() < 0.001, "r2={}", model.r_squared);
+        assert!(
+            (model.r_squared - 1.0).abs() < 0.001,
+            "r2={}",
+            model.r_squared
+        );
 
         // 预测应与真实值接近
         let pred = model.predict(50.0);
@@ -274,9 +271,7 @@ mod tests {
     #[test]
     fn regression_insufficient_samples() {
         // 只有 10 个样本（低于 MIN_SAMPLES=50）
-        let samples: Vec<(f64, f64)> = (0..10)
-            .map(|i| (i as f64, (i * 2) as f64))
-            .collect();
+        let samples: Vec<(f64, f64)> = (0..10).map(|i| (i as f64, (i * 2) as f64)).collect();
 
         let mut model = RegressionModel::default();
         model.train(&samples);

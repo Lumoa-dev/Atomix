@@ -17,8 +17,8 @@ pub mod pool;
 pub mod prefetch;
 pub mod regression;
 pub mod runtime;
-pub mod server;
 pub(crate) mod sched;
+pub mod server;
 pub mod slot;
 pub mod task;
 pub mod task_meta;
@@ -215,7 +215,7 @@ impl Clone for VmState {
             join_waiting_for: self.join_waiting_for,
             pending_child: None,
             call_stack: self.call_stack.clone(),
-            open_files: Vec::new(), // 新 VM 实例不继承打开的文件
+            open_files: Vec::new(),   // 新 VM 实例不继承打开的文件
             open_sockets: Vec::new(), // 不继承套接字
             listeners: Vec::new(),    // 不继承监听器
         }

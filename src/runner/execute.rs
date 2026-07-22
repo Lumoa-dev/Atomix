@@ -6,8 +6,8 @@ use crate::base::isa::{self, opcode, reg};
 use crate::runner::VmState;
 use crate::runner::decode;
 use std::fs::File;
-use std::io::{Read, Write, Seek, SeekFrom};
-use std::net::{TcpStream, TcpListener, ToSocketAddrs};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 
 /// 执行单条指令。返回 true 表示继续执行，false 表示需要让出/停止。
 pub fn execute_instruction(vm: &mut VmState) -> bool {
@@ -626,7 +626,10 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64)
             let file = match flags {
                 0 => File::open(&path),
                 1 => File::create(&path),
-                2 => std::fs::OpenOptions::new().read(true).write(true).open(&path),
+                2 => std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&path),
                 _ => return -5i64 as u64, // EINVAL
             };
             match file {
@@ -867,9 +870,7 @@ fn handle_ecall(vm: &mut VmState, syscall: u32, arg1: u64, arg2: u64, arg3: u64)
             println!("{}", arg1 as i64);
             0
         }
-        crate::base::isa::ecall::LEN => {
-            arg2
-        }
+        crate::base::isa::ecall::LEN => arg2,
 
         // ── 不支持的调用号 ──────────────────────────────
         _ => u64::MAX,
@@ -1267,7 +1268,11 @@ mod tests {
         }
         // 应该返回负错误码（文件不存在）
         let result = running_vm.regs[reg::A0] as i64;
-        assert!(result < 0, "FS_OPEN on nonexistent file should return negative, got {}", result);
+        assert!(
+            result < 0,
+            "FS_OPEN on nonexistent file should return negative, got {}",
+            result
+        );
     }
 
     #[test]
@@ -1294,23 +1299,75 @@ mod tests {
         // 1. FS_OPEN: a0 = path_addr, a1 = O_RDONLY (0)
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, path_addr));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 0));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_OPEN));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_OPEN,
+        ));
         // 2. MOV t0, a0 (保存 fd)
-        text.push(isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T0 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        ));
         // 3. FS_READ: a0 = fd, a1 = buf_addr (堆分配), a2 = buf_size
         // 先分配缓冲区
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 256u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::ALLOC));
-        text.push(isa::encode_r3(opcode::MOV, reg::T1 as u8, reg::A0 as u8, 0, 0)); // t1 = buf
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::ALLOC,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T1 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t1 = buf
         // 读文件
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T0 as u8, 0, 0)); // a0 = fd
-        text.push(isa::encode_r3(opcode::MOV, reg::A1 as u8, reg::T1 as u8, 0, 0)); // a1 = buf
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        )); // a0 = fd
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A1 as u8,
+            reg::T1 as u8,
+            0,
+            0,
+        )); // a1 = buf
         text.push(isa::encode_r2i(opcode::MOVI, reg::A2 as u8, 0, 256u16)); // a2 = 256
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_READ));
-        text.push(isa::encode_r3(opcode::MOV, reg::T2 as u8, reg::A0 as u8, 0, 0)); // t2 = bytes read
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_READ,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T2 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t2 = bytes read
         // 4. FS_CLOSE: a0 = fd
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T0 as u8, 0, 0));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_CLOSE));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_CLOSE,
+        ));
         // 5. HALT
         text.push(isa::encode_ji(opcode::TRAP, 0));
 
@@ -1333,7 +1390,11 @@ mod tests {
         // 验证
         let bytes_read = vm.regs[reg::T2];
         assert!(bytes_read > 0, "should read some bytes, got {}", bytes_read);
-        assert_eq!(bytes_read as usize, test_data.len(), "should read exactly the test data length");
+        assert_eq!(
+            bytes_read as usize,
+            test_data.len(),
+            "should read exactly the test data length"
+        );
 
         // 验证读出的内容
         let buf_addr = vm.regs[reg::T1];
@@ -1364,44 +1425,153 @@ mod tests {
         let mut text = Vec::new();
         // 1. 分配缓冲区并写入测试数据
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 256u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::ALLOC));
-        text.push(isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0)); // t0 = buf
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::ALLOC,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T0 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t0 = buf
         // 将测试数据写入缓冲区
         for (i, &byte) in test_data.iter().enumerate() {
             text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, byte as u16));
-            text.push(isa::encode_r2i(opcode::STORE, reg::T0 as u8, reg::A0 as u8, i as u16));
+            text.push(isa::encode_r2i(
+                opcode::STORE,
+                reg::T0 as u8,
+                reg::A0 as u8,
+                i as u16,
+            ));
         }
         // 2. FS_OPEN: a0 = path_addr, a1 = O_WRONLY (1) → create
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, path_addr));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 1u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_OPEN));
-        text.push(isa::encode_r3(opcode::MOV, reg::T1 as u8, reg::A0 as u8, 0, 0)); // t1 = fd
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_OPEN,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T1 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t1 = fd
         // 3. FS_WRITE: a0 = fd, a1 = buf, a2 = len
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T1 as u8, 0, 0));
-        text.push(isa::encode_r3(opcode::MOV, reg::A1 as u8, reg::T0 as u8, 0, 0));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T1 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A1 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        ));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A2 as u8, 0, data_len));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_WRITE));
-        text.push(isa::encode_r3(opcode::MOV, reg::T2 as u8, reg::A0 as u8, 0, 0)); // t2 = bytes written
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_WRITE,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T2 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t2 = bytes written
         // 4. FS_CLOSE: a0 = fd
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T1 as u8, 0, 0));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_CLOSE));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T1 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_CLOSE,
+        ));
         // 5. 再以 RDONLY 打开读回来验证
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, path_addr));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 0u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_OPEN));
-        text.push(isa::encode_r3(opcode::MOV, reg::T1 as u8, reg::A0 as u8, 0, 0)); // t1 = fd
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_OPEN,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T1 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t1 = fd
         // 6. 重新分配缓冲区读取
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 256u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::ALLOC));
-        text.push(isa::encode_r3(opcode::MOV, reg::T3 as u8, reg::A0 as u8, 0, 0)); // t3 = buf2
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T1 as u8, 0, 0));
-        text.push(isa::encode_r3(opcode::MOV, reg::A1 as u8, reg::T3 as u8, 0, 0));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::ALLOC,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T3 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t3 = buf2
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T1 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A1 as u8,
+            reg::T3 as u8,
+            0,
+            0,
+        ));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A2 as u8, 0, 256u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_READ));
-        text.push(isa::encode_r3(opcode::MOV, reg::T4 as u8, reg::A0 as u8, 0, 0)); // t4 = bytes read
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_READ,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T4 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t4 = bytes read
         // 7. 关闭
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T1 as u8, 0, 0));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_CLOSE));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T1 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_CLOSE,
+        ));
         // 8. HALT
         text.push(isa::encode_ji(opcode::TRAP, 0));
 
@@ -1425,7 +1595,11 @@ mod tests {
         let bytes_read = vm.regs[reg::T4];
         assert!(bytes_written > 0, "should write some bytes");
         assert_eq!(bytes_written as usize, test_data.len());
-        assert_eq!(bytes_read as usize, test_data.len(), "should read back same amount");
+        assert_eq!(
+            bytes_read as usize,
+            test_data.len(),
+            "should read back same amount"
+        );
 
         let buf_addr = vm.regs[reg::T3];
         let read_back: Vec<u8> = (0..bytes_read as usize)
@@ -1455,25 +1629,87 @@ mod tests {
         // 1. FS_OPEN: RDONLY
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, path_addr));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 0u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_OPEN));
-        text.push(isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0)); // t0 = fd
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_OPEN,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T0 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t0 = fd
         // 2. FS_SEEK: a0 = fd, a1 = 5, a2 = 0 (Start) → pos=5
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T0 as u8, 0, 0));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        ));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 5u16));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A2 as u8, 0, 0u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_SEEK));
-        text.push(isa::encode_r3(opcode::MOV, reg::T1 as u8, reg::A0 as u8, 0, 0)); // t1 = new pos (=5)
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_SEEK,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T1 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t1 = new pos (=5)
         // 3. FS_READ 1 byte → should be 'F' (index 5)
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 256u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::ALLOC));
-        text.push(isa::encode_r3(opcode::MOV, reg::T2 as u8, reg::A0 as u8, 0, 0)); // t2 = buf
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T0 as u8, 0, 0));
-        text.push(isa::encode_r3(opcode::MOV, reg::A1 as u8, reg::T2 as u8, 0, 0));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::ALLOC,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T2 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t2 = buf
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A1 as u8,
+            reg::T2 as u8,
+            0,
+            0,
+        ));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A2 as u8, 0, 1u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_READ));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_READ,
+        ));
         // 4. FS_CLOSE
-        text.push(isa::encode_r3(opcode::MOV, reg::A0 as u8, reg::T0 as u8, 0, 0));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::FS_CLOSE));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::A0 as u8,
+            reg::T0 as u8,
+            0,
+            0,
+        ));
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::FS_CLOSE,
+        ));
         text.push(isa::encode_ji(opcode::TRAP, 0));
 
         let header = crate::base::ir::Header::new(0, text.len() as u16);
@@ -1568,7 +1804,7 @@ mod tests {
         let path_addr: u16 = 0;
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, path_addr), // a0 = "127.0.0.1"
-            isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 1u16),     // a1 = 1 (port)
+            isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 1u16),      // a1 = 1 (port)
             isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::TCP_CONNECT),
             isa::encode_ji(opcode::TRAP, 0),
         ];
@@ -1597,8 +1833,18 @@ mod tests {
         // 1. TCP_LISTEN: a0 = addr, a1 = port 0 (system assigns)
         text.push(isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, addr_ptr));
         text.push(isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 0u16));
-        text.push(isa::encode_r1i(opcode::ECALL, 0, crate::base::isa::ecall::TCP_LISTEN));
-        text.push(isa::encode_r3(opcode::MOV, reg::T0 as u8, reg::A0 as u8, 0, 0)); // t0 = listener fd
+        text.push(isa::encode_r1i(
+            opcode::ECALL,
+            0,
+            crate::base::isa::ecall::TCP_LISTEN,
+        ));
+        text.push(isa::encode_r3(
+            opcode::MOV,
+            reg::T0 as u8,
+            reg::A0 as u8,
+            0,
+            0,
+        )); // t0 = listener fd
 
         // 获取实际端口（通过 listener.local_addr()，但在 VM 内无法获取）
         // 简单测试：只要能创建 listener 即可
@@ -1641,7 +1887,11 @@ mod tests {
         while vm.is_running() {
             execute_instruction(&mut vm);
         }
-        assert_eq!(vm.regs[reg::A0] as i64, -3, "TCP_CLOSE on invalid fd should return EBADF");
+        assert_eq!(
+            vm.regs[reg::A0] as i64,
+            -3,
+            "TCP_CLOSE on invalid fd should return EBADF"
+        );
     }
 
     #[test]
@@ -1800,7 +2050,7 @@ mod tests {
         // SHR (算术) vs SHRU (逻辑) 在这个值上会不同
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 0x7FFF),
-            isa::encode_r1i(opcode::NOT, reg::T0 as u8, 0),   // t0 = !0x7FFF
+            isa::encode_r1i(opcode::NOT, reg::T0 as u8, 0), // t0 = !0x7FFF
             isa::encode_r2i(opcode::MOVI, reg::T1 as u8, 0, 4u16),
             isa::encode_r3(opcode::SHR, reg::T2 as u8, reg::T0 as u8, reg::T1 as u8, 0),
             isa::encode_r3(opcode::SHRU, reg::T3 as u8, reg::T0 as u8, reg::T1 as u8, 0),
@@ -1905,19 +2155,23 @@ mod tests {
         // JALR 的典型用法: JALR ra, rs1, imm → rd=ra(link), rs1=base, imm=offset
         // 测试: JALR t1, t0, 0 → t1=返回地址, pc=t0
         let text = vec![
-            isa::encode_ji(opcode::JMP, 2),                  // 0: JMP +2 → 跳到 instr 2
-            isa::encode_ji(opcode::TRAP, 0),                 // 1: 不应执行
+            isa::encode_ji(opcode::JMP, 2),  // 0: JMP +2 → 跳到 instr 2
+            isa::encode_ji(opcode::TRAP, 0), // 1: 不应执行
             isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 4), // 2: t0 = 4 (instr 4 的地址)
             isa::encode_r2i(opcode::JALR, reg::T1 as u8, reg::T0 as u8, 0), // 3: JALR t1, t0, 0 → pc=t0(=4), t1=返回地址(=4)
-            isa::encode_r2i(opcode::MOVI, reg::T2 as u8, 0, 42), // 4: t2 = 42 (跳转目标)
-            isa::encode_ji(opcode::TRAP, 0),                 // 5: HALT
+            isa::encode_r2i(opcode::MOVI, reg::T2 as u8, 0, 42),            // 4: t2 = 42 (跳转目标)
+            isa::encode_ji(opcode::TRAP, 0),                                // 5: HALT
         ];
         let mut vm = make_vm(text);
         while vm.is_running() {
             execute_instruction(&mut vm);
         }
         assert_eq!(vm.regs[reg::T2], 42);
-        assert_eq!(vm.regs[reg::T1], 4, "JALR should set link to return address");
+        assert_eq!(
+            vm.regs[reg::T1],
+            4,
+            "JALR should set link to return address"
+        );
     }
 
     #[test]
@@ -1932,7 +2186,7 @@ mod tests {
         rodata.extend_from_slice(&two_bits.to_le_bytes()); // offset 8: 2.0
 
         let text = vec![
-            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0),  // a0 = 0 (.rodata base)
+            isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 0), // a0 = 0 (.rodata base)
             isa::encode_r2i(opcode::LOAD, reg::T0 as u8, reg::A0 as u8, 0), // t0 = 1.0
             isa::encode_r2i(opcode::LOAD, reg::T1 as u8, reg::A0 as u8, 8), // t1 = 2.0
             isa::encode_r3(opcode::FADD, reg::T2 as u8, reg::T0 as u8, reg::T1 as u8, 0),
@@ -1943,7 +2197,11 @@ mod tests {
             execute_instruction(&mut vm);
         }
         let result = f64::from_bits(vm.regs[reg::T2]);
-        assert!((result - 3.0).abs() < 1e-10, "1.0 + 2.0 should be 3.0, got {}", result);
+        assert!(
+            (result - 3.0).abs() < 1e-10,
+            "1.0 + 2.0 should be 3.0, got {}",
+            result
+        );
     }
 
     #[test]
@@ -1998,7 +2256,11 @@ mod tests {
             execute_instruction(&mut vm);
         }
         let as_f64 = f64::from_bits(vm.regs[reg::T0]);
-        assert!((as_f64 - 42.0).abs() < 1e-10, "ITOF should convert 42 to 42.0, got {}", as_f64);
+        assert!(
+            (as_f64 - 42.0).abs() < 1e-10,
+            "ITOF should convert 42 to 42.0, got {}",
+            as_f64
+        );
         assert_eq!(vm.regs[reg::T1], 42, "FTOI should convert back to 42");
     }
 
@@ -2014,7 +2276,10 @@ mod tests {
             execute_instruction(&mut vm);
         }
         assert_eq!(vm.regs[reg::T0], 1, "TASK_FORK should write task_id");
-        assert!(vm.pending_child.is_some(), "TASK_FORK should set pending_child");
+        assert!(
+            vm.pending_child.is_some(),
+            "TASK_FORK should set pending_child"
+        );
         if let Some(ref child) = vm.pending_child {
             assert_eq!(child.task_id, 1);
         }
@@ -2051,8 +2316,11 @@ mod tests {
             execute_instruction(&mut vm);
         }
         // MSET 成功且 LOAD 返回正确的值（不越界就算成功）
-        assert!(!matches!(vm.state, crate::runner::VmStateKind::Error(_)),
-                "memcpy/memset should not error: {:?}", vm.state);
+        assert!(
+            !matches!(vm.state, crate::runner::VmStateKind::Error(_)),
+            "memcpy/memset should not error: {:?}",
+            vm.state
+        );
         // 验证 MSET 写的值
         let buf = vm.regs[reg::T0];
         if let Some(byte) = vm.memory.read_u8(buf) {

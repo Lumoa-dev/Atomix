@@ -3,11 +3,11 @@
 //! 覆盖设计文档 §2（Executor 定义）。
 
 use crate::base::isa::reg;
+use crate::runner::VmState;
+use crate::runner::VmStateKind;
 use crate::runner::event::{EventChannel, ExecutorEvent, ExecutorStats};
 use crate::runner::pool::TaskPool;
 use crate::runner::task::{Task, TaskId, TaskStatus};
-use crate::runner::VmState;
-use crate::runner::VmStateKind;
 use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 
@@ -15,10 +15,7 @@ use std::sync::mpsc::Receiver;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutorCommand {
     /// 加载指定任务并执行一个时间片。
-    Execute {
-        task_id: TaskId,
-        quantum: u32,
-    },
+    Execute { task_id: TaskId, quantum: u32 },
     /// 停止 Executor 线程。
     Halt,
 }
@@ -139,7 +136,10 @@ impl Executor {
                 let retval = vm.read_reg(reg::A0);
                 Some(ExecutorEvent::TaskDone { task_id, retval })
             }
-            VmStateKind::Error(_) => Some(ExecutorEvent::TaskError { task_id, errcode: 1 }),
+            VmStateKind::Error(_) => Some(ExecutorEvent::TaskError {
+                task_id,
+                errcode: 1,
+            }),
             VmStateKind::Suspended => {
                 if vm.memory.is_over_watermark() {
                     Some(ExecutorEvent::Oom {

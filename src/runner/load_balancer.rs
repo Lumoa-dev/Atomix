@@ -72,11 +72,7 @@ impl LoadBalancer {
         }
 
         // 批量分配：高积压时一次分配 2-3 个
-        let batch_size = if ready.len() >= n_batch * 2 {
-            3
-        } else {
-            1
-        };
+        let batch_size = if ready.len() >= n_batch * 2 { 3 } else { 1 };
 
         // 备选负载列表（可变，每次分配后更新）
         let mut loads: Vec<ExecutorLoad> = exec_loads.to_vec();
@@ -112,10 +108,7 @@ impl LoadBalancer {
         }
 
         // 找负载最低的
-        let min_load = loads
-            .iter()
-            .map(|l| l.load)
-            .fold(f64::INFINITY, f64::min);
+        let min_load = loads.iter().map(|l| l.load).fold(f64::INFINITY, f64::min);
 
         // 负载接近的候选（差距 < 10%）
         let candidates: Vec<&ExecutorLoad> = loads
@@ -140,10 +133,7 @@ impl LoadBalancer {
 }
 
 /// 构建 ExecutorLoad 列表的辅助函数。
-pub fn build_executor_loads(
-    total_instrs: &[u64],
-    idle_mask: &[bool],
-) -> Vec<ExecutorLoad> {
+pub fn build_executor_loads(total_instrs: &[u64], idle_mask: &[bool]) -> Vec<ExecutorLoad> {
     total_instrs
         .iter()
         .enumerate()

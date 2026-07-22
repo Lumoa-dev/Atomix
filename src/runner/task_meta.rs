@@ -100,11 +100,7 @@ mod tests {
         // task_id(2) + name(32) + disk_offset(8) + disk_size(4)
         // + memory_addr(8) + entry_point(4) + compiler_peak_mb(4) + actual_peak_mb(4)
         // = 66, padding 可能 2 字节对齐
-        assert!(
-            size <= 72,
-            "TaskMeta size {} should be <= 72 bytes",
-            size
-        );
+        assert!(size <= 72, "TaskMeta size {} should be <= 72 bytes", size);
         assert!(size >= 60, "TaskMeta size {} should be >= 60 bytes", size);
     }
 }

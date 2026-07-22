@@ -109,7 +109,8 @@ async fn handle_message(
     use tokio::io::AsyncWriteExt;
 
     match hdr.msg_type {
-        0x05 => { // Query
+        0x05 => {
+            // Query
             // 解析 Query protobuf
             if let Ok(query) = atxp::proto::Query::decode(payload) {
                 let result = handle_query(&query, runtime).await;
@@ -119,21 +120,29 @@ async fn handle_message(
                 stream.write_all(&frame).await?;
             }
         }
-        0x04 => { // Command
+        0x04 => {
+            // Command
             if let Ok(cmd) = atxp::proto::Command::decode(payload) {
                 handle_command(&cmd, stream, runtime).await?;
             }
         }
-        0x0D => { // Submit
+        0x0D => {
+            // Submit
             if let Ok(submit) = atxp::proto::Submit::decode(payload) {
                 handle_submit(&submit, stream, runtime).await?;
             }
         }
-        0x0B => { // Heartbeat
+        0x0B => {
+            // Heartbeat
             // 回复 Ack
-            let ack = atxp::proto::Ack { status: 0, message: "OK".into() };
+            let ack = atxp::proto::Ack {
+                status: 0,
+                message: "OK".into(),
+            };
             let resp_payload = ack.encode_to_vec();
-            stream.write_all(&atxp::encode_frame(0x02, hdr.seq_id, &resp_payload)).await?;
+            stream
+                .write_all(&atxp::encode_frame(0x02, hdr.seq_id, &resp_payload))
+                .await?;
         }
         _ => {
             // 未知消息类型，回复 Error
@@ -169,21 +178,25 @@ async fn handle_query(
         }
         "runner/tasks" => {
             let rt = runtime.lock().await;
-            let tasks: Vec<serde_json::Value> = rt.pool.results().into_iter().map(|(id, status, retval, instrs)| {
-                serde_json::json!({
-                    "id": id,
-                    "status": format!("{:?}", status),
-                    "return_value": retval,
-                    "total_instrs": instrs,
+            let tasks: Vec<serde_json::Value> = rt
+                .pool
+                .results()
+                .into_iter()
+                .map(|(id, status, retval, instrs)| {
+                    serde_json::json!({
+                        "id": id,
+                        "status": format!("{:?}", status),
+                        "return_value": retval,
+                        "total_instrs": instrs,
+                    })
                 })
-            }).collect();
+                .collect();
             serde_json::to_vec(&tasks).unwrap_or_default()
         }
-        _ => {
-            serde_json::to_vec(&serde_json::json!({
-                "error": format!("未知端点: {}", endpoint)
-            })).unwrap_or_default()
-        }
+        _ => serde_json::to_vec(&serde_json::json!({
+            "error": format!("未知端点: {}", endpoint)
+        }))
+        .unwrap_or_default(),
     };
     atxp::proto::QueryResult {
         endpoint: endpoint.clone(),
@@ -202,14 +215,20 @@ async fn handle_command(
     let ack = match cmd.endpoint.as_str() {
         "runner/stop" => {
             // TODO: 实现停止
-            atxp::proto::Ack { status: 0, message: "停止命令已接收".into() }
+            atxp::proto::Ack {
+                status: 0,
+                message: "停止命令已接收".into(),
+            }
         }
-        _ => {
-            atxp::proto::Ack { status: 1, message: format!("未知命令端點: {}", cmd.endpoint) }
-        }
+        _ => atxp::proto::Ack {
+            status: 1,
+            message: format!("未知命令端點: {}", cmd.endpoint),
+        },
     };
     let resp_payload = ack.encode_to_vec();
-    stream.write_all(&atxp::encode_frame(0x02, 0, &resp_payload)).await?;
+    stream
+        .write_all(&atxp::encode_frame(0x02, 0, &resp_payload))
+        .await?;
     Ok(())
 }
 
@@ -228,6 +247,8 @@ async fn handle_submit(
         compile_errors: Vec::new(),
     };
     let resp_payload = result.encode_to_vec();
-    stream.write_all(&atxp::encode_frame(0x0E, 0, &resp_payload)).await?;
+    stream
+        .write_all(&atxp::encode_frame(0x0E, 0, &resp_payload))
+        .await?;
     Ok(())
 }

@@ -76,7 +76,7 @@ pub struct BatchManager {
     pub w_lambda: f64,
     pub w_sigma: f64,
     pub w_gamma: f64,
-    pub w_theta: f64,   // 置信因子权重
+    pub w_theta: f64, // 置信因子权重
 
     // ── 回归模型 ──
     /// 线性回归模型（编译器预测 → 实际峰值修正）。
@@ -188,11 +188,7 @@ impl BatchManager {
         let gamma = self.factor_gamma();
         let theta = self.factor_theta();
 
-        let total_w = self.w_beta
-            + self.w_lambda
-            + self.w_sigma
-            + self.w_gamma
-            + self.w_theta;
+        let total_w = self.w_beta + self.w_lambda + self.w_sigma + self.w_gamma + self.w_theta;
         if total_w <= 0.0 {
             return 1.0;
         }
@@ -269,8 +265,8 @@ impl BatchManager {
 
         // 更新编译器峰值滑动平均
         if compiler_peak_mb > 0.0 {
-            self.compiler_peak_current = self.compiler_peak_current * (1.0 - alpha)
-                + compiler_peak_mb * alpha;
+            self.compiler_peak_current =
+                self.compiler_peak_current * (1.0 - alpha) + compiler_peak_mb * alpha;
         }
 
         // 收集回归样本并触发训练

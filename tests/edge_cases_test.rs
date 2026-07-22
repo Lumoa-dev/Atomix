@@ -7,9 +7,7 @@
 use std::panic;
 
 fn compile(source: &str) -> (Vec<u8>, Vec<String>) {
-    let result = panic::catch_unwind(|| {
-        atomix::compiler::compile(source, "0")
-    });
+    let result = panic::catch_unwind(|| atomix::compiler::compile(source, "0"));
     match result {
         Ok(r) => r,
         Err(e) => {
@@ -62,10 +60,10 @@ fn random_symbols_does_not_panic() {
 #[test]
 fn unmatched_brace_does_not_panic() {
     let cases = vec![
-        "TASK : { x : int = 42 ",     // 缺少 }
-        "TASK :  x : int = 42 }",      // 缺少 {
-        "TASK : { x : int = 42 } }",   // 多余 }
-        "{ TASK : { x : int = 42 }",   // 多余 {
+        "TASK : { x : int = 42 ",    // 缺少 }
+        "TASK :  x : int = 42 }",    // 缺少 {
+        "TASK : { x : int = 42 } }", // 多余 }
+        "{ TASK : { x : int = 42 }", // 多余 {
     ];
     for source in cases {
         let (_, errors) = compile(source);

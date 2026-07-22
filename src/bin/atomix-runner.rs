@@ -78,17 +78,28 @@ fn cmd_run(file: &PathBuf, config_path: Option<&str>) {
 
     println!("已加载: {} 条指令", binary.header.total_instrs);
 
-    let config = config_path.and_then(|p| {
-        match atomix::runner::config::RunnerConfig::load(Some(p)) {
-            Ok(cfg) => { println!("已加载配置: {}", p); Some(cfg) }
-            Err(e) => { eprintln!("警告: 配置加载失败 ({}), 使用默认配置", e); None }
-        }
-    });
+    let config =
+        config_path.and_then(
+            |p| match atomix::runner::config::RunnerConfig::load(Some(p)) {
+                Ok(cfg) => {
+                    println!("已加载配置: {}", p);
+                    Some(cfg)
+                }
+                Err(e) => {
+                    eprintln!("警告: 配置加载失败 ({}), 使用默认配置", e);
+                    None
+                }
+            },
+        );
 
-    let mut runtime = match atomix::runner::runtime::Runtime::from_atxe(&binary, config.as_ref(), None) {
-        Ok(rt) => rt,
-        Err(e) => { eprintln!("错误: 创建 Runtime 失败: {}", e); std::process::exit(1); }
-    };
+    let mut runtime =
+        match atomix::runner::runtime::Runtime::from_atxe(&binary, config.as_ref(), None) {
+            Ok(rt) => rt,
+            Err(e) => {
+                eprintln!("错误: 创建 Runtime 失败: {}", e);
+                std::process::exit(1);
+            }
+        };
 
     match runtime.run() {
         Ok(()) => {
@@ -99,10 +110,16 @@ fn cmd_run(file: &PathBuf, config_path: Option<&str>) {
                     atomix::runner::task::TaskStatus::Error => "出错",
                     _ => "其他",
                 };
-                println!("  Task {}: {} ({} 条指令, 返回值: {})", id, s, instrs, retval);
+                println!(
+                    "  Task {}: {} ({} 条指令, 返回值: {})",
+                    id, s, instrs, retval
+                );
             }
         }
-        Err(e) => { eprintln!("\n执行错误: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("\n执行错误: {}", e);
+            std::process::exit(1);
+        }
     }
 }
 
@@ -113,12 +130,19 @@ async fn cmd_daemon(listen: &str, config_path: Option<&str>) {
     println!("监听地址: {}", listen);
 
     // 加载配置
-    let config = config_path.and_then(|p| {
-        match atomix::runner::config::RunnerConfig::load(Some(p)) {
-            Ok(cfg) => { println!("已加载配置: {}", p); Some(cfg) }
-            Err(e) => { eprintln!("警告: 配置加载失败 ({}), 使用默认配置", e); None }
-        }
-    });
+    let config =
+        config_path.and_then(
+            |p| match atomix::runner::config::RunnerConfig::load(Some(p)) {
+                Ok(cfg) => {
+                    println!("已加载配置: {}", p);
+                    Some(cfg)
+                }
+                Err(e) => {
+                    eprintln!("警告: 配置加载失败 ({}), 使用默认配置", e);
+                    None
+                }
+            },
+        );
 
     // 创建空的 Runtime（没有初始任务）
     // Runtime::from_atxe 需要一个二进制，但我们还没有任务
@@ -135,16 +159,17 @@ async fn cmd_daemon(listen: &str, config_path: Option<&str>) {
         zones: vec![],
     };
 
-    let runtime = match atomix::runner::runtime::Runtime::from_atxe(&empty_binary, config.as_ref(), None) {
-        Ok(rt) => {
-            println!("Runtime 已初始化 ({} 个执行器)", rt.executors.len());
-            rt
-        }
-        Err(e) => {
-            eprintln!("错误: 创建 Runtime 失败: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let runtime =
+        match atomix::runner::runtime::Runtime::from_atxe(&empty_binary, config.as_ref(), None) {
+            Ok(rt) => {
+                println!("Runtime 已初始化 ({} 个执行器)", rt.executors.len());
+                rt
+            }
+            Err(e) => {
+                eprintln!("错误: 创建 Runtime 失败: {}", e);
+                std::process::exit(1);
+            }
+        };
 
     // 创建 ATXP 服务器
     let server = atomix::runner::server::AtxpServer {

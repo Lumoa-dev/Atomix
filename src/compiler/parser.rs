@@ -894,28 +894,32 @@ impl Parser {
             TokenKind::Assert => Some(self.parse_assert()),
             TokenKind::Raise => Some(self.parse_raise()),
             TokenKind::Return => Some(self.parse_return()),
-            TokenKind::LBrace => Some(Stmt::Block { line, stmts: self.parse_delimited_block() }),
+            TokenKind::LBrace => Some(Stmt::Block {
+                line,
+                stmts: self.parse_delimited_block(),
+            }),
             // 函数定义（TOOLS/WORKS 内）
-            TokenKind::Fn | TokenKind::Pub => self.parse_func_def().map(|def| Stmt::FnDef { line, def }),
-            // 以标识符开始的语句——可能是变量声明或表达式
-            TokenKind::Ident(_) => {
-                self.try_parse_ident_stmt()
+            TokenKind::Fn | TokenKind::Pub => {
+                self.parse_func_def().map(|def| Stmt::FnDef { line, def })
             }
+            // 以标识符开始的语句——可能是变量声明或表达式
+            TokenKind::Ident(_) => self.try_parse_ident_stmt(),
             // 以表达式开始的语句
             _ => {
                 if Self::is_expr_start(&kind) {
                     let expr = self.parse_expr();
                     // 检测赋值语句: ident = expr（无类型标注）
                     if let Expr::Ident(name) = &expr
-                        && self.peek_kind() == Some(&TokenKind::Eq) {
-                            self.advance();
-                            let init = self.parse_expr();
-                            return Some(Stmt::Let {
-                                line,
-                                name: name.clone(),
-                                type_ann: TypeNode::Base("any".into()),
-                                init,
-                            });
+                        && self.peek_kind() == Some(&TokenKind::Eq)
+                    {
+                        self.advance();
+                        let init = self.parse_expr();
+                        return Some(Stmt::Let {
+                            line,
+                            name: name.clone(),
+                            type_ann: TypeNode::Base("any".into()),
+                            init,
+                        });
                     }
                     self.errors.push(ParseError::new(
                         "表达式语句在此上下文中无效——变量声明必须带类型标注 `: type`",
