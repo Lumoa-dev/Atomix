@@ -32,6 +32,10 @@ impl StepDetailPage {
             scroll: 0,
         }
     }
+
+    pub fn set_step_index(&mut self, index: usize) {
+        self.step_index = index;
+    }
 }
 
 impl Page for StepDetailPage {
@@ -43,8 +47,10 @@ impl Page for StepDetailPage {
         let trace = &session.trace;
         let max_visible = (area.height as usize).saturating_sub(2);
 
-        let step = if self.step_index < trace.steps.len() {
-            Some(&trace.steps[self.step_index])
+        // 优先使用 session.selected_step_index，其次使用 self.step_index
+        let effective_index = session.selected_step_index.unwrap_or(self.step_index);
+        let step = if effective_index < trace.steps.len() {
+            Some(&trace.steps[effective_index])
         } else {
             None
         };

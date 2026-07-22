@@ -449,6 +449,8 @@ pub struct LocalDebugSession {
 
     // 执行控制
     pub collected: bool,
+    /// Home 页面选中的 Step 索引（供 StepDetail 页面使用）。
+    pub selected_step_index: Option<usize>,
 }
 
 impl LocalDebugSession {
@@ -482,6 +484,7 @@ impl LocalDebugSession {
             _exec_start: None,
             is_context: IsContextSnapshot::new(),
             collected: false,
+            selected_step_index: None,
         }
     }
 
@@ -570,24 +573,38 @@ impl LocalDebugSession {
                     _ => {}
                 }
 
-                // 检测 CALL 指令作为 Step 边界
+                // ── 数据层：Step 边界检测、变量追踪、子调用记录 ──
+
+                // 检测 CALL 指令作为 Step 边界 —— 从 debug_map 获取函数名
                 if op == opcode::CALL as u8 {
                     let entry = &decode::dispatch_table()[op as usize];
                     let ops = decode::decode(instr, entry.enc);
                     let offset = ops.imm as i32;
                     let target_pc = (pc_before as i32).wrapping_add(offset) as usize;
-                    let call_name = if target_pc < self.vm.text.len() {
-                        format!("call_{:#06x}", target_pc)
-                    } else {
-                        format!("call_unknown_{:#06x}", target_pc)
-                    };
-                    let source_line = self
-                        .debug_map
-                        .as_ref()
+                    let source_line = self.debug_map.as_ref()
                         .and_then(|m| m.line_for_pc(pc_before))
                         .unwrap_or(0);
 
+                    // 从 debug_map 中查找该 PC 对应的函数名
+                    let call_name = if let Some(ref map) = self.debug_map {
+                        map.func_entries().iter()
+                            .find(|e| e.pc_start as usize == target_pc)
+                            .and_then(|e| e.func_name())
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| format!("call_{:#06x}", target_pc))
+                    } else {
+                        format!("call_{:#06x}", target_pc)
+                    };
+
                     collector.begin_step(&call_name, ExecutionPhase::Task, source_line, pc_before);
+                    collector.record_sub_call(
+                        crate::debug::trace::SubCall::FnCall {
+                            name: call_name.clone(),
+                            args: Vec::new(),    // 参数名在指令级不可得
+                            result: None,
+                            elapsed_us: 0,       // 结束时填充
+                        }
+                    );
                 }
 
                 // 检测 ECALL 作为系统调用 Step
@@ -595,40 +612,73 @@ impl LocalDebugSession {
                     let entry = &decode::dispatch_table()[op as usize];
                     let ops = decode::decode(instr, entry.enc);
                     let syscall_name = disassemble::syscall_name(ops.imm);
-                    let source_line = self
-                        .debug_map
-                        .as_ref()
+                    let source_line = self.debug_map.as_ref()
                         .and_then(|m| m.line_for_pc(pc_before))
                         .unwrap_or(0);
 
-                    collector.begin_step(
-                        syscall_name,
-                        ExecutionPhase::System,
-                        source_line,
-                        pc_before,
-                    );
+                    collector.begin_step(syscall_name, ExecutionPhase::System, source_line, pc_before);
                 }
 
-                // 检测 MOVI/LOAD/STORE 作为变量事件
+                // 检测 JMPR (0x54) — 函数返回指令 —— 结束当前 Step
+                if op == 0x54 {
+                    let current_depth = self.vm.call_stack.len();
+                    // 从 CALL 进入时 call_stack 加深，JMPR 返回时 call_stack 变浅
+                    // 当发现 JMPR 且 call_stack 变浅，说明函数返回，结束当前 Step
+                    collector.end_step(pc_before + 1);
+                }
+
+                // 检测 TRAP 指令 — 程序结束
+                if op == opcode::TRAP as u8 {
+                    // 给一个 Step 边界使最后一个指令被包含
+                    collector.end_step(pc_before + 1);
+                }
+
+                // 检测 FORK/JOIN 用于任务依赖图
+                if op == opcode::TASK_FORK as u8 {
+                    let source_line = self.debug_map.as_ref()
+                        .and_then(|m| m.line_for_pc(pc_before)).unwrap_or(0);
+                    collector.begin_step("fork", ExecutionPhase::Task, source_line, pc_before);
+                }
+                if op == opcode::TASK_JOIN as u8 {
+                    let source_line = self.debug_map.as_ref()
+                        .and_then(|m| m.line_for_pc(pc_before)).unwrap_or(0);
+                    collector.begin_step("join", ExecutionPhase::Task, source_line, pc_before);
+                }
+
+                // 检测 MOVI/STORE 作为变量事件 —— 使用当前 Step 名称
                 if op == opcode::MOVI as u8 {
                     let entry = &decode::dispatch_table()[op as usize];
                     let ops = decode::decode(instr, entry.enc);
                     let rd = ops.rd as usize;
                     let reg_name = isa::reg_name(rd).to_uppercase();
                     let old_val = self.vm.read_reg(rd);
-                    // 新值将在执行后更新
                     collector.record_variable(
-                        &reg_name,
-                        "int",
-                        Some(old_val),
-                        ops.imm as u64,
+                        &reg_name, "int", Some(old_val), ops.imm as u64,
                         pc_before,
-                        self.debug_map
-                            .as_ref()
-                            .and_then(|m| m.line_for_pc(pc_before))
-                            .unwrap_or(0),
-                        "exec",
+                        self.debug_map.as_ref().and_then(|m| m.line_for_pc(pc_before)).unwrap_or(0),
+                        "exec",  // TraceCollector 会自动解析为当前 Step 名
                         false,
+                    );
+                    // 如果当前有活跃 Step，也将变量名加入 output_vars
+                    if let Some(ref step) = collector.current_step {
+                        if step.name.contains("call_") || !step.name.is_empty() {
+                            // 暂时不做 output_vars 自动填充（需要源码级变量名信息）
+                        }
+                    }
+                }
+
+                // 检测 LOAD 作为输入变量引用
+                if op == opcode::LOAD as u8 {
+                    let entry = &decode::dispatch_table()[op as usize];
+                    let ops = decode::decode(instr, entry.enc);
+                    let rd = ops.rd as usize;
+                    let reg_name = isa::reg_name(rd).to_uppercase();
+                    let old_val = self.vm.read_reg(rd);
+                    collector.record_variable(
+                        &reg_name, "int", Some(old_val), self.vm.read_reg(rd),
+                        pc_before,
+                        self.debug_map.as_ref().and_then(|m| m.line_for_pc(pc_before)).unwrap_or(0),
+                        "exec", false,
                     );
                 }
             }

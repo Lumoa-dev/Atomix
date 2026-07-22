@@ -135,8 +135,21 @@ impl TuiApp {
                 let pages = &mut self.pages;
                 let session = &mut self.session;
                 let status = &mut self.status_message;
+                let was_status = status.clone();
                 if let Some(page) = pages.get_page_mut(&self.active_page) {
                     page.on_enter(session, status);
+                }
+                // 检查页面是否请求导航（"navigate:PageId" 协议）
+                let needs_nav = if status.starts_with("navigate:") {
+                    let parts: Vec<&str> = status.splitn(3, ':').collect();
+                    if parts.len() >= 2 { Some((parts[1].to_string(), parts.get(2).map(|s| s.to_string()))) } else { None }
+                } else { None };
+                if let Some((target, _param)) = needs_nav {
+                    match target.as_str() {
+                        "StepDetail" => self.navigate_to(PageId::StepDetail),
+                        _ => {}
+                    }
+                    self.status_message = was_status;
                 }
             }
             (KeyCode::Char(':'), _) => {

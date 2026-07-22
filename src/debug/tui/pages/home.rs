@@ -176,7 +176,13 @@ impl Page for HomePage {
                 }
             }
             HomeLine::Step(step) => {
-                *status = format!("Step: {}", step.name);
+                // 在 session.trace.steps 中查找该 Step 的索引
+                if let Some(idx) = session.trace.steps.iter().position(|s| s.name == step.name && s.source_line == step.source_line) {
+                    session.selected_step_index = Some(idx);
+                    *status = format!("navigate:StepDetail:{}", idx);
+                } else {
+                    *status = format!("Step: {}", step.name);
+                }
             }
         }
     }

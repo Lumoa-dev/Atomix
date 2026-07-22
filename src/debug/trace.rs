@@ -441,7 +441,41 @@ impl TraceCollector {
         }
     }
 
+    /// 获取当前 Step 的名称（如果有）。
+    pub fn current_step_name(&self) -> &str {
+        self.current_step
+            .as_ref()
+            .map(|s| s.name.as_str())
+            .unwrap_or("exec")
+    }
+
+    /// 为当前 Step 添加一个输入变量。
+    pub fn record_input_var(&mut self, var_name: &str) {
+        if let Some(ref mut step) = self.current_step {
+            if !step.input_vars.iter().any(|v| v == var_name) {
+                step.input_vars.push(var_name.to_string());
+            }
+        }
+    }
+
+    /// 为当前 Step 添加一个输出变量。
+    pub fn record_output_var(&mut self, var_name: &str) {
+        if let Some(ref mut step) = self.current_step {
+            if !step.output_vars.iter().any(|v| v == var_name) {
+                step.output_vars.push(var_name.to_string());
+            }
+        }
+    }
+
+    /// 为当前 Step 添加一个子调用记录。
+    pub fn record_sub_call(&mut self, call: SubCall) {
+        if let Some(ref mut step) = self.current_step {
+            step.sub_calls.push(call);
+        }
+    }
+
     /// 记录一条变量事件。
+    /// 如果 step_name 为 "exec" 或空，自动使用当前 Step 名称。
     pub fn record_variable(
         &mut self,
         name: &str,
@@ -456,6 +490,11 @@ impl TraceCollector {
         if !self.collect_variables {
             return;
         }
+        let resolved_step = if step_name == "exec" || step_name.is_empty() {
+            self.current_step_name()
+        } else {
+            step_name
+        };
         let timestamp = self
             .global_start
             .map(|start| start.elapsed().as_micros() as u64)
@@ -467,7 +506,7 @@ impl TraceCollector {
             new_value,
             pc,
             source_line,
-            step_name: step_name.to_string(),
+            step_name: resolved_step.to_string(),
             from_input,
             timestamp_us: timestamp,
         });
