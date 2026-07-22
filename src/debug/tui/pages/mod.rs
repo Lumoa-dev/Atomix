@@ -1,6 +1,6 @@
-//! TUI 页面系统 — Page trait 和 18 个本地页面的注册表。
+//! TUI 页面系统 — Page trait 和 18+12 个页面的注册表。
 //!
-//! 对应设计文档 §3（页面体系）。
+//! 对应设计文档 §3（本地页面体系）、§7.1（远程页面）。
 
 mod home;
 mod viewer_pages;
@@ -12,12 +12,18 @@ use std::collections::HashMap;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use crate::debug::session::LocalDebugSession;
+use crate::debug::tui::remote::{
+    ConnectionsPage, DashboardPage, TaskListPage, TaskSnapshotPage,
+    ControllerPage, SlotsPage, SubmitPage, ConfigPage,
+    PoolPage, LogsPage, SlotsAnimPage, RemotePerfPage,
+};
 
 // ─── 页面 ID ──────────────────────────────────────────────
 
-/// 所有本地页面的唯一标识。
+/// 所有页面的唯一标识（18 本地 + 12 远程 = 30 页面）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PageId {
+    // 本地页面 (18)
     Home,
     StepDetail,
     SourceView,
@@ -37,30 +43,18 @@ pub enum PageId {
     InputDetail,
     OutputDetail,
     ZoneStatus,
-    // 远程页面
-    #[allow(dead_code)]
+    // 远程页面 (12)
     RemoteConnections,
-    #[allow(dead_code)]
     RemoteDashboard,
-    #[allow(dead_code)]
     RemoteTaskList,
-    #[allow(dead_code)]
     RemoteTaskSnapshot,
-    #[allow(dead_code)]
     RemoteController,
-    #[allow(dead_code)]
     RemoteSlots,
-    #[allow(dead_code)]
     RemoteSubmit,
-    #[allow(dead_code)]
     RemoteConfig,
-    #[allow(dead_code)]
     RemoteTaskPool,
-    #[allow(dead_code)]
     RemoteLogs,
-    #[allow(dead_code)]
     RemoteSlotsAnim,
-    #[allow(dead_code)]
     RemotePerf,
 }
 
@@ -70,22 +64,16 @@ pub enum PageId {
 pub trait Page {
     /// 页面显示标题。
     fn title(&self) -> &str;
-
     /// 渲染页面内容到指定区域。
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession);
-
     /// 按 Enter 时的操作（选中/进入子页面）。
     fn on_enter(&mut self, _session: &mut LocalDebugSession, _status: &mut String) {}
-
     /// 按 + 键缩放。
     fn on_zoom_in(&mut self, _session: &mut LocalDebugSession) {}
-
     /// 按 - 键缩放。
     fn on_zoom_out(&mut self, _session: &mut LocalDebugSession) {}
-
     /// 键盘快捷键处理。
     fn on_key_shortcut(&mut self, _session: &mut LocalDebugSession, _key: char, _status: &mut String) {}
-
     /// 数据变化时更新。
     fn on_data_changed(&mut self, _session: &mut LocalDebugSession) {}
 }
@@ -99,13 +87,12 @@ pub struct PageRegistry {
 
 impl PageRegistry {
     pub fn new() -> Self {
-        Self {
-            pages: HashMap::new(),
-        }
+        Self { pages: HashMap::new() }
     }
 
-    /// 注册所有页面。
+    /// 注册所有本地页面。
     pub fn register_all(&mut self, session: &LocalDebugSession) {
+        // 本地页面 (18)
         self.pages.insert(PageId::Home, Box::new(home::HomePage::new(session)));
         self.pages.insert(PageId::SourceView, Box::new(viewer_pages::SourceViewPage::new(session)));
         self.pages.insert(PageId::BinaryView, Box::new(viewer_pages::BinaryViewPage::new(session)));
@@ -125,6 +112,31 @@ impl PageRegistry {
         self.pages.insert(PageId::HookTimeline, Box::new(viz_pages::HookTimelinePage::new(session)));
         self.pages.insert(PageId::TaskDependency, Box::new(viz_pages::TaskDependencyPage::new(session)));
         self.pages.insert(PageId::WatchReplay, Box::new(viz_pages::WatchReplayPage::new(session)));
+        // 远程页面 (12)
+        self.register_remote_pages();
+    }
+
+    /// 注册所有远程页面。
+    pub fn register_remote_pages(&mut self) {
+        self.pages.insert(PageId::RemoteConnections, Box::new(ConnectionsPage::new()));
+        self.pages.insert(PageId::RemoteDashboard, Box::new(DashboardPage::new()));
+        self.pages.insert(PageId::RemoteTaskList, Box::new(TaskListPage::new()));
+        self.pages.insert(PageId::RemoteTaskSnapshot, Box::new(TaskSnapshotPage::new()));
+        self.pages.insert(PageId::RemoteController, Box::new(ControllerPage::new()));
+        self.pages.insert(PageId::RemoteSlots, Box::new(SlotsPage::new()));
+        self.pages.insert(PageId::RemoteSubmit, Box::new(SubmitPage::new()));
+        self.pages.insert(PageId::RemoteConfig, Box::new(ConfigPage::new()));
+        self.pages.insert(PageId::RemoteTaskPool, Box::new(PoolPage::new()));
+        self.pages.insert(PageId::RemoteLogs, Box::new(LogsPage::new()));
+        self.pages.insert(PageId::RemoteSlotsAnim, Box::new(SlotsAnimPage::new()));
+        self.pages.insert(PageId::RemotePerf, Box::new(RemotePerfPage::new()));
+    }
+
+    /// 注册远程页面（不带 session 的重载）。
+    pub fn register_remote_only(&mut self) {
+        self.register_remote_pages();
+        // 远程模式下也注册基本的本地页面（如 Home）
+        // 但不需要，远程模式有自己独立的页面集
     }
 
     pub fn get_page(&self, id: &PageId) -> Option<&Box<dyn Page>> {

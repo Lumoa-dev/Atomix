@@ -115,4 +115,83 @@ impl AtxpClient {
         if msg_type == 0x02 { Ok(()) }
         else { Err("心跳响应异常".to_string()) }
     }
+
+    /// 查询远程 Runner 配置。
+    pub fn query_config(&mut self) -> Result<serde_json::Value, String> {
+        let query = atxp::proto::Query {
+            endpoint: "runner/config".into(),
+            operation: 0,
+            params: Vec::new(),
+        };
+        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
+        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
+            serde_json::from_slice(&result.data)
+                .map_err(|e| format!("JSON 解析失败: {}", e))
+        } else {
+            Err("QueryResult 解码失败".to_string())
+        }
+    }
+
+    /// 查询指定任务的日志。
+    pub fn query_task_log(&mut self, task_id: &str, _lines: usize) -> Result<String, String> {
+        let query = atxp::proto::Query {
+            endpoint: format!("task/{}/log", task_id),
+            operation: 0,
+            params: Vec::new(),
+        };
+        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
+        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
+            String::from_utf8(result.data).map_err(|e| format!("UTF-8 解码失败: {}", e))
+        } else {
+            Err("QueryResult 解码失败".to_string())
+        }
+    }
+
+    /// 查询远程性能指标。
+    pub fn query_perf(&mut self) -> Result<serde_json::Value, String> {
+        let query = atxp::proto::Query {
+            endpoint: "runner/perf".into(),
+            operation: 0,
+            params: Vec::new(),
+        };
+        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
+        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
+            serde_json::from_slice(&result.data)
+                .map_err(|e| format!("JSON 解析失败: {}", e))
+        } else {
+            Err("QueryResult 解码失败".to_string())
+        }
+    }
+
+    /// 查询内存槽位布局。
+    pub fn query_slots(&mut self) -> Result<serde_json::Value, String> {
+        let query = atxp::proto::Query {
+            endpoint: "runner/slots".into(),
+            operation: 0,
+            params: Vec::new(),
+        };
+        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
+        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
+            serde_json::from_slice(&result.data)
+                .map_err(|e| format!("JSON 解析失败: {}", e))
+        } else {
+            Err("QueryResult 解码失败".to_string())
+        }
+    }
+
+    /// 查询控制器状态。
+    pub fn query_controller(&mut self) -> Result<serde_json::Value, String> {
+        let query = atxp::proto::Query {
+            endpoint: "runner/controller".into(),
+            operation: 0,
+            params: Vec::new(),
+        };
+        let (_, resp) = self.exchange(0x05, &query.encode_to_vec())?;
+        if let Ok(result) = atxp::proto::QueryResult::decode(resp.as_slice()) {
+            serde_json::from_slice(&result.data)
+                .map_err(|e| format!("JSON 解析失败: {}", e))
+        } else {
+            Err("QueryResult 解码失败".to_string())
+        }
+    }
 }

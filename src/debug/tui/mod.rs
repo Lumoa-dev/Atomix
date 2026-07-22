@@ -25,6 +25,7 @@
 pub mod app;
 pub mod layout;
 pub mod pages;
+pub mod remote;
 
 use crate::debug::session::LocalDebugSession;
 use crate::debug::tui::app::TuiApp;

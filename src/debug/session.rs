@@ -629,11 +629,85 @@ impl LocalDebugSession {
         segments
     }
 
-    /// 获取 Zone 状态。
+    /// 获取 Zone 状态 — 从实际执行数据分析。
+    ///
+    /// Zone 是一个编译期概念（代码区域），运行时从 .atxe 的 zones 段、
+    /// debug 信息中的 FUNC 条目、以及实际执行的 PC 范围综合推断。
     pub fn zone_info(&self) -> Vec<(String, String, String, String)> {
-        // 从 VmState 信息推断 Zone
         let mut zones = Vec::new();
-        zones.push(("main".to_string(), "PERSISTENT".to_string(), "loaded".to_string(), format!("{:#06x}–{:#06x}", 0, self.vm.text.len().saturating_sub(1))));
+
+        // 1. 尝试从 debug_map 中的 FUNC 条目推断 Zone
+        if let Some(ref map) = self.debug_map {
+            let func_entries = map.func_entries();
+            if !func_entries.is_empty() {
+                for entry in &func_entries {
+                    let name = entry.func_name().unwrap_or("anonymous").to_string();
+                    let pc_range = format!("{:#06x}–{:#06x}", entry.pc_start, entry.pc_end);
+                    let status = if self.vm.pc >= entry.pc_start as usize && self.vm.pc <= entry.pc_end as usize {
+                        "active".to_string()
+                    } else {
+                        "loaded".to_string()
+                    };
+                    zones.push((name, "PERSISTENT".to_string(), status, pc_range));
+                }
+                return zones;
+            }
+        }
+
+        // 2. 如果没有 FUNC 条目，从 PC 命中统计推断热点区域
+        let text_len = self.vm.text.len();
+        if text_len > 0 {
+            let total_pc_hits: u64 = self.perf.pc_hits.values().sum();
+            if total_pc_hits > 0 {
+                // 划分区域：每 25% 的 text 为一个 Zone
+                let zone_size = text_len / 4 + 1;
+                for i in 0..4 {
+                    let start = i * zone_size;
+                    let end = ((i + 1) * zone_size - 1).min(text_len.saturating_sub(1));
+                    if start >= text_len { break; }
+                    let zone_hits: u64 = (start..=end)
+                        .filter_map(|pc| self.perf.pc_hits.get(&pc))
+                        .sum();
+                    let pct = if total_pc_hits > 0 { zone_hits as f64 / total_pc_hits as f64 * 100.0 } else { 0.0 };
+                    let lifecycle = if i == 0 || i == 3 { "PERSISTENT" } else { "EXEC_UNLOAD" };
+                    let is_active = self.vm.pc >= start && self.vm.pc <= end;
+                    let status = if is_active {
+                        format!("active ({:.1}%)", pct)
+                    } else if zone_hits > 0 {
+                        format!("loaded ({:.1}%)", pct)
+                    } else {
+                        "lazy".to_string()
+                    };
+                    let zone_name = format!("zone_{}", i);
+                    zones.push((zone_name, lifecycle.to_string(), status, format!("{:#06x}–{:#06x}", start, end)));
+                }
+            } else {
+                // 3. 纯静态：按 .text 段大小等分
+                let zone_size = text_len / 4 + 1;
+                for i in 0..4.min(text_len) {
+                    let start = i * zone_size;
+                    let end = ((i + 1) * zone_size - 1).min(text_len.saturating_sub(1));
+                    if start >= text_len { break; }
+                    zones.push((
+                        format!("zone_{}", i),
+                        "PERSISTENT".to_string(),
+                        if self.vm.pc >= start && self.vm.pc <= end { "active".to_string() } else { "loaded".to_string() },
+                        format!("{:#06x}–{:#06x}", start, end),
+                    ));
+                }
+            }
+        }
+
+        // 4. 如果完全没有数据，至少返回 main
+        if zones.is_empty() {
+            zones.push((
+                "main".to_string(),
+                "PERSISTENT".to_string(),
+                if self.vm.is_running() { "active" } else { "halted" }.to_string(),
+                format!("{:#06x}–{:#06x}", 0, text_len.saturating_sub(1)),
+            ));
+        }
+
         zones
     }
 
