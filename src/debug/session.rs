@@ -466,6 +466,13 @@ impl LocalDebugSession {
         }
     }
 
+    /// 从字节加载 debug map。
+    pub fn set_debug_map_from_bytes(&mut self, bytes: &[u8]) {
+        if !bytes.is_empty() {
+            self.debug_map = DebugMap::from_bytes(bytes);
+        }
+    }
+
     /// 默认运行收集：完整执行 VM 并收集轨迹。
     ///
     /// 对应设计文档 §6.2「数据流」第 3 步。
