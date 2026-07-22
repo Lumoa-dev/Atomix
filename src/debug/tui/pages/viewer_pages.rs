@@ -43,7 +43,11 @@ impl Page for SourceViewPage {
             return;
         }
 
-        let current_line = session.debug_map.as_ref().and_then(|m| m.line_for_pc(session.vm.pc)).unwrap_or(1) as usize;
+        let current_line = session
+            .debug_map
+            .as_ref()
+            .and_then(|m| m.line_for_pc(session.vm.pc))
+            .unwrap_or(1) as usize;
         let source_lines = &session.source_lines;
         let max_visible = (area.height as usize).saturating_sub(2);
 
@@ -62,7 +66,11 @@ impl Page for SourceViewPage {
 
         let mut display_lines = Vec::new();
         for lnum in start_line..end_line {
-            let is_exec_line = Some(lnum as u32) == session.debug_map.as_ref().and_then(|m| m.line_for_pc(session.vm.pc));
+            let is_exec_line = Some(lnum as u32)
+                == session
+                    .debug_map
+                    .as_ref()
+                    .and_then(|m| m.line_for_pc(session.vm.pc));
             let has_breakpoint = session.breakpoints().iter().any(|bp| {
                 if let crate::debug::session::BreakpointType::Line(line) = bp.bp_type {
                     line == lnum as u32
@@ -80,7 +88,10 @@ impl Page for SourceViewPage {
             };
 
             let line_style = if is_exec_line {
-                Style::default().fg(Color::Yellow).bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             };
@@ -113,7 +124,11 @@ impl Page for SourceViewPage {
         match key {
             'b' => {
                 // 在当前行设置断点
-                if let Some(line) = session.debug_map.as_ref().and_then(|m| m.line_for_pc(session.vm.pc)) {
+                if let Some(line) = session
+                    .debug_map
+                    .as_ref()
+                    .and_then(|m| m.line_for_pc(session.vm.pc))
+                {
                     session.set_breakpoint_line(line, None);
                     *status = format!("断点已设置于 line {}", line);
                 }
@@ -159,7 +174,9 @@ impl Page for BinaryViewPage {
         let mut lines = vec![
             Line::from(Span::styled(
                 " Offset   Hex(LE)        Binary                     ASCII",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::raw("")),
         ];
@@ -170,12 +187,23 @@ impl Page for BinaryViewPage {
             let has_bp = session.breakpoints().iter().any(|bp| {
                 if let crate::debug::session::BreakpointType::Pc(addr) = bp.bp_type {
                     addr == i
-                } else { false }
+                } else {
+                    false
+                }
             });
 
-            let marker = if is_pc { "→" } else if has_bp { "●" } else { " " };
+            let marker = if is_pc {
+                "→"
+            } else if has_bp {
+                "●"
+            } else {
+                " "
+            };
             let style = if is_pc {
-                Style::default().fg(Color::Green).bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD)
             } else if has_bp {
                 Style::default().fg(Color::Red)
             } else {
@@ -184,16 +212,31 @@ impl Page for BinaryViewPage {
 
             let hex = format!("{:08x}", instr);
             let bytes = instr.to_le_bytes();
-            let binary: String = bytes.iter()
+            let binary: String = bytes
+                .iter()
                 .map(|b| format!("{:08b}", b))
                 .collect::<Vec<_>>()
                 .join(" ");
-            let ascii: String = bytes.iter()
-                .map(|b| if b.is_ascii_graphic() || *b == b' ' { *b as char } else { '.' })
+            let ascii: String = bytes
+                .iter()
+                .map(|b| {
+                    if b.is_ascii_graphic() || *b == b' ' {
+                        *b as char
+                    } else {
+                        '.'
+                    }
+                })
                 .collect();
 
             lines.push(Line::from(Span::styled(
-                format!("{} {:06x}:  {}  {:35}  {}", marker, i * 4, hex, binary, ascii),
+                format!(
+                    "{} {:06x}:  {}  {:35}  {}",
+                    marker,
+                    i * 4,
+                    hex,
+                    binary,
+                    ascii
+                ),
                 style,
             )));
         }
@@ -276,16 +319,21 @@ impl Page for DisasmViewPage {
             let marker = if is_pc { "→" } else { " " };
             let op_style = Style::default()
                 .fg(Self::opcode_color(op))
-                .add_modifier(if is_pc { Modifier::BOLD } else { Modifier::empty() });
+                .add_modifier(if is_pc {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                });
             let bg_style = if is_pc {
                 Style::default().bg(Color::DarkGray)
             } else {
                 Style::default()
             };
 
-            lines.push(Line::from(
-                Span::styled(format!("{} {}", marker, formatted), op_style.patch(bg_style)),
-            ));
+            lines.push(Line::from(Span::styled(
+                format!("{} {}", marker, formatted),
+                op_style.patch(bg_style),
+            )));
         }
 
         let table = crate::runner::decode::dispatch_table();
@@ -374,9 +422,16 @@ impl Page for RegsMemPage {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::DarkGray));
 
-        let reg_widget = Paragraph::new(reg_lines)
-            .block(reg_block);
-        frame.render_widget(reg_widget, Rect { x: area.x, y: area.y, width: area.width, height: half });
+        let reg_widget = Paragraph::new(reg_lines).block(reg_block);
+        frame.render_widget(
+            reg_widget,
+            Rect {
+                x: area.x,
+                y: area.y,
+                width: area.width,
+                height: half,
+            },
+        );
 
         // 下半部分：内存 hex dump
         let start_addr = self.mem_start;
@@ -393,7 +448,11 @@ impl Page for RegsMemPage {
                 let a = addr.wrapping_add(byte_idx as u64);
                 if let Some(byte) = memory.read_u8(a) {
                     hex.push_str(&format!("{:02x} ", byte));
-                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' { byte as char } else { '.' });
+                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' {
+                        byte as char
+                    } else {
+                        '.'
+                    });
                 } else {
                     hex.push_str("   ");
                     ascii.push('.');
@@ -401,7 +460,11 @@ impl Page for RegsMemPage {
             }
             mem_lines.push(Line::from(Span::styled(
                 format!("{:#010x}:  {:48}  {}", addr, hex, ascii),
-                if !self.focus_regs { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::White) },
+                if !self.focus_regs {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default().fg(Color::White)
+                },
             )));
         }
 
@@ -410,12 +473,24 @@ impl Page for RegsMemPage {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::DarkGray));
 
-        let mem_widget = Paragraph::new(mem_lines)
-            .block(mem_block);
-        frame.render_widget(mem_widget, Rect { x: area.x, y: area.y + half, width: area.width, height: area.height - half });
+        let mem_widget = Paragraph::new(mem_lines).block(mem_block);
+        frame.render_widget(
+            mem_widget,
+            Rect {
+                x: area.x,
+                y: area.y + half,
+                width: area.width,
+                height: area.height - half,
+            },
+        );
     }
 
-    fn on_key_shortcut(&mut self, _session: &mut LocalDebugSession, _key: char, _status: &mut String) {
+    fn on_key_shortcut(
+        &mut self,
+        _session: &mut LocalDebugSession,
+        _key: char,
+        _status: &mut String,
+    ) {
         match _key {
             '\t' => self.focus_regs = !self.focus_regs,
             _ => {}

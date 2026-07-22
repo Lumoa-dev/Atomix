@@ -62,9 +62,22 @@ impl Page for StepDetailPage {
             };
 
             lines.push(Line::from(vec![
-                Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("{}", step.name), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("  line {}", step.source_line), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!(" {} ", status_symbol),
+                    Style::default()
+                        .fg(status_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("{}", step.name),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("  line {}", step.source_line),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]));
             lines.push(Line::from(Span::raw("")));
 
@@ -75,8 +88,10 @@ impl Page for StepDetailPage {
                 format!("{}μs", step.elapsed_us)
             };
             lines.push(Line::from(Span::styled(
-                format!("  执行耗时: {}  |  PC范围: {:#06x}–{:#06x}",
-                    elapsed, step.pc_range.0, step.pc_range.1),
+                format!(
+                    "  执行耗时: {}  |  PC范围: {:#06x}–{:#06x}",
+                    elapsed, step.pc_range.0, step.pc_range.1
+                ),
                 Style::default().fg(Color::White),
             )));
 
@@ -84,10 +99,15 @@ impl Page for StepDetailPage {
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 "  输入参数",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             if step.input_vars.is_empty() {
-                lines.push(Line::from(Span::styled("    （无）", Style::default().fg(Color::Gray))));
+                lines.push(Line::from(Span::styled(
+                    "    （无）",
+                    Style::default().fg(Color::Gray),
+                )));
             } else {
                 for var in &step.input_vars {
                     lines.push(Line::from(Span::raw(format!("    {}", var))));
@@ -98,10 +118,15 @@ impl Page for StepDetailPage {
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 "  输出变量",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             if step.output_vars.is_empty() {
-                lines.push(Line::from(Span::styled("    （无）", Style::default().fg(Color::Gray))));
+                lines.push(Line::from(Span::styled(
+                    "    （无）",
+                    Style::default().fg(Color::Gray),
+                )));
             } else {
                 for var in &step.output_vars {
                     lines.push(Line::from(Span::raw(format!("    {}", var))));
@@ -112,34 +137,61 @@ impl Page for StepDetailPage {
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 "  子调用",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             if step.sub_calls.is_empty() {
-                lines.push(Line::from(Span::styled("    （无）", Style::default().fg(Color::Gray))));
+                lines.push(Line::from(Span::styled(
+                    "    （无）",
+                    Style::default().fg(Color::Gray),
+                )));
             } else {
                 for call in &step.sub_calls {
                     match call {
-                        crate::debug::trace::SubCall::FnCall { name, args, result, elapsed_us } => {
+                        crate::debug::trace::SubCall::FnCall {
+                            name,
+                            args,
+                            result,
+                            elapsed_us,
+                        } => {
                             let elapsed = if *elapsed_us >= 1000 {
                                 format!("{:.1}ms", *elapsed_us as f64 / 1000.0)
                             } else {
                                 format!("{}μs", elapsed_us)
                             };
                             lines.push(Line::from(Span::styled(
-                                format!("    fn: {}({}) → {:?} [{}]", name, args.join(", "), result, elapsed),
+                                format!(
+                                    "    fn: {}({}) → {:?} [{}]",
+                                    name,
+                                    args.join(", "),
+                                    result,
+                                    elapsed
+                                ),
                                 Style::default().fg(Color::Blue),
                             )));
                         }
-                        crate::debug::trace::SubCall::WorksCall { name, lifecycle, elapsed_us, result } => {
-                            let lifecycle_str: Vec<&str> = lifecycle.iter().map(|p| p.symbol()).collect();
+                        crate::debug::trace::SubCall::WorksCall {
+                            name,
+                            lifecycle,
+                            elapsed_us,
+                            result,
+                        } => {
+                            let lifecycle_str: Vec<&str> =
+                                lifecycle.iter().map(|p| p.symbol()).collect();
                             let elapsed = if *elapsed_us >= 1000 {
                                 format!("{:.1}ms", *elapsed_us as f64 / 1000.0)
                             } else {
                                 format!("{}μs", elapsed_us)
                             };
                             lines.push(Line::from(Span::styled(
-                                format!("    works: {} [{}] → {:?} [{}]",
-                                    name, lifecycle_str.join(" → "), result, elapsed),
+                                format!(
+                                    "    works: {} [{}] → {:?} [{}]",
+                                    name,
+                                    lifecycle_str.join(" → "),
+                                    result,
+                                    elapsed
+                                ),
                                 Style::default().fg(Color::Magenta),
                             )));
                         }
@@ -216,11 +268,18 @@ impl Page for InputDetailPage {
         let input_steps = trace.steps_by_phase(ExecutionPhase::Input);
 
         let mut lines = vec![
-            Line::from(Span::styled(" 输入常量", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " 输入常量",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
             Line::from(Span::styled(
-                format!("  {:<20} {:<10} {:<10} {}",
-                    "名称", "类型", "状态", "消费者"),
+                format!(
+                    "  {:<20} {:<10} {:<10} {}",
+                    "名称", "类型", "状态", "消费者"
+                ),
                 Style::default().fg(Color::Cyan),
             )),
             Line::from(Span::styled(
@@ -237,7 +296,9 @@ impl Page for InputDetailPage {
         } else {
             for step in input_steps {
                 let status_str = step.status.symbol();
-                let consumers = trace.steps.iter()
+                let consumers = trace
+                    .steps
+                    .iter()
                     .filter(|s| s.phase == ExecutionPhase::Task)
                     .map(|s| s.name.as_str())
                     .collect::<Vec<_>>()
@@ -289,11 +350,18 @@ impl Page for OutputDetailPage {
         let out_steps = trace.steps_by_phase(ExecutionPhase::Out);
 
         let mut lines = vec![
-            Line::from(Span::styled(" 产出变量", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " 产出变量",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
             Line::from(Span::styled(
-                format!("  {:<20} {:<10} {:<12} {}",
-                    "名称", "类型", "交付状态", "目标"),
+                format!(
+                    "  {:<20} {:<10} {:<12} {}",
+                    "名称", "类型", "交付状态", "目标"
+                ),
                 Style::default().fg(Color::Cyan),
             )),
             Line::from(Span::styled(
@@ -361,7 +429,10 @@ impl Page for ExceptionDetailPage {
         let detail = session.exception_detail();
 
         let mut lines = vec![
-            Line::from(Span::styled(" 异常上下文", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " 异常上下文",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
         ];
 
@@ -382,24 +453,40 @@ impl Page for ExceptionDetailPage {
             if let Some(line) = exc.source_line {
                 lines.push(Line::from(Span::raw(format!("  源位置: 行 {}", line))));
             }
-            lines.push(Line::from(Span::raw(format!("  PC: {:#06x}", exc.source_pc))));
-            lines.push(Line::from(Span::raw(format!("  调用栈深度: {}", exc.call_stack_depth))));
+            lines.push(Line::from(Span::raw(format!(
+                "  PC: {:#06x}",
+                exc.source_pc
+            ))));
+            lines.push(Line::from(Span::raw(format!(
+                "  调用栈深度: {}",
+                exc.call_stack_depth
+            ))));
 
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 "  传播信息",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             let propagated = if exc.is_propagated { "是" } else { "否" };
             let caught = if exc.is_caught { "是" } else { "否" };
-            lines.push(Line::from(Span::raw(format!("  是否向上传播: {}", propagated))));
-            lines.push(Line::from(Span::raw(format!("  是否被 TRY 块捕获: {}", caught))));
+            lines.push(Line::from(Span::raw(format!(
+                "  是否向上传播: {}",
+                propagated
+            ))));
+            lines.push(Line::from(Span::raw(format!(
+                "  是否被 TRY 块捕获: {}",
+                caught
+            ))));
 
             // 异常时刻的寄存器快照
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 "  异常时刻的寄存器快照",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             for i in 0..16 {
                 let name = crate::base::isa::reg_name(i).to_uppercase();

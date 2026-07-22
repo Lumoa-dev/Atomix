@@ -30,10 +30,10 @@ pub mod remote;
 use crate::debug::session::LocalDebugSession;
 use crate::debug::tui::app::TuiApp;
 
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 
 /// 启动 TUI 调试器。
 ///
@@ -51,8 +51,7 @@ pub fn run_tui(session: LocalDebugSession) -> Result<(), String> {
     crossterm::execute!(stdout, EnterAlternateScreen)
         .map_err(|e| format!("无法进入 alternate screen: {}", e))?;
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)
-        .map_err(|e| format!("无法创建终端: {}", e))?;
+    let mut terminal = Terminal::new(backend).map_err(|e| format!("无法创建终端: {}", e))?;
 
     let app_result = {
         let mut app = TuiApp::new(session);

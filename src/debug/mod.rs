@@ -28,25 +28,23 @@
 //! | debug_segment.rs | §3.18 Segment Info .debug 段 | ✅ 已实现 |
 //! | tui/ | §2 TUI 布局、§3 页面体系 | 🚧 实现中 |
 
-pub mod trace;
-pub mod session;
 pub mod debug_segment;
 pub mod disassemble;
 pub mod eval;
 pub mod repl;
+pub mod session;
+pub mod trace;
 pub mod tui;
 
 // 重新导出常用类型
-pub use trace::{
-    ExecutionTrace, StepRecord, StepStatus, ExecutionPhase,
-    TraceCollector, VariableEvent, IsEvent, HookEvent,
-    SubCall, WorksPhase, IsVariable, IsGroup,
-    IS_VARIABLES, is_variables_by_group,
-};
-pub use session::{
-    DebugSession, LocalDebugSession, Breakpoint, BreakpointType,
-    Watchpoint, CommandHistory, FrameState, DisplayFormat,
-    PerfCounters, IsContextSnapshot, ExceptionDetail,
-};
-pub use disassemble::format_instruction;
 pub use debug_segment::DebugMap;
+pub use disassemble::format_instruction;
+pub use session::{
+    Breakpoint, BreakpointType, CommandHistory, DebugSession, DisplayFormat, ExceptionDetail,
+    FrameState, IsContextSnapshot, LocalDebugSession, PerfCounters, Watchpoint,
+};
+pub use trace::{
+    ExecutionPhase, ExecutionTrace, HookEvent, IS_VARIABLES, IsEvent, IsGroup, IsVariable,
+    StepRecord, StepStatus, SubCall, TraceCollector, VariableEvent, WorksPhase,
+    is_variables_by_group,
+};

@@ -45,10 +45,21 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
     let mut chars = input.chars().peekable();
     let reg_names: &[(&str, &str)] = &[
-        ("a0", "a0"), ("a1", "a1"), ("a2", "a2"), ("a3", "a3"),
-        ("t0", "t0"), ("t1", "t1"), ("t2", "t2"), ("t3", "t3"),
-        ("t4", "t4"), ("t5", "t5"),
-        ("sp", "sp"), ("fp", "fp"), ("ra", "ra"), ("zero", "zero"), ("pc", "pc"),
+        ("a0", "a0"),
+        ("a1", "a1"),
+        ("a2", "a2"),
+        ("a3", "a3"),
+        ("t0", "t0"),
+        ("t1", "t1"),
+        ("t2", "t2"),
+        ("t3", "t3"),
+        ("t4", "t4"),
+        ("t5", "t5"),
+        ("sp", "sp"),
+        ("fp", "fp"),
+        ("ra", "ra"),
+        ("zero", "zero"),
+        ("pc", "pc"),
     ];
 
     while let Some(&ch) = chars.peek() {
@@ -83,8 +94,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                     break;
                 }
             }
-            let val = s.parse::<u64>()
-                .map_err(|_| format!("无效的数字: {}", s))?;
+            let val = s.parse::<u64>().map_err(|_| format!("无效的数字: {}", s))?;
             tokens.push(Token::Number(val));
         } else if ch.is_ascii_alphabetic() || ch == '_' {
             let mut s = String::new();
@@ -99,7 +109,8 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
             // 检查是否为寄存器名
             let is_reg = reg_names.iter().any(|(name, _)| *name == lower);
             // 也接受 r0..r15 格式
-            let is_rn = lower.starts_with('r') && lower[1..].parse::<u8>().ok().map_or(false, |n| n < 16);
+            let is_rn =
+                lower.starts_with('r') && lower[1..].parse::<u8>().ok().map_or(false, |n| n < 16);
             if is_reg || is_rn {
                 tokens.push(Token::Reg(lower));
             } else {
@@ -107,15 +118,42 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
             }
         } else {
             match ch {
-                '+' => { chars.next(); tokens.push(Token::Plus); }
-                '-' => { chars.next(); tokens.push(Token::Minus); }
-                '*' => { chars.next(); tokens.push(Token::Star); }
-                '/' => { chars.next(); tokens.push(Token::Slash); }
-                '&' => { chars.next(); tokens.push(Token::Amp); }
-                '|' => { chars.next(); tokens.push(Token::Pipe); }
-                '^' => { chars.next(); tokens.push(Token::Caret); }
-                '(' => { chars.next(); tokens.push(Token::LParen); }
-                ')' => { chars.next(); tokens.push(Token::RParen); }
+                '+' => {
+                    chars.next();
+                    tokens.push(Token::Plus);
+                }
+                '-' => {
+                    chars.next();
+                    tokens.push(Token::Minus);
+                }
+                '*' => {
+                    chars.next();
+                    tokens.push(Token::Star);
+                }
+                '/' => {
+                    chars.next();
+                    tokens.push(Token::Slash);
+                }
+                '&' => {
+                    chars.next();
+                    tokens.push(Token::Amp);
+                }
+                '|' => {
+                    chars.next();
+                    tokens.push(Token::Pipe);
+                }
+                '^' => {
+                    chars.next();
+                    tokens.push(Token::Caret);
+                }
+                '(' => {
+                    chars.next();
+                    tokens.push(Token::LParen);
+                }
+                ')' => {
+                    chars.next();
+                    tokens.push(Token::RParen);
+                }
                 '=' => {
                     chars.next();
                     if chars.peek() == Some(&'=') {
@@ -319,7 +357,9 @@ fn parse_unary(tokens: &[Token], pos: &mut usize, vm: &VmState) -> Result<u64, S
                 advance(tokens, pos);
                 let addr = parse_unary(tokens, pos, vm)?;
                 // 从 VM 沙箱内存读取 u64
-                return vm.memory.read_u64(addr)
+                return vm
+                    .memory
+                    .read_u64(addr)
                     .ok_or_else(|| format!("无法读取地址 {:#x}", addr));
             }
             _ => {}

@@ -29,9 +29,9 @@
 
 use crate::base::isa::{self, opcode};
 use crate::debug::disassemble;
-use crate::runner::execute::execute_instruction;
 use crate::runner::VmState;
 use crate::runner::VmStateKind;
+use crate::runner::execute::execute_instruction;
 use std::collections::HashMap;
 
 /// 数据监视点。
@@ -89,14 +89,21 @@ impl DebugSession {
 
     pub fn execute_command(&mut self, line: &str) -> bool {
         let trimmed = line.trim();
-        if trimmed.is_empty() { return true; }
+        if trimmed.is_empty() {
+            return true;
+        }
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.is_empty() { return true; }
+        if parts.is_empty() {
+            return true;
+        }
         let command = parts[0].to_lowercase();
 
         match command.as_str() {
             "quit" | "exit" | "q" => false,
-            "help" | "h" | "?" => { self.cmd_help(); true }
+            "help" | "h" | "?" => {
+                self.cmd_help();
+                true
+            }
 
             "step" | "s" => {
                 let n: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
@@ -105,79 +112,123 @@ impl DebugSession {
                 self.show_display_exprs();
                 true
             }
-            "regs" | "registers" | "r" => { self.cmd_regs(); true }
+            "regs" | "registers" | "r" => {
+                self.cmd_regs();
+                true
+            }
             "disasm" | "d" => {
-                let addr: usize = parts.get(1).and_then(|s| parse_addr(s)).unwrap_or(self.vm.pc);
+                let addr: usize = parts
+                    .get(1)
+                    .and_then(|s| parse_addr(s))
+                    .unwrap_or(self.vm.pc);
                 let n: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(8);
-                self.cmd_disasm(addr, n); true
+                self.cmd_disasm(addr, n);
+                true
             }
             "mem" | "m" => {
                 if let Some(addr) = parts.get(1).and_then(|s| parse_addr(s)) {
                     let bytes: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(64);
                     self.cmd_mem(addr as u64, bytes);
-                } else { println!("用法: mem <addr> [bytes]"); }
+                } else {
+                    println!("用法: mem <addr> [bytes]");
+                }
                 true
             }
             _ if command.starts_with("x/") => {
                 let fmt_rest = command[2..].to_string();
                 let rest_parts: Vec<&str> = parts[1..].iter().map(|s| *s).collect();
                 let all_args = format!("{} {}", fmt_rest, rest_parts.join(" "));
-                self.cmd_examine(&all_args.trim()); true
+                self.cmd_examine(&all_args.trim());
+                true
             }
             "eval" | "e" => {
                 let expr = parts[1..].join(" ");
-                if !expr.is_empty() { self.cmd_eval(&expr); }
-                else { println!("用法: eval <表达式>"); }
+                if !expr.is_empty() {
+                    self.cmd_eval(&expr);
+                } else {
+                    println!("用法: eval <表达式>");
+                }
                 true
             }
             "print" | "p" => {
                 let expr = parts[1..].join(" ");
-                if expr.is_empty() { println!("用法: print <表达式>"); }
-                else { self.cmd_print(&expr); }
+                if expr.is_empty() {
+                    println!("用法: print <表达式>");
+                } else {
+                    self.cmd_print(&expr);
+                }
                 true
             }
             "set" => {
                 let rest = parts[1..].join(" ");
-                self.cmd_set(&rest); true
+                self.cmd_set(&rest);
+                true
             }
             "break" | "b" => {
                 if let Some(addr) = parts.get(1).and_then(|s| parse_addr(s)) {
                     let condition = if parts.len() > 2 && parts[2].to_lowercase() == "if" {
                         Some(parts[3..].join(" "))
-                    } else { None };
+                    } else {
+                        None
+                    };
                     self.cmd_break(addr, condition.as_deref());
-                } else { self.list_breakpoints(); }
+                } else {
+                    self.list_breakpoints();
+                }
                 true
             }
-            "continue" | "c" => { self.cmd_continue(); true }
+            "continue" | "c" => {
+                self.cmd_continue();
+                true
+            }
             "watch" | "w" => {
                 if let Some(addr) = parts.get(1).and_then(|s| parse_addr(s)) {
                     let size: u64 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(8);
                     self.cmd_watch(addr as u64, size);
-                } else { self.list_watchpoints(); }
+                } else {
+                    self.list_watchpoints();
+                }
                 true
             }
             "display" => {
                 let expr = parts[1..].join(" ");
-                self.cmd_display(&expr); true
+                self.cmd_display(&expr);
+                true
             }
-            "backtrace" | "bt" => { self.cmd_backtrace(); true }
+            "backtrace" | "bt" => {
+                self.cmd_backtrace();
+                true
+            }
             "frame" | "f" => {
                 if let Some(n) = parts.get(1).and_then(|s| s.parse().ok()) {
                     self.cmd_frame(n);
-                } else { self.show_frame(); }
+                } else {
+                    self.show_frame();
+                }
                 true
             }
-            "up" => { self.cmd_frame(self.selected_frame.saturating_add(1)); true }
+            "up" => {
+                self.cmd_frame(self.selected_frame.saturating_add(1));
+                true
+            }
             "down" => {
-                let n = if self.selected_frame > 0 { self.selected_frame - 1 } else { 0 };
-                self.cmd_frame(n); true
+                let n = if self.selected_frame > 0 {
+                    self.selected_frame - 1
+                } else {
+                    0
+                };
+                self.cmd_frame(n);
+                true
             }
             "source" | "src" => {
                 let n: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(10);
-                self.cmd_source(n); true
+                self.cmd_source(n);
+                true
             }
-            _ => { println!("未知命令: {}（输入 help）", command); true }
+            _ => {
+                println!("未知命令: {}（输入 help）", command);
+                true
+            }
         }
     }
 
@@ -215,9 +266,15 @@ impl DebugSession {
             execute_instruction(&mut self.vm);
         }
         if self.vm.pc < self.vm.text.len() && self.vm.is_running() {
-            println!("→ {}", disassemble::format_instruction(self.vm.pc, self.vm.text[self.vm.pc]));
+            println!(
+                "→ {}",
+                disassemble::format_instruction(self.vm.pc, self.vm.text[self.vm.pc])
+            );
         } else if self.vm.pc < self.vm.text.len() {
-            println!("⏹ {}", disassemble::format_instruction(self.vm.pc, self.vm.text[self.vm.pc]));
+            println!(
+                "⏹ {}",
+                disassemble::format_instruction(self.vm.pc, self.vm.text[self.vm.pc])
+            );
         }
     }
 
@@ -256,7 +313,9 @@ impl DebugSession {
                             }
                         }
                     }
-                    if condition_skipped { continue; }
+                    if condition_skipped {
+                        continue;
+                    }
 
                     println!("⏸ 命中断点于 {:#06x}", pc_before);
                     if let Some(&orig) = self.breakpoints.get(&pc_before) {
@@ -266,23 +325,34 @@ impl DebugSession {
                         execute_instruction(&mut self.vm);
                         self.vm.text[pc_before] = isa::encode_ji(opcode::TRAP, 0);
                         if self.vm.pc < self.vm.text.len() && self.vm.is_running() {
-                            println!("→ {}", disassemble::format_instruction(self.vm.pc, self.vm.text[self.vm.pc]));
+                            println!(
+                                "→ {}",
+                                disassemble::format_instruction(
+                                    self.vm.pc,
+                                    self.vm.text[self.vm.pc]
+                                )
+                            );
                         }
                     }
                     return;
                 }
                 if self.vm.state == VmStateKind::Halted {
-                    println!("⏹ VM 已停止（执行了 {} 条指令）", steps); return;
+                    println!("⏹ VM 已停止（执行了 {} 条指令）", steps);
+                    return;
                 }
                 if matches!(self.vm.state, VmStateKind::Error(_)) {
-                    println!("⛔ VM 错误: {:?}", self.vm.state); return;
+                    println!("⛔ VM 错误: {:?}", self.vm.state);
+                    return;
                 }
                 if self.vm.state == VmStateKind::Suspended {
-                    println!("⏸ VM 已挂起（执行了 {} 条指令）", steps); return;
+                    println!("⏸ VM 已挂起（执行了 {} 条指令）", steps);
+                    return;
                 }
             }
         }
-        if steps >= max_steps { println!("⚠ 达到最大步数限制 {}", max_steps); }
+        if steps >= max_steps {
+            println!("⚠ 达到最大步数限制 {}", max_steps);
+        }
     }
 
     // ─── 数据监视点 ─────────────────────────────────
@@ -299,11 +369,18 @@ impl DebugSession {
 
     fn list_watchpoints(&self) {
         if self.watchpoints.is_empty() {
-            println!("（无监视点）"); return;
+            println!("（无监视点）");
+            return;
         }
         println!("监视点列表:");
         for (i, wp) in self.watchpoints.iter().enumerate() {
-            println!("  #{}  {:#x}-{:#x} ({} bytes)", i, wp.addr, wp.addr + wp.size - 1, wp.size);
+            println!(
+                "  #{}  {:#x}-{:#x} ({} bytes)",
+                i,
+                wp.addr,
+                wp.addr + wp.size - 1,
+                wp.size
+            );
         }
     }
 
@@ -323,14 +400,18 @@ impl DebugSession {
         let ops = crate::runner::decode::decode(instr, entry.enc);
         let addr = if op == 0x13 {
             // LOAD rd, [rs1 + imm]
-            self.vm.read_reg(ops.rs1 as usize).wrapping_add(ops.imm as i16 as u64)
+            self.vm
+                .read_reg(ops.rs1 as usize)
+                .wrapping_add(ops.imm as i16 as u64)
         } else {
             // STORE [rd + imm], rs1
-            self.vm.read_reg(ops.rd as usize).wrapping_add(ops.imm as i16 as u64)
+            self.vm
+                .read_reg(ops.rd as usize)
+                .wrapping_add(ops.imm as i16 as u64)
         };
-        self.watchpoints.iter().any(|wp| {
-            addr >= wp.addr && addr < wp.addr.wrapping_add(wp.size)
-        })
+        self.watchpoints
+            .iter()
+            .any(|wp| addr >= wp.addr && addr < wp.addr.wrapping_add(wp.size))
     }
 
     // ─── 显示表达式 ─────────────────────────────────
@@ -343,7 +424,12 @@ impl DebugSession {
                 println!("Display 表达式:");
                 for (i, e) in self.display_exprs.iter().enumerate() {
                     match crate::debug::eval::eval_expr(e, &self.vm) {
-                        Ok(val) => println!("  {}: {} = {}", i, e, crate::debug::eval::format_result(val)),
+                        Ok(val) => println!(
+                            "  {}: {} = {}",
+                            i,
+                            e,
+                            crate::debug::eval::format_result(val)
+                        ),
                         Err(_) => println!("  {}: {} = <错误>", i, e),
                     }
                 }
@@ -358,7 +444,7 @@ impl DebugSession {
         for e in &self.display_exprs {
             match crate::debug::eval::eval_expr(e, &self.vm) {
                 Ok(val) => println!("  {} = {}", e, crate::debug::eval::format_result(val)),
-                Err(_) => {},
+                Err(_) => {}
             }
         }
     }
@@ -387,7 +473,10 @@ impl DebugSession {
             println!("当前帧: #0 pc={:#06x}", self.vm.pc);
         } else {
             let frame = &cs[cs.len() - idx];
-            println!("帧 #{}: return_pc={:#06x} sp={:#x}", idx, frame.return_pc, frame.sp);
+            println!(
+                "帧 #{}: return_pc={:#06x} sp={:#x}",
+                idx, frame.return_pc, frame.sp
+            );
         }
     }
 
@@ -402,12 +491,17 @@ impl DebugSession {
         }
         println!("  {:>8}: {:#06x}", "PC", self.vm.pc);
         println!("  状态: {:?}", self.vm.state);
-        println!("  帧: #{} (共 {} 帧)", self.selected_frame, self.vm.call_stack.len());
+        println!(
+            "  帧: #{} (共 {} 帧)",
+            self.selected_frame,
+            self.vm.call_stack.len()
+        );
     }
 
     fn cmd_disasm(&self, addr: usize, n: usize) {
         if addr >= self.vm.text.len() {
-            println!("地址 {:#06x} 超出 .text 段", addr); return;
+            println!("地址 {:#06x} 超出 .text 段", addr);
+            return;
         }
         for line in disassemble::disassemble_range(&self.vm.text, addr, n) {
             println!("{}", line);
@@ -417,7 +511,8 @@ impl DebugSession {
     fn cmd_mem(&self, addr: u64, bytes: usize) {
         let end = addr.saturating_add(bytes as u64);
         if end as usize > self.vm.memory.data.len() {
-            println!("地址超出沙箱内存"); return;
+            println!("地址超出沙箱内存");
+            return;
         }
         let mut offset = addr;
         while offset < end {
@@ -427,7 +522,11 @@ impl DebugSession {
             for a in offset..line_end {
                 if let Some(byte) = self.vm.memory.read_u8(a) {
                     hex.push_str(&format!("{:02x} ", byte));
-                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' { byte as char } else { '.' });
+                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' {
+                        byte as char
+                    } else {
+                        '.'
+                    });
                 }
             }
             println!("{:#010x}:  {:48}  {}", offset, hex, ascii);
@@ -441,10 +540,16 @@ impl DebugSession {
         // 格式: <fmt> <addr> [n]
         // fmt: x=hex, d=decimal, u=unsigned, c=char, s=string
         let parts: Vec<&str> = args.split_whitespace().collect();
-        if parts.is_empty() { println!("用法: x/<fmt> <addr> [n]"); return; }
+        if parts.is_empty() {
+            println!("用法: x/<fmt> <addr> [n]");
+            return;
+        }
 
         let fmt = parts[0].chars().next().unwrap_or('x');
-        let addr = parts.get(1).and_then(|s| parse_addr(s)).unwrap_or(self.vm.pc);
+        let addr = parts
+            .get(1)
+            .and_then(|s| parse_addr(s))
+            .unwrap_or(self.vm.pc);
         let count: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
 
         match fmt {
@@ -453,7 +558,9 @@ impl DebugSession {
                     let a = (addr as u64).wrapping_add((i * 8) as u64);
                     if let Some(val) = self.vm.memory.read_u64(a) {
                         println!("  {:#010x}: {:#018x}", a, val);
-                    } else { println!("  {:#010x}: <越界>", a); }
+                    } else {
+                        println!("  {:#010x}: <越界>", a);
+                    }
                 }
             }
             'd' => {
@@ -461,16 +568,24 @@ impl DebugSession {
                     let a = (addr as u64).wrapping_add((i * 8) as u64);
                     if let Some(val) = self.vm.memory.read_u64(a) {
                         println!("  {:#010x}: {}", a, val as i64);
-                    } else { println!("  {:#010x}: <越界>", a); }
+                    } else {
+                        println!("  {:#010x}: <越界>", a);
+                    }
                 }
             }
             'c' => {
                 for i in 0..count {
                     let a = (addr as u64).wrapping_add(i as u64);
                     if let Some(byte) = self.vm.memory.read_u8(a) {
-                        let ch = if byte.is_ascii_graphic() || byte == b' ' { byte as char } else { '.' };
+                        let ch = if byte.is_ascii_graphic() || byte == b' ' {
+                            byte as char
+                        } else {
+                            '.'
+                        };
                         println!("  {:#010x}: '{}' ({})", a, ch, byte);
-                    } else { println!("  {:#010x}: <越界>", a); }
+                    } else {
+                        println!("  {:#010x}: <越界>", a);
+                    }
                 }
             }
             's' => {
@@ -479,7 +594,11 @@ impl DebugSession {
                     let a = (addr as u64).wrapping_add(i as u64);
                     match self.vm.memory.read_u8(a) {
                         Some(0) => break,
-                        Some(b) => s.push(if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }),
+                        Some(b) => s.push(if b.is_ascii_graphic() || b == b' ' {
+                            b as char
+                        } else {
+                            '.'
+                        }),
                         None => break,
                     }
                 }
@@ -503,7 +622,10 @@ impl DebugSession {
 
         let value = match crate::debug::eval::eval_expr(value_expr, &self.vm) {
             Ok(v) => v,
-            Err(e) => { println!("值表达式错误: {}", e); return; }
+            Err(e) => {
+                println!("值表达式错误: {}", e);
+                return;
+            }
         };
 
         if target.starts_with('*') {
@@ -523,7 +645,10 @@ impl DebugSession {
             // 设置寄存器: reg = value
             let idx = match parse_reg_name(target) {
                 Some(i) => i,
-                None => { println!("未知寄存器: {}", target); return; }
+                None => {
+                    println!("未知寄存器: {}", target);
+                    return;
+                }
             };
             if idx == 0 {
                 println!("R0 (zero) 是只读寄存器");
@@ -549,7 +674,10 @@ impl DebugSession {
     fn cmd_print(&self, name: &str) {
         // 先尝试表达式求值
         match crate::debug::eval::eval_expr(name, &self.vm) {
-            Ok(val) => { println!("  {} = {}", name, crate::debug::eval::format_result(val)); return; }
+            Ok(val) => {
+                println!("  {} = {}", name, crate::debug::eval::format_result(val));
+                return;
+            }
             Err(_) => {}
         }
         // 降级到寄存器名解析
@@ -568,7 +696,8 @@ impl DebugSession {
 
     fn cmd_break(&mut self, addr: usize, condition: Option<&str>) {
         if addr >= self.vm.text.len() {
-            println!("地址 {:#06x} 超出 .text 段", addr); return;
+            println!("地址 {:#06x} 超出 .text 段", addr);
+            return;
         }
         if self.breakpoints.contains_key(&addr) {
             if let Some(cond) = condition {
@@ -592,14 +721,25 @@ impl DebugSession {
     }
 
     fn list_breakpoints(&self) {
-        if self.breakpoints.is_empty() { println!("（无断点）"); return; }
+        if self.breakpoints.is_empty() {
+            println!("（无断点）");
+            return;
+        }
         println!("断点列表:");
         for (&addr, _orig) in &self.breakpoints {
-            let cond = self.conditional_breakpoints.get(&addr)
-                .map(|c| format!(" if {}", c)).unwrap_or_default();
+            let cond = self
+                .conditional_breakpoints
+                .get(&addr)
+                .map(|c| format!(" if {}", c))
+                .unwrap_or_default();
             let desc = if addr < self.vm.text.len() {
-                format!("  ({})", disassemble::format_instruction(addr, self.vm.text[addr]))
-            } else { String::new() };
+                format!(
+                    "  ({})",
+                    disassemble::format_instruction(addr, self.vm.text[addr])
+                )
+            } else {
+                String::new()
+            };
             println!("  {:#06x}{}{}", addr, cond, desc);
         }
     }
@@ -619,23 +759,38 @@ impl DebugSession {
         // 历史帧
         for (i, frame) in self.vm.call_stack.iter().rev().enumerate() {
             let depth = i + 1;
-            let marker = if self.selected_frame == depth { "→" } else { " " };
-            println!("  {} #{}  return_pc={:#06x}", marker, depth, frame.return_pc);
+            let marker = if self.selected_frame == depth {
+                "→"
+            } else {
+                " "
+            };
+            println!(
+                "  {} #{}  return_pc={:#06x}",
+                marker, depth, frame.return_pc
+            );
         }
     }
 
     // ─── 源码视图 ───────────────────────────────────
 
     fn cmd_source(&self, n: usize) {
-        let line = self.debug_map.as_ref().and_then(|m| m.line_for_pc(self.vm.pc));
+        let line = self
+            .debug_map
+            .as_ref()
+            .and_then(|m| m.line_for_pc(self.vm.pc));
         let display_line = line.unwrap_or(1) as usize;
         if self.source_lines.is_empty() {
-            println!("（未加载源文件）"); return;
+            println!("（未加载源文件）");
+            return;
         }
         let start = display_line.saturating_sub(n / 2).max(1);
         let end = (start + n).min(self.source_lines.len() + 1);
         for lnum in start..end {
-            let marker = if Some(lnum as u32) == line { "→" } else { " " };
+            let marker = if Some(lnum as u32) == line {
+                "→"
+            } else {
+                " "
+            };
             if lnum <= self.source_lines.len() {
                 println!("{} {:>4} │ {}", marker, lnum, self.source_lines[lnum - 1]);
             }
@@ -645,9 +800,15 @@ impl DebugSession {
     fn show_current_source_line(&self) {
         if let Some(ref map) = self.debug_map
             && let Some(line) = map.line_for_pc(self.vm.pc)
-            && !self.source_lines.is_empty() && (line as usize) <= self.source_lines.len()
+            && !self.source_lines.is_empty()
+            && (line as usize) <= self.source_lines.len()
         {
-            println!("  {:>4} │ {} (line {})", line, self.source_lines[line as usize - 1].trim(), line);
+            println!(
+                "  {:>4} │ {} (line {})",
+                line,
+                self.source_lines[line as usize - 1].trim(),
+                line
+            );
         }
     }
 }
@@ -664,11 +825,22 @@ fn parse_addr(s: &str) -> Option<usize> {
 
 pub fn parse_reg_name(name: &str) -> Option<usize> {
     Some(match name.to_lowercase().as_str() {
-        "zero" | "r0" => 0, "sp" | "r1" => 1, "fp" | "r2" => 2, "ra" | "r3" => 3,
-        "a0" | "r4" => 4, "a1" | "r5" => 5, "a2" | "r6" => 6, "a3" | "r7" => 7,
-        "t0" | "r8" => 8, "t1" | "r9" => 9, "t2" | "r10" => 10,
-        "t3" | "r11" => 11, "t4" | "r12" => 12, "t5" | "r13" => 13,
-        "task_id" | "r14" => 14, "tmp" | "r15" => 15,
+        "zero" | "r0" => 0,
+        "sp" | "r1" => 1,
+        "fp" | "r2" => 2,
+        "ra" | "r3" => 3,
+        "a0" | "r4" => 4,
+        "a1" | "r5" => 5,
+        "a2" | "r6" => 6,
+        "a3" | "r7" => 7,
+        "t0" | "r8" => 8,
+        "t1" | "r9" => 9,
+        "t2" | "r10" => 10,
+        "t3" | "r11" => 11,
+        "t4" | "r12" => 12,
+        "t5" | "r13" => 13,
+        "task_id" | "r14" => 14,
+        "tmp" | "r15" => 15,
         _ => return None,
     })
 }
@@ -676,13 +848,18 @@ pub fn parse_reg_name(name: &str) -> Option<usize> {
 // ─── REPL 启动 ───────────────────────────────────────
 
 pub fn run_repl(session: &mut DebugSession) {
-    let mut rl = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()
-        .unwrap_or_else(|_| rustyline::Editor::<(), rustyline::history::DefaultHistory>::new().unwrap());
+    let mut rl =
+        rustyline::Editor::<(), rustyline::history::DefaultHistory>::new().unwrap_or_else(|_| {
+            rustyline::Editor::<(), rustyline::history::DefaultHistory>::new().unwrap()
+        });
 
     println!("Atomix 调试器 — 输入 help 查看命令");
     println!("当前 PC: {:#06x}", session.vm.pc);
     if session.vm.pc < session.vm.text.len() {
-        println!("  {}", disassemble::format_instruction(session.vm.pc, session.vm.text[session.vm.pc]));
+        println!(
+            "  {}",
+            disassemble::format_instruction(session.vm.pc, session.vm.text[session.vm.pc])
+        );
     }
 
     loop {
@@ -690,11 +867,19 @@ pub fn run_repl(session: &mut DebugSession) {
         match line_result {
             Ok(input) => {
                 let _ = rl.add_history_entry(input.as_str());
-                if !session.execute_command(&input.trim()) { break; }
+                if !session.execute_command(&input.trim()) {
+                    break;
+                }
             }
             Err(rustyline::error::ReadlineError::Interrupted)
-            | Err(rustyline::error::ReadlineError::Eof) => { println!(); break; }
-            Err(e) => { eprintln!("读取错误: {}", e); break; }
+            | Err(rustyline::error::ReadlineError::Eof) => {
+                println!();
+                break;
+            }
+            Err(e) => {
+                eprintln!("读取错误: {}", e);
+                break;
+            }
         }
     }
     println!("调试器退出。");
@@ -709,58 +894,80 @@ mod tests {
     fn make_test_vm(text: Vec<u32>) -> VmState {
         let header = Header::new(0, text.len() as u16);
         let binary = AtxeBinary {
-            header, sections: vec![], text, rodata: vec![],
-            task_table: vec![], debug_info: vec![], exn_table: vec![], zones: vec![],
+            header,
+            sections: vec![],
+            text,
+            rodata: vec![],
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
         };
         VmState::from_atxe(&binary).unwrap()
     }
 
-    #[test] fn session_step_one() {
+    #[test]
+    fn session_step_one() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42),
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
-        s.execute_command("step"); assert_eq!(s.vm.pc, 1); assert_eq!(s.vm.read_reg(reg::A0), 42);
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
+        s.execute_command("step");
+        assert_eq!(s.vm.pc, 1);
+        assert_eq!(s.vm.read_reg(reg::A0), 42);
     }
 
-    #[test] fn session_step_multiple() {
+    #[test]
+    fn session_step_multiple() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::T0 as u8, 0, 10),
             isa::encode_r2i(opcode::MOVI, reg::T1 as u8, 0, 20),
             isa::encode_r3(opcode::ADD, reg::T2 as u8, reg::T0 as u8, reg::T1 as u8, 0),
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
-        s.execute_command("step 3"); assert_eq!(s.vm.read_reg(reg::T2), 30);
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
+        s.execute_command("step 3");
+        assert_eq!(s.vm.read_reg(reg::T2), 30);
     }
 
-    #[test] fn session_breakpoint() {
+    #[test]
+    fn session_breakpoint() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 1),
             isa::encode_r2i(opcode::MOVI, reg::A1 as u8, 0, 2),
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
-        s.execute_command("break 1"); assert!(s.breakpoints.contains_key(&1));
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
+        s.execute_command("break 1");
+        assert!(s.breakpoints.contains_key(&1));
         s.execute_command("continue");
-        assert_eq!(s.vm.pc, 2); assert_eq!(s.vm.read_reg(reg::A0), 1);
+        assert_eq!(s.vm.pc, 2);
+        assert_eq!(s.vm.read_reg(reg::A0), 1);
     }
 
-    #[test] fn session_continue_halt() {
+    #[test]
+    fn session_continue_halt() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42),
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
         s.execute_command("continue");
-        assert!(!s.vm.is_running()); assert_eq!(s.vm.read_reg(reg::A0), 42);
+        assert!(!s.vm.is_running());
+        assert_eq!(s.vm.read_reg(reg::A0), 42);
     }
 
-    #[test] fn session_set_register() {
+    #[test]
+    fn session_set_register() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let mut s = DebugSession::new(make_test_vm(text));
         s.execute_command("set t0 = 77");
         assert_eq!(s.vm.read_reg(reg::T0), 77);
     }
 
-    #[test] fn session_set_memory() {
+    #[test]
+    fn session_set_memory() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let mut s = DebugSession::new(make_test_vm(text));
         let addr = s.vm.memory.alloc(16);
@@ -768,7 +975,8 @@ mod tests {
         assert_eq!(s.vm.memory.read_u64(addr), Some(0xDEAD));
     }
 
-    #[test] fn session_watchpoint() {
+    #[test]
+    fn session_watchpoint() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 64),
             isa::encode_r1i(opcode::ECALL, 0, 0), // ALLOC → a0 = addr
@@ -776,7 +984,8 @@ mod tests {
             isa::encode_r2i(opcode::MOVI, reg::T1 as u8, 0, 42), // t1 = 42
             isa::encode_r2i(opcode::STORE, reg::T0 as u8, reg::T1 as u8, 0), // [t0] = 42
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
         // 先 step 到 STORE 之前 (pc=3: MOVI t1=42)
         s.execute_command("step 4");
         let store_addr = s.vm.read_reg(reg::T0);
@@ -785,50 +994,58 @@ mod tests {
         assert!(!s.watchpoints.is_empty());
     }
 
-    #[test] fn session_display() {
+    #[test]
+    fn session_display() {
         let text = vec![
             isa::encode_r2i(opcode::MOVI, reg::A0 as u8, 0, 42),
             isa::encode_ji(opcode::TRAP, 0),
-        ]; let mut s = DebugSession::new(make_test_vm(text));
+        ];
+        let mut s = DebugSession::new(make_test_vm(text));
         s.execute_command("display a0");
         assert_eq!(s.display_exprs.len(), 1);
         assert_eq!(s.display_exprs[0], "a0");
     }
 
-    #[test] fn session_frame() {
+    #[test]
+    fn session_frame() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let mut s = DebugSession::new(make_test_vm(text));
         s.execute_command("frame");
         assert_eq!(s.selected_frame, 0);
     }
 
-    #[test] fn session_examine() {
+    #[test]
+    fn session_examine() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let s = DebugSession::new(make_test_vm(text));
         s.cmd_examine("x 0 1");
         // 不崩溃即通过
     }
 
-    #[test] fn session_help() {
+    #[test]
+    fn session_help() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let mut s = DebugSession::new(make_test_vm(text));
         s.execute_command("help");
         assert_eq!(s.vm.pc, 0);
     }
 
-    #[test] fn session_quit() {
+    #[test]
+    fn session_quit() {
         let text = vec![isa::encode_ji(opcode::TRAP, 0)];
         let mut s = DebugSession::new(make_test_vm(text));
         assert!(!s.execute_command("quit"));
     }
 
-    #[test] fn parse_addr_hex() {
+    #[test]
+    fn parse_addr_hex() {
         assert_eq!(parse_addr("0x42"), Some(0x42));
         assert_eq!(parse_addr("0xFF"), Some(0xFF));
         assert_eq!(parse_addr("100"), Some(100));
     }
 
-    #[test] fn parse_reg_name_all() {
+    #[test]
+    fn parse_reg_name_all() {
         assert_eq!(parse_reg_name("a0"), Some(4));
         assert_eq!(parse_reg_name("sp"), Some(1));
         assert_eq!(parse_reg_name("r10"), Some(10));

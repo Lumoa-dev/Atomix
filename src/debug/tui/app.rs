@@ -2,13 +2,13 @@
 //!
 //! 对应设计文档 §3.0（导航模型）、§3.1–3.18（18 页面）、§4（命令体系）。
 
-use crate::debug::session::{LocalDebugSession, DebugSession, DisplayFormat};
+use crate::debug::session::{DebugSession, DisplayFormat, LocalDebugSession};
 use crate::debug::trace::ExecutionPhase;
 use crate::debug::tui::layout::TuiLayout;
 use crate::debug::tui::pages::{Page, PageId, PageRegistry};
 
-use ratatui::Frame;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use ratatui::Frame;
 use ratatui::layout::Rect;
 
 use std::time::Duration;
@@ -117,8 +117,7 @@ impl TuiApp {
                     self.navigate_back();
                 }
             }
-            (KeyCode::Char('h'), KeyModifiers::NONE)
-            | (KeyCode::Char('?'), KeyModifiers::NONE) => {
+            (KeyCode::Char('h'), KeyModifiers::NONE) | (KeyCode::Char('?'), KeyModifiers::NONE) => {
                 self.show_help = !self.show_help;
             }
             (KeyCode::Char('q'), KeyModifiers::NONE) => {
@@ -235,8 +234,15 @@ impl TuiApp {
 
         match command.as_str() {
             // ── 元命令 (§4.18) ──
-            "quit" | "q" => { self.running = false; return; }
-            "help" | "h" | "?" => { self.show_help = true; self.status_message = "帮助面板已打开".to_string(); return; }
+            "quit" | "q" => {
+                self.running = false;
+                return;
+            }
+            "help" | "h" | "?" => {
+                self.show_help = true;
+                self.status_message = "帮助面板已打开".to_string();
+                return;
+            }
 
             // ── 视图切换 (§4.17) ──
             ":src" => self.navigate_to(PageId::SourceView),
@@ -261,10 +267,22 @@ impl TuiApp {
                 self.status_message = format!("已执行 {} 条指令", n);
                 self.notify_page_data_changed();
             }
-            "step:into" => { self.session.step_into(); self.notify_page_data_changed(); }
-            "step:out" => { self.session.step_out(); self.notify_page_data_changed(); }
-            "step:over" => { self.session.step_over(); self.notify_page_data_changed(); }
-            "continue" | "c" => { self.session.continue_execution(); self.notify_page_data_changed(); }
+            "step:into" => {
+                self.session.step_into();
+                self.notify_page_data_changed();
+            }
+            "step:out" => {
+                self.session.step_out();
+                self.notify_page_data_changed();
+            }
+            "step:over" => {
+                self.session.step_over();
+                self.notify_page_data_changed();
+            }
+            "continue" | "c" => {
+                self.session.continue_execution();
+                self.notify_page_data_changed();
+            }
             ":go" => {
                 // 单步推进（watch/one 模式）
                 self.session.step_instructions(1);
@@ -287,13 +305,20 @@ impl TuiApp {
                 let name_or_id = parts.get(1).map(|s| *s).unwrap_or("");
                 if !name_or_id.is_empty() {
                     // 尝试按名称或序号查找
-                    let found = name_or_id.parse::<usize>().ok()
+                    let found = name_or_id
+                        .parse::<usize>()
+                        .ok()
                         .and_then(|idx| self.session.trace.find_step_by_index(idx))
                         .or_else(|| self.session.trace.find_step_by_name(name_or_id))
                         .cloned();
                     if let Some(s) = found {
-                        self.status_message = format!("Step: {} (line {}, {:.3}ms, {} calls)",
-                            s.name, s.source_line, s.elapsed_us as f64 / 1000.0, s.sub_calls.len());
+                        self.status_message = format!(
+                            "Step: {} (line {}, {:.3}ms, {} calls)",
+                            s.name,
+                            s.source_line,
+                            s.elapsed_us as f64 / 1000.0,
+                            s.sub_calls.len()
+                        );
                     } else {
                         self.status_message = format!("未找到 Step: {}", name_or_id);
                     }
@@ -306,7 +331,9 @@ impl TuiApp {
                 let one_mode = parts.iter().any(|&p| p == "one");
                 if !name.is_empty() {
                     if watch_mode {
-                        let speed: f32 = parts.iter().position(|&p| p == "watch")
+                        let speed: f32 = parts
+                            .iter()
+                            .position(|&p| p == "watch")
                             .and_then(|i| parts.get(i + 1))
                             .and_then(|s| s.parse::<f32>().ok())
                             .unwrap_or(1.0);
@@ -340,23 +367,33 @@ impl TuiApp {
                             if let Ok(line) = line_str.parse::<u32>() {
                                 let condition = if parts.len() > 2 && parts[2] == "if" {
                                     Some(parts[3..].join(" "))
-                                } else { None };
-                                let id = self.session.set_breakpoint_line(line, condition.as_deref());
-                                if id > 0 { self.status_message = format!("行断点已设置于 line {}", line); }
+                                } else {
+                                    None
+                                };
+                                let id =
+                                    self.session.set_breakpoint_line(line, condition.as_deref());
+                                if id > 0 {
+                                    self.status_message = format!("行断点已设置于 line {}", line);
+                                }
                             }
                         }
                     }
                     "fn" => {
                         if let Some(fn_path) = parts.get(1) {
                             let id = self.session.set_breakpoint_fn(fn_path);
-                            if id > 0 { self.status_message = format!("函数断点已设置: {}", fn_path); }
+                            if id > 0 {
+                                self.status_message = format!("函数断点已设置: {}", fn_path);
+                            }
                         }
                     }
                     "hook" => {
                         let hook_name = parts.get(1).map(|s| *s).unwrap_or("global");
                         self.status_message = format!("钩子断点已设置: {}", hook_name);
                     }
-                    "list" => { self.status_message = format!("共 {} 个断点", self.session.breakpoints().len()); }
+                    "list" => {
+                        self.status_message =
+                            format!("共 {} 个断点", self.session.breakpoints().len());
+                    }
                     "del" => {
                         if let Some(id_str) = parts.get(1) {
                             if let Ok(id) = id_str.parse::<u64>() {
@@ -366,8 +403,14 @@ impl TuiApp {
                             }
                         }
                     }
-                    "clear" => { self.session.clear_breakpoints(); self.status_message = "所有断点已清空".to_string(); }
-                    "enable" => { self.session.enable_all_breakpoints(true); self.status_message = "所有断点已启用".to_string(); }
+                    "clear" => {
+                        self.session.clear_breakpoints();
+                        self.status_message = "所有断点已清空".to_string();
+                    }
+                    "enable" => {
+                        self.session.enable_all_breakpoints(true);
+                        self.status_message = "所有断点已启用".to_string();
+                    }
                     _ => {}
                 }
             }
@@ -376,12 +419,19 @@ impl TuiApp {
                     if let Some(addr) = parse_addr(addr_str) {
                         let condition = if parts.len() > 2 && parts[2] == "if" {
                             Some(parts[3..].join(" "))
-                        } else { None };
+                        } else {
+                            None
+                        };
                         let id = self.session.set_breakpoint_pc(addr, condition.as_deref());
-                        if id > 0 { self.status_message = format!("断点已设置于 {:#06x}", addr); }
+                        if id > 0 {
+                            self.status_message = format!("断点已设置于 {:#06x}", addr);
+                        }
                     }
                 } else {
-                    self.status_message = format!("共 {} 个断点（输入 break:list 查看详情）", self.session.breakpoints().len());
+                    self.status_message = format!(
+                        "共 {} 个断点（输入 break:list 查看详情）",
+                        self.session.breakpoints().len()
+                    );
                 }
             }
 
@@ -391,8 +441,13 @@ impl TuiApp {
                 match sub {
                     "task" => {
                         let t = &self.session.trace;
-                        self.status_message = format!("任务: {} Step, {} instr, {:?}, 完成={}",
-                            t.step_count(), t.total_instructions, t.total_elapsed, t.completed);
+                        self.status_message = format!(
+                            "任务: {} Step, {} instr, {:?}, 完成={}",
+                            t.step_count(),
+                            t.total_instructions,
+                            t.total_elapsed,
+                            t.completed
+                        );
                     }
                     "zones" => self.navigate_to(PageId::ZoneStatus),
                     "functions" => {
@@ -401,31 +456,43 @@ impl TuiApp {
                             if funcs.is_empty() {
                                 self.status_message = "（无函数调试信息）".to_string();
                             } else {
-                                let names: Vec<&str> = funcs.iter()
-                                    .filter_map(|e| e.func_name())
-                                    .collect();
-                                self.status_message = format!("函数（{}个）: {}", funcs.len(), names.join(", "));
+                                let names: Vec<&str> =
+                                    funcs.iter().filter_map(|e| e.func_name()).collect();
+                                self.status_message =
+                                    format!("函数（{}个）: {}", funcs.len(), names.join(", "));
                             }
                         } else {
                             self.status_message = "（无调试信息）".to_string();
                         }
                     }
                     "variables" => {
-                        let vars: Vec<String> = (0..16).map(|i| {
-                            let name = crate::base::isa::reg_name(i).to_uppercase();
-                            format!("{}={:#x}", name, self.session.vm.read_reg(i))
-                        }).collect();
+                        let vars: Vec<String> = (0..16)
+                            .map(|i| {
+                                let name = crate::base::isa::reg_name(i).to_uppercase();
+                                format!("{}={:#x}", name, self.session.vm.read_reg(i))
+                            })
+                            .collect();
                         self.status_message = format!("变量: {}", vars.join(" "));
                     }
                     "file" => {
                         if let Some(ref path) = self.session.source_path {
-                            self.status_message = format!("源文件: {} ({} 行)", path, self.session.source_lines.len());
-                        } else { self.status_message = "未加载源文件".to_string(); }
+                            self.status_message = format!(
+                                "源文件: {} ({} 行)",
+                                path,
+                                self.session.source_lines.len()
+                            );
+                        } else {
+                            self.status_message = "未加载源文件".to_string();
+                        }
                     }
                     _ => {
-                        self.status_message = format!("PC={:#06x}, 状态={:?}, 帧={}, 指令={}",
-                            self.session.vm.pc, self.session.vm.state,
-                            self.session.vm.call_stack.len(), self.session.perf.total_instructions);
+                        self.status_message = format!(
+                            "PC={:#06x}, 状态={:?}, 帧={}, 指令={}",
+                            self.session.vm.pc,
+                            self.session.vm.state,
+                            self.session.vm.call_stack.len(),
+                            self.session.perf.total_instructions
+                        );
                     }
                 }
             }
@@ -434,7 +501,9 @@ impl TuiApp {
             "print" | "p" => {
                 let expr = parts[1..].join(" ");
                 match crate::debug::eval::eval_expr(&expr, &self.session.vm) {
-                    Ok(val) => self.status_message = format!("{} = {} ({:#x})", expr, val as i64, val),
+                    Ok(val) => {
+                        self.status_message = format!("{} = {} ({:#x})", expr, val as i64, val)
+                    }
                     Err(e) => self.status_message = format!("错误: {}", e),
                 }
             }
@@ -447,7 +516,10 @@ impl TuiApp {
                         let formatted = match fmt_spec {
                             "x" | "hex" => format!("{:#x}", val),
                             "d" | "dec" => format!("{}", val as i64),
-                            "s" | "str" => format!("'{}'", std::str::from_utf8(&val.to_le_bytes()).unwrap_or("?")),
+                            "s" | "str" => format!(
+                                "'{}'",
+                                std::str::from_utf8(&val.to_le_bytes()).unwrap_or("?")
+                            ),
                             _ => format!("{} ({:#x})", val as i64, val),
                         };
                         self.status_message = format!("{} = {}", expr, formatted);
@@ -459,11 +531,19 @@ impl TuiApp {
                 let expr = parts[1..].join(" ");
                 match crate::debug::eval::eval_expr(&expr, &self.session.vm) {
                     Ok(val) => {
-                        let type_desc = if val <= 0xFF { "u8" }
-                            else if val <= 0xFFFF { "u16" }
-                            else if val <= 0xFFFF_FFFF { "u32" }
-                            else { "u64" };
-                        self.status_message = format!("{} = {} (类型: {}, 大小: 8 字节)", expr, val as i64, type_desc);
+                        let type_desc = if val <= 0xFF {
+                            "u8"
+                        } else if val <= 0xFFFF {
+                            "u16"
+                        } else if val <= 0xFFFF_FFFF {
+                            "u32"
+                        } else {
+                            "u64"
+                        };
+                        self.status_message = format!(
+                            "{} = {} (类型: {}, 大小: 8 字节)",
+                            expr, val as i64, type_desc
+                        );
                     }
                     Err(e) => self.status_message = format!("错误: {}", e),
                 }
@@ -471,11 +551,15 @@ impl TuiApp {
 
             // ── 反汇编 (§4.9) ──
             "disasm" => {
-                let addr: usize = parts.get(1).and_then(|s| parse_addr(s))
+                let addr: usize = parts
+                    .get(1)
+                    .and_then(|s| parse_addr(s))
                     .unwrap_or(self.session.vm.pc);
                 let n: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(8);
-                let lines = crate::debug::disassemble::disassemble_range(&self.session.vm.text, addr, n);
-                self.status_message = format!("反汇编 {} 条从 {:#06x}: {}", n, addr, lines.join(" | "));
+                let lines =
+                    crate::debug::disassemble::disassemble_range(&self.session.vm.text, addr, n);
+                self.status_message =
+                    format!("反汇编 {} 条从 {:#06x}: {}", n, addr, lines.join(" | "));
             }
 
             // ── 搜索 (§4.8) ──
@@ -485,7 +569,9 @@ impl TuiApp {
                     self.status_message = "用法: find <text>".to_string();
                 } else {
                     let src = &self.session.source_lines;
-                    let matches: Vec<String> = src.iter().enumerate()
+                    let matches: Vec<String> = src
+                        .iter()
+                        .enumerate()
                         .filter(|(_, line)| line.contains(&text))
                         .map(|(i, _)| format!("行{}", i + 1))
                         .collect();
@@ -499,12 +585,17 @@ impl TuiApp {
             find_cmd if find_cmd.starts_with("find:") => {
                 let sub = &find_cmd[5..];
                 match sub {
-                    "next" => { self.status_message = "下一个匹配项（需先执行 find）".to_string(); }
-                    "prev" => { self.status_message = "上一个匹配项（需先执行 find）".to_string(); }
+                    "next" => {
+                        self.status_message = "下一个匹配项（需先执行 find）".to_string();
+                    }
+                    "prev" => {
+                        self.status_message = "上一个匹配项（需先执行 find）".to_string();
+                    }
                     "mem" => {
                         let pattern = parts.get(1).map(|s| *s).unwrap_or("");
                         if !pattern.is_empty() {
-                            let byte_pattern: Vec<u8> = pattern.split_whitespace()
+                            let byte_pattern: Vec<u8> = pattern
+                                .split_whitespace()
                                 .filter_map(|b| u8::from_str_radix(b, 16).ok())
                                 .collect();
                             self.status_message = format!("内存搜索模式: {:02x?}", byte_pattern);
@@ -523,7 +614,10 @@ impl TuiApp {
                 let sub = &mem_cmd[4..];
                 match sub {
                     "dump" => {
-                        let addr = parts.get(1).and_then(|s| parse_addr(s).map(|a| a as u64)).unwrap_or(0);
+                        let addr = parts
+                            .get(1)
+                            .and_then(|s| parse_addr(s).map(|a| a as u64))
+                            .unwrap_or(0);
                         let len: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(64);
                         let end = addr.saturating_add(len as u64);
                         let mut out = String::new();
@@ -535,40 +629,73 @@ impl TuiApp {
                             for a in offset..line_end {
                                 if let Some(byte) = self.session.vm.memory.read_u8(a) {
                                     hex.push_str(&format!("{:02x} ", byte));
-                                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' { byte as char } else { '.' });
+                                    ascii.push(if byte.is_ascii_graphic() || byte == b' ' {
+                                        byte as char
+                                    } else {
+                                        '.'
+                                    });
                                 }
                             }
                             out.push_str(&format!("\n{:#010x}:  {:48}  {}", offset, hex, ascii));
                             offset = line_end;
                         }
-                        self.status_message = format!("内存 dump @{:#x} ({} 字节):{}", addr, len, out);
+                        self.status_message =
+                            format!("内存 dump @{:#x} ({} 字节):{}", addr, len, out);
                     }
                     "diff" => {
-                        let a1 = parts.get(1).and_then(|s| parse_addr(s).map(|a| a as u64)).unwrap_or(0);
-                        let a2 = parts.get(2).and_then(|s| parse_addr(s).map(|a| a as u64)).unwrap_or(0);
+                        let a1 = parts
+                            .get(1)
+                            .and_then(|s| parse_addr(s).map(|a| a as u64))
+                            .unwrap_or(0);
+                        let a2 = parts
+                            .get(2)
+                            .and_then(|s| parse_addr(s).map(|a| a as u64))
+                            .unwrap_or(0);
                         let len: usize = parts.get(3).and_then(|s| s.parse().ok()).unwrap_or(16);
                         let mut diffs = Vec::new();
                         for i in 0..len {
                             let b1 = self.session.vm.memory.read_u8(a1 + i as u64);
                             let b2 = self.session.vm.memory.read_u8(a2 + i as u64);
                             if b1 != b2 {
-                                diffs.push(format!("+{:#x}: {:02x} vs {:02x}", i, b1.unwrap_or(0), b2.unwrap_or(0)));
+                                diffs.push(format!(
+                                    "+{:#x}: {:02x} vs {:02x}",
+                                    i,
+                                    b1.unwrap_or(0),
+                                    b2.unwrap_or(0)
+                                ));
                             }
                         }
-                        self.status_message = if diffs.is_empty() { "内存区域相同".to_string() }
-                            else { format!("差异 ({}处): {}", diffs.len(), diffs.join(", ")) };
+                        self.status_message = if diffs.is_empty() {
+                            "内存区域相同".to_string()
+                        } else {
+                            format!("差异 ({}处): {}", diffs.len(), diffs.join(", "))
+                        };
                     }
                     "fill" => {
-                        let addr = parts.get(1).and_then(|s| parse_addr(s).map(|a| a as u64)).unwrap_or(0);
+                        let addr = parts
+                            .get(1)
+                            .and_then(|s| parse_addr(s).map(|a| a as u64))
+                            .unwrap_or(0);
                         let len: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(16);
-                        let val: u8 = parts.get(3).and_then(|s| u8::from_str_radix(s.trim_start_matches("0x"), 16).or_else(|_| s.parse()).ok()).unwrap_or(0);
+                        let val: u8 = parts
+                            .get(3)
+                            .and_then(|s| {
+                                u8::from_str_radix(s.trim_start_matches("0x"), 16)
+                                    .or_else(|_| s.parse())
+                                    .ok()
+                            })
+                            .unwrap_or(0);
                         for i in 0..len {
                             self.session.vm.memory.write_u8(addr + i as u64, val);
                         }
-                        self.status_message = format!("已填充 {:#x} 区域 {} 字节值为 {:#04x}", addr, len, val);
+                        self.status_message =
+                            format!("已填充 {:#x} 区域 {} 字节值为 {:#04x}", addr, len, val);
                     }
                     "watch" => {
-                        let addr = parts.get(1).and_then(|s| parse_addr(s).map(|a| a as u64)).unwrap_or(0);
+                        let addr = parts
+                            .get(1)
+                            .and_then(|s| parse_addr(s).map(|a| a as u64))
+                            .unwrap_or(0);
                         let len: u64 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(8);
                         self.session.set_watchpoint(addr, len, "");
                         self.status_message = format!("内存监视点: {:#x} ({} 字节)", addr, len);
@@ -588,7 +715,11 @@ impl TuiApp {
                     }
                 } else {
                     let idx = self.session.frame_state.current_index();
-                    self.status_message = format!("当前帧 #{} (共 {} 帧)", idx, self.session.vm.call_stack.len() + 1);
+                    self.status_message = format!(
+                        "当前帧 #{} (共 {} 帧)",
+                        idx,
+                        self.session.vm.call_stack.len() + 1
+                    );
                 }
             }
             "up" => {
@@ -604,7 +735,13 @@ impl TuiApp {
             // ── IS* (§4.12) ──
             "is" => {
                 if let Some(name) = parts.get(1) {
-                    let val = self.session.is_context.entries.get(*name).map(|s| s.as_str()).unwrap_or("—");
+                    let val = self
+                        .session
+                        .is_context
+                        .entries
+                        .get(*name)
+                        .map(|s| s.as_str())
+                        .unwrap_or("—");
                     self.status_message = format!("{} = {}", name, val);
                 } else {
                     self.navigate_to(PageId::IsContext);
@@ -618,8 +755,12 @@ impl TuiApp {
                 if entries.is_empty() {
                     self.status_message = "（无历史）".to_string();
                 } else {
-                    let lines: Vec<String> = entries.iter().enumerate()
-                        .map(|(i, e)| format!("#{}: {}", self.session.cmd_history.len() - n + i + 1, e))
+                    let lines: Vec<String> = entries
+                        .iter()
+                        .enumerate()
+                        .map(|(i, e)| {
+                            format!("#{}: {}", self.session.cmd_history.len() - n + i + 1, e)
+                        })
                         .collect();
                     self.status_message = lines.join(" | ");
                 }
@@ -672,8 +813,13 @@ impl TuiApp {
                     if self.session.display_expr_list.is_empty() {
                         self.status_message = "（无 display 表达式）".to_string();
                     } else {
-                        let list: Vec<String> = self.session.display_expr_list.iter().enumerate()
-                            .map(|(i, e)| format!("#{}: {}", i, e)).collect();
+                        let list: Vec<String> = self
+                            .session
+                            .display_expr_list
+                            .iter()
+                            .enumerate()
+                            .map(|(i, e)| format!("#{}: {}", i, e))
+                            .collect();
                         self.status_message = list.join(" | ");
                     }
                 }
@@ -687,8 +833,12 @@ impl TuiApp {
                         let file = parts.get(1).map(|s| *s).unwrap_or("debug.log");
                         self.status_message = format!("日志记录已开始 -> {}", file);
                     }
-                    "stop" => { self.status_message = "日志记录已停止".to_string(); }
-                    "status" => { self.status_message = "日志记录状态: 未启动".to_string(); }
+                    "stop" => {
+                        self.status_message = "日志记录已停止".to_string();
+                    }
+                    "status" => {
+                        self.status_message = "日志记录状态: 未启动".to_string();
+                    }
                     _ => {}
                 }
             }
@@ -723,10 +873,22 @@ impl TuiApp {
                     "fmt" => {
                         let fmt = parts.get(1).map(|s| *s).unwrap_or("both").to_lowercase();
                         match fmt.as_str() {
-                            "hex" => { self.session.disp_fmt = DisplayFormat::Hex; self.status_message = "显示格式: 十六进制".to_string(); }
-                            "dec" => { self.session.disp_fmt = DisplayFormat::Dec; self.status_message = "显示格式: 十进制".to_string(); }
-                            "both" => { self.session.disp_fmt = DisplayFormat::Both; self.status_message = "显示格式: 混合".to_string(); }
-                            _ => { self.status_message = format!("未知格式: {} (支持 hex/dec/both)", fmt); }
+                            "hex" => {
+                                self.session.disp_fmt = DisplayFormat::Hex;
+                                self.status_message = "显示格式: 十六进制".to_string();
+                            }
+                            "dec" => {
+                                self.session.disp_fmt = DisplayFormat::Dec;
+                                self.status_message = "显示格式: 十进制".to_string();
+                            }
+                            "both" => {
+                                self.session.disp_fmt = DisplayFormat::Both;
+                                self.status_message = "显示格式: 混合".to_string();
+                            }
+                            _ => {
+                                self.status_message =
+                                    format!("未知格式: {} (支持 hex/dec/both)", fmt);
+                            }
                         }
                     }
                     "depth" => {
@@ -738,7 +900,8 @@ impl TuiApp {
                     "speed" => {
                         if let Some(s) = parts.get(1).and_then(|s| s.parse::<f32>().ok()) {
                             self.session.watch_spd = s.max(0.25).min(4.0);
-                            self.status_message = format!("watch 速度: {:.1}x", self.session.watch_spd);
+                            self.status_message =
+                                format!("watch 速度: {:.1}x", self.session.watch_spd);
                         }
                     }
                     "var" => {
@@ -749,9 +912,12 @@ impl TuiApp {
                             let value_str = rest[eq_pos + 1..].trim();
                             // 尝试找到并设置变量
                             if let Some(idx) = crate::debug::repl::parse_reg_name(var_name) {
-                                if let Ok(val) = crate::debug::eval::eval_expr(value_str, &self.session.vm) {
+                                if let Ok(val) =
+                                    crate::debug::eval::eval_expr(value_str, &self.session.vm)
+                                {
                                     self.session.vm.write_reg(idx, val);
-                                    self.status_message = format!("{} = {:#x}", var_name.to_uppercase(), val);
+                                    self.status_message =
+                                        format!("{} = {:#x}", var_name.to_uppercase(), val);
                                 }
                             } else {
                                 self.status_message = format!("未知变量: {}", var_name);
@@ -768,15 +934,34 @@ impl TuiApp {
                     let value_expr = rest[eq_pos + 1..].trim();
                     if target.starts_with('*') {
                         let addr_expr = target[1..].trim();
-                        match (crate::debug::eval::eval_expr(addr_expr, &self.session.vm),
-                               crate::debug::eval::eval_expr(value_expr, &self.session.vm)) {
-                            (Ok(addr), Ok(val)) => { self.session.vm.memory.write_u64(addr, val); self.status_message = format!("*{:#x} = {} ({:#x})", addr, val as i64, val); }
-                            (Err(e), _) | (_, Err(e)) => self.status_message = format!("错误: {}", e),
+                        match (
+                            crate::debug::eval::eval_expr(addr_expr, &self.session.vm),
+                            crate::debug::eval::eval_expr(value_expr, &self.session.vm),
+                        ) {
+                            (Ok(addr), Ok(val)) => {
+                                self.session.vm.memory.write_u64(addr, val);
+                                self.status_message =
+                                    format!("*{:#x} = {} ({:#x})", addr, val as i64, val);
+                            }
+                            (Err(e), _) | (_, Err(e)) => {
+                                self.status_message = format!("错误: {}", e)
+                            }
                         }
                     } else {
                         let reg_idx = crate::debug::repl::parse_reg_name(target);
-                        match (reg_idx, crate::debug::eval::eval_expr(value_expr, &self.session.vm)) {
-                            (Some(idx), Ok(val)) => { self.session.vm.write_reg(idx, val); self.status_message = format!("{} = {} ({:#x})", target.to_uppercase(), val as i64, val); }
+                        match (
+                            reg_idx,
+                            crate::debug::eval::eval_expr(value_expr, &self.session.vm),
+                        ) {
+                            (Some(idx), Ok(val)) => {
+                                self.session.vm.write_reg(idx, val);
+                                self.status_message = format!(
+                                    "{} = {} ({:#x})",
+                                    target.to_uppercase(),
+                                    val as i64,
+                                    val
+                                );
+                            }
                             _ => self.status_message = "设置失败：未知寄存器或表达式".to_string(),
                         }
                     }
@@ -817,12 +1002,17 @@ impl TuiApp {
     }
 
     /// TUI 主事件循环。
-    pub fn run(&mut self, terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>) -> Result<(), String> {
+    pub fn run(
+        &mut self,
+        terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    ) -> Result<(), String> {
         while self.running {
             // 渲染
-            terminal.draw(|frame| {
-                self.render(frame);
-            }).map_err(|e| format!("渲染错误: {}", e))?;
+            terminal
+                .draw(|frame| {
+                    self.render(frame);
+                })
+                .map_err(|e| format!("渲染错误: {}", e))?;
 
             // 事件处理
             if event::poll(Duration::from_millis(50)).map_err(|e| format!("事件错误: {}", e))? {
@@ -846,11 +1036,13 @@ impl TuiApp {
         let chunks = self.layout.calculate_layout(area);
 
         // 1. 标题栏
-        self.layout.render_title_bar(frame, chunks.title, &self.session);
+        self.layout
+            .render_title_bar(frame, chunks.title, &self.session);
 
         // 2. 面包屑
         let crumbs = self.breadcrumb();
-        self.layout.render_breadcrumb(frame, chunks.breadcrumb, &crumbs);
+        self.layout
+            .render_breadcrumb(frame, chunks.breadcrumb, &crumbs);
 
         // 3. 主视图区域
         {
@@ -862,7 +1054,8 @@ impl TuiApp {
         }
 
         // 4. 右侧状态面板
-        self.layout.render_right_panel(frame, chunks.right_panel, &self.session);
+        self.layout
+            .render_right_panel(frame, chunks.right_panel, &self.session);
 
         // 5. 命令栏
         self.layout.render_command_bar(

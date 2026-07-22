@@ -68,7 +68,10 @@ impl DebugEntry {
             return None;
         }
         let remaining = &self.string_pool[offset..];
-        let end = remaining.iter().position(|&b| b == 0).unwrap_or(remaining.len());
+        let end = remaining
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(remaining.len());
         Some(std::str::from_utf8(&remaining[..end]).unwrap_or(""))
     }
 }
@@ -116,12 +119,8 @@ impl DebugMap {
         let mut entries = Vec::with_capacity(entry_count);
         for i in 0..entry_count {
             let off = entries_start + i * entry_size;
-            let pc_start = u32::from_le_bytes([
-                bytes[off],
-                bytes[off + 1],
-                bytes[off + 2],
-                bytes[off + 3],
-            ]);
+            let pc_start =
+                u32::from_le_bytes([bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]]);
             let pc_end = u32::from_le_bytes([
                 bytes[off + 4],
                 bytes[off + 5],
@@ -243,15 +242,15 @@ mod tests {
         // 28-byte entry: pc_start(4) + pc_end(4) + source_line(4) + source_col(2)
         //              + kind(1) + depth(1) + func_name_off(4) + var_name_off(4) + type_name_off(4)
         let mut data = Vec::with_capacity(28);
-        data.extend_from_slice(&pc_start.to_le_bytes());    // 0-3
-        data.extend_from_slice(&0u32.to_le_bytes());         // 4-7: pc_end
-        data.extend_from_slice(&source_line.to_le_bytes());  // 8-11
-        data.extend_from_slice(&1u16.to_le_bytes());         // 12-13: source_col
-        data.push(kind);                                     // 14
-        data.push(0);                                        // 15: depth
-        data.extend_from_slice(&0u32.to_le_bytes());         // 16-19: func_name_off
-        data.extend_from_slice(&0u32.to_le_bytes());         // 20-23: var_name_off
-        data.extend_from_slice(&0u32.to_le_bytes());         // 24-27: type_name_off
+        data.extend_from_slice(&pc_start.to_le_bytes()); // 0-3
+        data.extend_from_slice(&0u32.to_le_bytes()); // 4-7: pc_end
+        data.extend_from_slice(&source_line.to_le_bytes()); // 8-11
+        data.extend_from_slice(&1u16.to_le_bytes()); // 12-13: source_col
+        data.push(kind); // 14
+        data.push(0); // 15: depth
+        data.extend_from_slice(&0u32.to_le_bytes()); // 16-19: func_name_off
+        data.extend_from_slice(&0u32.to_le_bytes()); // 20-23: var_name_off
+        data.extend_from_slice(&0u32.to_le_bytes()); // 24-27: type_name_off
         assert_eq!(data.len(), 28);
         data
     }
@@ -282,9 +281,7 @@ mod tests {
 
     #[test]
     fn parse_valid_debug() {
-        let data = make_debug_bytes(vec![
-            make_entry(0, 5, entry_kind::LINE)
-        ]);
+        let data = make_debug_bytes(vec![make_entry(0, 5, entry_kind::LINE)]);
         let map = DebugMap::from_bytes(&data);
         assert!(map.is_some());
         let map = map.unwrap();
@@ -294,9 +291,7 @@ mod tests {
 
     #[test]
     fn line_for_pc_before_first_entry() {
-        let data = make_debug_bytes(vec![
-            make_entry(10, 20, entry_kind::LINE)
-        ]);
+        let data = make_debug_bytes(vec![make_entry(10, 20, entry_kind::LINE)]);
         let map = DebugMap::from_bytes(&data).unwrap();
         assert_eq!(map.line_for_pc(0), None);
         assert_eq!(map.line_for_pc(10), Some(20));
@@ -314,15 +309,15 @@ mod tests {
 
         let func_name_str = "my_function\0";
         // FUNC entry (28 bytes)
-        data.extend_from_slice(&0u32.to_le_bytes());      // pc_start (0-3)
-        data.extend_from_slice(&100u32.to_le_bytes());    // pc_end (4-7)
-        data.extend_from_slice(&10u32.to_le_bytes());     // source_line (8-11)
-        data.extend_from_slice(&1u16.to_le_bytes());       // source_col (12-13)
-        data.push(entry_kind::FUNC);                       // kind (14)
-        data.push(0);                                       // depth (15)
-        data.extend_from_slice(&0u32.to_le_bytes());        // func_name_off = 0 (16-19)
-        data.extend_from_slice(&0u32.to_le_bytes());        // var_name_off (20-23)
-        data.extend_from_slice(&0u32.to_le_bytes());        // type_name_off (24-27)
+        data.extend_from_slice(&0u32.to_le_bytes()); // pc_start (0-3)
+        data.extend_from_slice(&100u32.to_le_bytes()); // pc_end (4-7)
+        data.extend_from_slice(&10u32.to_le_bytes()); // source_line (8-11)
+        data.extend_from_slice(&1u16.to_le_bytes()); // source_col (12-13)
+        data.push(entry_kind::FUNC); // kind (14)
+        data.push(0); // depth (15)
+        data.extend_from_slice(&0u32.to_le_bytes()); // func_name_off = 0 (16-19)
+        data.extend_from_slice(&0u32.to_le_bytes()); // var_name_off (20-23)
+        data.extend_from_slice(&0u32.to_le_bytes()); // type_name_off (24-27)
 
         // string_pool
         data.extend_from_slice(func_name_str.as_bytes());
@@ -368,9 +363,7 @@ mod tests {
 
     #[test]
     fn raw_entry_data() {
-        let data = make_debug_bytes(vec![
-            make_entry(42, 7, entry_kind::LINE)
-        ]);
+        let data = make_debug_bytes(vec![make_entry(42, 7, entry_kind::LINE)]);
         let map = DebugMap::from_bytes(&data).unwrap();
         let raw = map.raw_entry(0);
         assert!(raw.is_some());

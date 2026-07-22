@@ -4,7 +4,7 @@
 //! §3.17（IS* Context）、§3.18（Segment Info）、§3.19（Performance Analysis）
 
 use crate::debug::session::{DebugSession, LocalDebugSession};
-use crate::debug::trace::{IsGroup, IS_VARIABLES};
+use crate::debug::trace::{IS_VARIABLES, IsGroup};
 use crate::debug::tui::pages::Page;
 
 use ratatui::{
@@ -48,7 +48,9 @@ impl Page for CallStackPage {
         let mut lines = vec![
             Line::from(Span::styled(
                 format!(" 调用栈（共 {} 帧）", cs.len() + 1),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::raw("")),
         ];
@@ -56,16 +58,23 @@ impl Page for CallStackPage {
         // 当前帧
         let marker = if selected == 0 { "→" } else { " " };
         let style = if selected == 0 {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
-        let source_info = session.debug_map.as_ref()
+        let source_info = session
+            .debug_map
+            .as_ref()
             .and_then(|m| m.line_for_pc(session.vm.pc))
             .map(|l| format!(" line {}", l))
             .unwrap_or_default();
         lines.push(Line::from(Span::styled(
-            format!("  {} #0  pc={:#06x} (current){}", marker, session.vm.pc, source_info),
+            format!(
+                "  {} #0  pc={:#06x} (current){}",
+                marker, session.vm.pc, source_info
+            ),
             style,
         )));
 
@@ -74,12 +83,17 @@ impl Page for CallStackPage {
             let depth = i + 1;
             let marker = if selected == depth { "→" } else { " " };
             let style = if selected == depth {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             };
             lines.push(Line::from(Span::styled(
-                format!("  {} #{}  return_pc={:#06x} sp={:#x}", marker, depth, frame.return_pc, frame.sp),
+                format!(
+                    "  {} #{}  return_pc={:#06x} sp={:#x}",
+                    marker, depth, frame.return_pc, frame.sp
+                ),
                 style,
             )));
         }
@@ -143,7 +157,9 @@ impl Page for BreakpointsPage {
             // 表头
             lines.push(Line::from(Span::styled(
                 "  ID  Type     Location       Hits  Status  Condition",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(Span::styled(
                 "  ─────────────────────────────────────────────────",
@@ -151,10 +167,16 @@ impl Page for BreakpointsPage {
             )));
 
             for (i, bp) in breakpoints.iter().enumerate() {
-                if i >= max_visible { break; }
+                if i >= max_visible {
+                    break;
+                }
                 let (bp_type_str, location) = match &bp.bp_type {
-                    crate::debug::session::BreakpointType::Pc(addr) => ("PC", format!("{:#06x}", addr)),
-                    crate::debug::session::BreakpointType::Line(line) => ("Line", format!("{}", line)),
+                    crate::debug::session::BreakpointType::Pc(addr) => {
+                        ("PC", format!("{:#06x}", addr))
+                    }
+                    crate::debug::session::BreakpointType::Line(line) => {
+                        ("Line", format!("{}", line))
+                    }
                     crate::debug::session::BreakpointType::Function(f) => ("Fn", f.clone()),
                     crate::debug::session::BreakpointType::Hook(h) => ("Hook", h.clone()),
                 };
@@ -170,8 +192,10 @@ impl Page for BreakpointsPage {
                 };
 
                 lines.push(Line::from(Span::styled(
-                    format!("  {:>3}  {:<8}  {:<14}  {:<4}  {:<8}  {}",
-                        bp.id, bp_type_str, location, bp.hit_count, status_str, cond_str),
+                    format!(
+                        "  {:>3}  {:<8}  {:<14}  {:<4}  {:<8}  {}",
+                        bp.id, bp_type_str, location, bp.hit_count, status_str, cond_str
+                    ),
                     style,
                 )));
             }
@@ -196,7 +220,9 @@ impl Page for BreakpointsPage {
 
     fn on_key_shortcut(&mut self, session: &mut LocalDebugSession, key: char, status: &mut String) {
         let breakpoints = session.breakpoints().to_vec();
-        if self.selected >= breakpoints.len() { return; }
+        if self.selected >= breakpoints.len() {
+            return;
+        }
         match key {
             'd' => {
                 let id = breakpoints[self.selected].id;
@@ -241,10 +267,18 @@ impl Page for ZoneStatusPage {
         let (total, used, free, peak) = session.memory_stats();
 
         let mut lines = vec![
-            Line::from(Span::styled(" Zone 状态一览", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " Zone 状态一览",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
             Line::from(Span::styled(
-                format!("  {:<20} {:<16} {:<10} {}", "名称", "生命周期", "状态", "PC 范围"),
+                format!(
+                    "  {:<20} {:<16} {:<10} {}",
+                    "名称", "生命周期", "状态", "PC 范围"
+                ),
                 Style::default().fg(Color::Cyan),
             )),
             Line::from(Span::styled(
@@ -261,11 +295,33 @@ impl Page for ZoneStatusPage {
         }
 
         lines.push(Line::from(Span::raw("")));
-        lines.push(Line::from(Span::styled(" 内存统计", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
-        lines.push(Line::from(Span::raw(format!("  总内存:     {} 字节", total))));
-        lines.push(Line::from(Span::raw(format!("  已用:       {} 字节 ({:.1}%)", used, if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 }))));
-        lines.push(Line::from(Span::raw(format!("  空闲:       {} 字节", free))));
-        lines.push(Line::from(Span::raw(format!("  峰值:       {} 字节", peak))));
+        lines.push(Line::from(Span::styled(
+            " 内存统计",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::raw(format!(
+            "  总内存:     {} 字节",
+            total
+        ))));
+        lines.push(Line::from(Span::raw(format!(
+            "  已用:       {} 字节 ({:.1}%)",
+            used,
+            if total > 0 {
+                used as f64 / total as f64 * 100.0
+            } else {
+                0.0
+            }
+        ))));
+        lines.push(Line::from(Span::raw(format!(
+            "  空闲:       {} 字节",
+            free
+        ))));
+        lines.push(Line::from(Span::raw(format!(
+            "  峰值:       {} 字节",
+            peak
+        ))));
 
         let block = Block::default()
             .title(self.title.clone())
@@ -298,8 +354,15 @@ impl IsContextPage {
             title: "IS* Context — IS* 全览".to_string(),
             selected_group: 0,
             search_query: String::new(),
-            groups: [IsGroup::Exception, IsGroup::Count, IsGroup::CallContext,
-                     IsGroup::System, IsGroup::Time, IsGroup::Task, IsGroup::Data],
+            groups: [
+                IsGroup::Exception,
+                IsGroup::Count,
+                IsGroup::CallContext,
+                IsGroup::System,
+                IsGroup::Time,
+                IsGroup::Task,
+                IsGroup::Data,
+            ],
         }
     }
 }
@@ -316,7 +379,9 @@ impl Page for IsContextPage {
         let mut lines = vec![
             Line::from(Span::styled(
                 " 分组: 异常 | 计数 | 调用上下文 | 系统/环境 | 时间 | 任务 | 数据",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(
                 "  Tab 切换分组  / 搜索",
@@ -328,7 +393,9 @@ impl Page for IsContextPage {
         // 显示所有 IS* 变量及其值
         let mut count = 0;
         for v in IS_VARIABLES {
-            if count >= max_visible { break; }
+            if count >= max_visible {
+                break;
+            }
             let val = ctx.entries.get(v.name).map(|s| s.as_str()).unwrap_or("—");
             let is_current_group = self.groups.get(self.selected_group) == Some(&v.group);
 
@@ -344,13 +411,20 @@ impl Page for IsContextPage {
 
         if count == 0 {
             lines.push(Line::from(Span::styled(
-                format!("  （分组: {} — 当前无数据）", self.groups[self.selected_group].name()),
+                format!(
+                    "  （分组: {} — 当前无数据）",
+                    self.groups[self.selected_group].name()
+                ),
                 Style::default().fg(Color::Gray),
             )));
         }
 
         let block = Block::default()
-            .title(format!(" {} [{}] ", self.title, self.groups[self.selected_group].name()))
+            .title(format!(
+                " {} [{}] ",
+                self.title,
+                self.groups[self.selected_group].name()
+            ))
             .borders(Borders::TOP)
             .border_style(Style::default().fg(Color::DarkGray));
 
@@ -360,7 +434,12 @@ impl Page for IsContextPage {
         frame.render_widget(widget, area);
     }
 
-    fn on_key_shortcut(&mut self, _session: &mut LocalDebugSession, _key: char, _status: &mut String) {
+    fn on_key_shortcut(
+        &mut self,
+        _session: &mut LocalDebugSession,
+        _key: char,
+        _status: &mut String,
+    ) {
         match _key {
             '\t' => {
                 self.selected_group = (self.selected_group + 1) % self.groups.len();
@@ -400,7 +479,12 @@ impl Page for SegmentInfoPage {
         let segments = session.segment_info();
 
         let mut lines = vec![
-            Line::from(Span::styled(" 段表", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " 段表",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
             Line::from(Span::styled(
                 format!("  {:<12} {:>10}  {}", "段名", "大小", "说明"),
@@ -428,7 +512,10 @@ impl Page for SegmentInfoPage {
         if let Some(ref map) = session.debug_map {
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                " .debug 段 (ADBG)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                " .debug 段 (ADBG)",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(Span::raw(format!(
                 "  条目数: {}  版本: 1  格式: ADBG",
@@ -486,7 +573,12 @@ impl Page for PerfAnalysisPage {
         let max_visible = (area.height as usize).saturating_sub(3);
 
         let mut lines = vec![
-            Line::from(Span::styled(" 指令执行分布", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                " 指令执行分布",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(Span::raw("")),
         ];
 
@@ -509,8 +601,10 @@ impl Page for PerfAnalysisPage {
                 _ => Color::White,
             };
             lines.push(Line::from(Span::styled(
-                format!("  {:>8} × {:<8}  {:>6.1}%  [{}]",
-                    count, name, pct, category),
+                format!(
+                    "  {:>8} × {:<8}  {:>6.1}%  [{}]",
+                    count, name, pct, category
+                ),
                 Style::default().fg(cat_color),
             )));
         }
@@ -518,28 +612,56 @@ impl Page for PerfAnalysisPage {
         lines.push(Line::from(Span::raw("")));
         lines.push(Line::from(Span::styled(
             format!("  合计: {} 条指令", perf.total_instructions),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         )));
 
         // 分类汇总
         lines.push(Line::from(Span::raw("")));
-        lines.push(Line::from(Span::styled(" 分类统计", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
-        lines.push(Line::from(Span::raw(format!("  ARITH:  {}  MEM: {}  CTRL: {}  SYSTEM: {}",
-            perf.arith_count, perf.mem_count, perf.ctrl_count, perf.system_count))));
+        lines.push(Line::from(Span::styled(
+            " 分类统计",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::raw(format!(
+            "  ARITH:  {}  MEM: {}  CTRL: {}  SYSTEM: {}",
+            perf.arith_count, perf.mem_count, perf.ctrl_count, perf.system_count
+        ))));
 
         // 内存概况
         lines.push(Line::from(Span::raw("")));
         let (total, used, _free, peak) = session.memory_stats();
-        lines.push(Line::from(Span::styled(" 内存概况", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
-        lines.push(Line::from(Span::raw(format!("  当前用量: {} 字节 / {} 字节 (峰值: {} 字节)", used, total, peak))));
-        lines.push(Line::from(Span::raw(format!("  分配/释放: {} / {}", perf.alloc_count, perf.free_count))));
+        lines.push(Line::from(Span::styled(
+            " 内存概况",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::raw(format!(
+            "  当前用量: {} 字节 / {} 字节 (峰值: {} 字节)",
+            used, total, peak
+        ))));
+        lines.push(Line::from(Span::raw(format!(
+            "  分配/释放: {} / {}",
+            perf.alloc_count, perf.free_count
+        ))));
 
         // Hot Path
         lines.push(Line::from(Span::raw("")));
-        lines.push(Line::from(Span::styled(" Hot Path (Top 5)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
+        lines.push(Line::from(Span::styled(
+            " Hot Path (Top 5)",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
         let hot = session.hot_path(5);
         for (pc, count, desc) in &hot {
-            lines.push(Line::from(Span::raw(format!("  {:#06x}: {}×  {}", pc, count, desc))));
+            lines.push(Line::from(Span::raw(format!(
+                "  {:#06x}: {}×  {}",
+                pc, count, desc
+            ))));
         }
 
         let block = Block::default()

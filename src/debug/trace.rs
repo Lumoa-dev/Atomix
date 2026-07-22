@@ -401,13 +401,7 @@ impl TraceCollector {
     }
 
     /// 开始一个新的 Step。
-    pub fn begin_step(
-        &mut self,
-        name: &str,
-        phase: ExecutionPhase,
-        source_line: u32,
-        pc: usize,
-    ) {
+    pub fn begin_step(&mut self, name: &str, phase: ExecutionPhase, source_line: u32, pc: usize) {
         // 如果有未完成的上一个 Step，先结束它
         if self.current_step.is_some() {
             self.end_step(pc);
@@ -462,7 +456,8 @@ impl TraceCollector {
         if !self.collect_variables {
             return;
         }
-        let timestamp = self.global_start
+        let timestamp = self
+            .global_start
             .map(|start| start.elapsed().as_micros() as u64)
             .unwrap_or(0);
         self.trace.variable_events.push(VariableEvent {
@@ -483,7 +478,8 @@ impl TraceCollector {
         if !self.collect_is {
             return;
         }
-        let timestamp = self.global_start
+        let timestamp = self
+            .global_start
             .map(|start| start.elapsed().as_micros() as u64)
             .unwrap_or(0);
         self.trace.is_timeline.push(IsEvent {
@@ -509,7 +505,8 @@ impl TraceCollector {
         if !self.collect_hooks {
             return;
         }
-        let timestamp = self.global_start
+        let timestamp = self
+            .global_start
             .map(|start| start.elapsed().as_micros() as u64)
             .unwrap_or(0);
         self.trace.hook_timeline.push(HookEvent {
@@ -593,84 +590,372 @@ pub struct IsVariable {
 /// 全部 72 个 IS* 变量（设计文档 §3.17）。
 pub const IS_VARIABLES: &[IsVariable] = &[
     // 异常 (8)
-    IsVariable { name: "IS_EXCEPTION", group: IsGroup::Exception, description: "当前异常码" },
-    IsVariable { name: "IS_EXCEPTION_MSG", group: IsGroup::Exception, description: "异常消息" },
-    IsVariable { name: "IS_EXCEPTION_PC", group: IsGroup::Exception, description: "异常发生 PC" },
-    IsVariable { name: "IS_EXCEPTION_HANDLED", group: IsGroup::Exception, description: "是否已被处理" },
-    IsVariable { name: "IS_EXCEPTION_PROPAGATES", group: IsGroup::Exception, description: "是否向上传播" },
-    IsVariable { name: "IS_EXCEPTION_CAUGHT_BY", group: IsGroup::Exception, description: "捕获者（TRY 块）" },
-    IsVariable { name: "IS_EXCEPTION_ZONE", group: IsGroup::Exception, description: "异常发生 Zone" },
-    IsVariable { name: "IS_EXCEPTION_STEP", group: IsGroup::Exception, description: "异常发生 Step" },
+    IsVariable {
+        name: "IS_EXCEPTION",
+        group: IsGroup::Exception,
+        description: "当前异常码",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_MSG",
+        group: IsGroup::Exception,
+        description: "异常消息",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_PC",
+        group: IsGroup::Exception,
+        description: "异常发生 PC",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_HANDLED",
+        group: IsGroup::Exception,
+        description: "是否已被处理",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_PROPAGATES",
+        group: IsGroup::Exception,
+        description: "是否向上传播",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_CAUGHT_BY",
+        group: IsGroup::Exception,
+        description: "捕获者（TRY 块）",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_ZONE",
+        group: IsGroup::Exception,
+        description: "异常发生 Zone",
+    },
+    IsVariable {
+        name: "IS_EXCEPTION_STEP",
+        group: IsGroup::Exception,
+        description: "异常发生 Step",
+    },
     // 计数 (8)
-    IsVariable { name: "IS_COUNT_INSTR", group: IsGroup::Count, description: "已执行指令数" },
-    IsVariable { name: "IS_COUNT_STEP", group: IsGroup::Count, description: "已执行 Step 数" },
-    IsVariable { name: "IS_COUNT_CALL", group: IsGroup::Count, description: "函数调用次数" },
-    IsVariable { name: "IS_COUNT_FORK", group: IsGroup::Count, description: "FORK 次数" },
-    IsVariable { name: "IS_COUNT_JOIN", group: IsGroup::Count, description: "JOIN 次数" },
-    IsVariable { name: "IS_COUNT_ECALL", group: IsGroup::Count, description: "ECALL 次数" },
-    IsVariable { name: "IS_COUNT_ALLOC", group: IsGroup::Count, description: "内存分配次数" },
-    IsVariable { name: "IS_COUNT_ERROR", group: IsGroup::Count, description: "错误次数" },
+    IsVariable {
+        name: "IS_COUNT_INSTR",
+        group: IsGroup::Count,
+        description: "已执行指令数",
+    },
+    IsVariable {
+        name: "IS_COUNT_STEP",
+        group: IsGroup::Count,
+        description: "已执行 Step 数",
+    },
+    IsVariable {
+        name: "IS_COUNT_CALL",
+        group: IsGroup::Count,
+        description: "函数调用次数",
+    },
+    IsVariable {
+        name: "IS_COUNT_FORK",
+        group: IsGroup::Count,
+        description: "FORK 次数",
+    },
+    IsVariable {
+        name: "IS_COUNT_JOIN",
+        group: IsGroup::Count,
+        description: "JOIN 次数",
+    },
+    IsVariable {
+        name: "IS_COUNT_ECALL",
+        group: IsGroup::Count,
+        description: "ECALL 次数",
+    },
+    IsVariable {
+        name: "IS_COUNT_ALLOC",
+        group: IsGroup::Count,
+        description: "内存分配次数",
+    },
+    IsVariable {
+        name: "IS_COUNT_ERROR",
+        group: IsGroup::Count,
+        description: "错误次数",
+    },
     // 调用上下文 (12)
-    IsVariable { name: "IS_CALLER", group: IsGroup::CallContext, description: "调用者函数名" },
-    IsVariable { name: "IS_CALLEE", group: IsGroup::CallContext, description: "被调用者函数名" },
-    IsVariable { name: "IS_CALL_PC", group: IsGroup::CallContext, description: "CALL 指令 PC" },
-    IsVariable { name: "IS_CALL_RETURN_PC", group: IsGroup::CallContext, description: "返回 PC" },
-    IsVariable { name: "IS_CALL_DEPTH", group: IsGroup::CallContext, description: "调用深度" },
-    IsVariable { name: "IS_CALL_STACK_SIZE", group: IsGroup::CallContext, description: "调用栈大小" },
-    IsVariable { name: "IS_CALL_STACK_TOP", group: IsGroup::CallContext, description: "栈顶函数" },
-    IsVariable { name: "IS_FRAME_SP", group: IsGroup::CallContext, description: "当前帧 SP" },
-    IsVariable { name: "IS_FRAME_FP", group: IsGroup::CallContext, description: "当前帧 FP" },
-    IsVariable { name: "IS_FRAME_RA", group: IsGroup::CallContext, description: "当前帧 RA" },
-    IsVariable { name: "IS_ARG_COUNT", group: IsGroup::CallContext, description: "参数个数" },
-    IsVariable { name: "IS_RETURN_VALUE", group: IsGroup::CallContext, description: "返回值" },
+    IsVariable {
+        name: "IS_CALLER",
+        group: IsGroup::CallContext,
+        description: "调用者函数名",
+    },
+    IsVariable {
+        name: "IS_CALLEE",
+        group: IsGroup::CallContext,
+        description: "被调用者函数名",
+    },
+    IsVariable {
+        name: "IS_CALL_PC",
+        group: IsGroup::CallContext,
+        description: "CALL 指令 PC",
+    },
+    IsVariable {
+        name: "IS_CALL_RETURN_PC",
+        group: IsGroup::CallContext,
+        description: "返回 PC",
+    },
+    IsVariable {
+        name: "IS_CALL_DEPTH",
+        group: IsGroup::CallContext,
+        description: "调用深度",
+    },
+    IsVariable {
+        name: "IS_CALL_STACK_SIZE",
+        group: IsGroup::CallContext,
+        description: "调用栈大小",
+    },
+    IsVariable {
+        name: "IS_CALL_STACK_TOP",
+        group: IsGroup::CallContext,
+        description: "栈顶函数",
+    },
+    IsVariable {
+        name: "IS_FRAME_SP",
+        group: IsGroup::CallContext,
+        description: "当前帧 SP",
+    },
+    IsVariable {
+        name: "IS_FRAME_FP",
+        group: IsGroup::CallContext,
+        description: "当前帧 FP",
+    },
+    IsVariable {
+        name: "IS_FRAME_RA",
+        group: IsGroup::CallContext,
+        description: "当前帧 RA",
+    },
+    IsVariable {
+        name: "IS_ARG_COUNT",
+        group: IsGroup::CallContext,
+        description: "参数个数",
+    },
+    IsVariable {
+        name: "IS_RETURN_VALUE",
+        group: IsGroup::CallContext,
+        description: "返回值",
+    },
     // 系统/环境 (12)
-    IsVariable { name: "IS_SYS_PROFILE", group: IsGroup::System, description: "内存 Profile" },
-    IsVariable { name: "IS_SYS_MEM_TOTAL", group: IsGroup::System, description: "总内存" },
-    IsVariable { name: "IS_SYS_MEM_USED", group: IsGroup::System, description: "已用内存" },
-    IsVariable { name: "IS_SYS_MEM_FREE", group: IsGroup::System, description: "空闲内存" },
-    IsVariable { name: "IS_SYS_MEM_PEAK", group: IsGroup::System, description: "峰值内存" },
-    IsVariable { name: "IS_SYS_QUANTUM", group: IsGroup::System, description: "Quantum 配额" },
-    IsVariable { name: "IS_SYS_QUANTUM_USED", group: IsGroup::System, description: "已用 Quantum" },
-    IsVariable { name: "IS_SYS_PC", group: IsGroup::System, description: "当前 PC" },
-    IsVariable { name: "IS_SYS_STATE", group: IsGroup::System, description: "VM 状态" },
-    IsVariable { name: "IS_SYS_PROFILE_NAME", group: IsGroup::System, description: "Profile 名称" },
-    IsVariable { name: "IS_SYS_VERSION", group: IsGroup::System, description: "VM 版本" },
-    IsVariable { name: "IS_SYS_FLAGS", group: IsGroup::System, description: "系统标志" },
+    IsVariable {
+        name: "IS_SYS_PROFILE",
+        group: IsGroup::System,
+        description: "内存 Profile",
+    },
+    IsVariable {
+        name: "IS_SYS_MEM_TOTAL",
+        group: IsGroup::System,
+        description: "总内存",
+    },
+    IsVariable {
+        name: "IS_SYS_MEM_USED",
+        group: IsGroup::System,
+        description: "已用内存",
+    },
+    IsVariable {
+        name: "IS_SYS_MEM_FREE",
+        group: IsGroup::System,
+        description: "空闲内存",
+    },
+    IsVariable {
+        name: "IS_SYS_MEM_PEAK",
+        group: IsGroup::System,
+        description: "峰值内存",
+    },
+    IsVariable {
+        name: "IS_SYS_QUANTUM",
+        group: IsGroup::System,
+        description: "Quantum 配额",
+    },
+    IsVariable {
+        name: "IS_SYS_QUANTUM_USED",
+        group: IsGroup::System,
+        description: "已用 Quantum",
+    },
+    IsVariable {
+        name: "IS_SYS_PC",
+        group: IsGroup::System,
+        description: "当前 PC",
+    },
+    IsVariable {
+        name: "IS_SYS_STATE",
+        group: IsGroup::System,
+        description: "VM 状态",
+    },
+    IsVariable {
+        name: "IS_SYS_PROFILE_NAME",
+        group: IsGroup::System,
+        description: "Profile 名称",
+    },
+    IsVariable {
+        name: "IS_SYS_VERSION",
+        group: IsGroup::System,
+        description: "VM 版本",
+    },
+    IsVariable {
+        name: "IS_SYS_FLAGS",
+        group: IsGroup::System,
+        description: "系统标志",
+    },
     // 时间 (8)
-    IsVariable { name: "IS_TIME_ELAPSED", group: IsGroup::Time, description: "已用时间" },
-    IsVariable { name: "IS_TIME_STEP_START", group: IsGroup::Time, description: "当前 Step 开始时间" },
-    IsVariable { name: "IS_TIME_STEP_ELAPSED", group: IsGroup::Time, description: "当前 Step 已用时间" },
-    IsVariable { name: "IS_TIME_LAST_INSTR", group: IsGroup::Time, description: "上条指令耗时" },
-    IsVariable { name: "IS_TIME_BREAK_HIT", group: IsGroup::Time, description: "断点命中时间" },
-    IsVariable { name: "IS_TIME_SUSPENDED", group: IsGroup::Time, description: "挂起总时间" },
-    IsVariable { name: "IS_TIME_IDLE", group: IsGroup::Time, description: "空闲时间" },
-    IsVariable { name: "IS_TIME_TOTAL", group: IsGroup::Time, description: "总运行时间" },
+    IsVariable {
+        name: "IS_TIME_ELAPSED",
+        group: IsGroup::Time,
+        description: "已用时间",
+    },
+    IsVariable {
+        name: "IS_TIME_STEP_START",
+        group: IsGroup::Time,
+        description: "当前 Step 开始时间",
+    },
+    IsVariable {
+        name: "IS_TIME_STEP_ELAPSED",
+        group: IsGroup::Time,
+        description: "当前 Step 已用时间",
+    },
+    IsVariable {
+        name: "IS_TIME_LAST_INSTR",
+        group: IsGroup::Time,
+        description: "上条指令耗时",
+    },
+    IsVariable {
+        name: "IS_TIME_BREAK_HIT",
+        group: IsGroup::Time,
+        description: "断点命中时间",
+    },
+    IsVariable {
+        name: "IS_TIME_SUSPENDED",
+        group: IsGroup::Time,
+        description: "挂起总时间",
+    },
+    IsVariable {
+        name: "IS_TIME_IDLE",
+        group: IsGroup::Time,
+        description: "空闲时间",
+    },
+    IsVariable {
+        name: "IS_TIME_TOTAL",
+        group: IsGroup::Time,
+        description: "总运行时间",
+    },
     // 任务 (12)
-    IsVariable { name: "IS_TASK_ID", group: IsGroup::Task, description: "任务 ID" },
-    IsVariable { name: "IS_TASK_PARENT", group: IsGroup::Task, description: "父任务 ID" },
-    IsVariable { name: "IS_TASK_CHILDREN", group: IsGroup::Task, description: "子任务 ID 列表" },
-    IsVariable { name: "IS_TASK_PRIORITY", group: IsGroup::Task, description: "任务优先级" },
-    IsVariable { name: "IS_TASK_STATUS", group: IsGroup::Task, description: "任务状态" },
-    IsVariable { name: "IS_TASK_DEPTH", group: IsGroup::Task, description: "任务深度" },
-    IsVariable { name: "IS_TASK_BATCH", group: IsGroup::Task, description: "所属调度批次" },
-    IsVariable { name: "IS_TASK_FORK_PC", group: IsGroup::Task, description: "FORK 时的 PC" },
-    IsVariable { name: "IS_TASK_JOIN_TARGET", group: IsGroup::Task, description: "JOIN 等待的目标 ID" },
-    IsVariable { name: "IS_TASK_SLOT", group: IsGroup::Task, description: "所在内存槽位" },
-    IsVariable { name: "IS_TASK_ORIGIN", group: IsGroup::Task, description: "来源 Runner" },
-    IsVariable { name: "IS_TASK_TIMEOUT", group: IsGroup::Task, description: "超时设置" },
+    IsVariable {
+        name: "IS_TASK_ID",
+        group: IsGroup::Task,
+        description: "任务 ID",
+    },
+    IsVariable {
+        name: "IS_TASK_PARENT",
+        group: IsGroup::Task,
+        description: "父任务 ID",
+    },
+    IsVariable {
+        name: "IS_TASK_CHILDREN",
+        group: IsGroup::Task,
+        description: "子任务 ID 列表",
+    },
+    IsVariable {
+        name: "IS_TASK_PRIORITY",
+        group: IsGroup::Task,
+        description: "任务优先级",
+    },
+    IsVariable {
+        name: "IS_TASK_STATUS",
+        group: IsGroup::Task,
+        description: "任务状态",
+    },
+    IsVariable {
+        name: "IS_TASK_DEPTH",
+        group: IsGroup::Task,
+        description: "任务深度",
+    },
+    IsVariable {
+        name: "IS_TASK_BATCH",
+        group: IsGroup::Task,
+        description: "所属调度批次",
+    },
+    IsVariable {
+        name: "IS_TASK_FORK_PC",
+        group: IsGroup::Task,
+        description: "FORK 时的 PC",
+    },
+    IsVariable {
+        name: "IS_TASK_JOIN_TARGET",
+        group: IsGroup::Task,
+        description: "JOIN 等待的目标 ID",
+    },
+    IsVariable {
+        name: "IS_TASK_SLOT",
+        group: IsGroup::Task,
+        description: "所在内存槽位",
+    },
+    IsVariable {
+        name: "IS_TASK_ORIGIN",
+        group: IsGroup::Task,
+        description: "来源 Runner",
+    },
+    IsVariable {
+        name: "IS_TASK_TIMEOUT",
+        group: IsGroup::Task,
+        description: "超时设置",
+    },
     // 数据 (12)
-    IsVariable { name: "IS_DATA_INPUT_COUNT", group: IsGroup::Data, description: "输入常量数" },
-    IsVariable { name: "IS_DATA_OUTPUT_COUNT", group: IsGroup::Data, description: "产出变量数" },
-    IsVariable { name: "IS_DATA_INPUT_SIZE", group: IsGroup::Data, description: "输入总大小" },
-    IsVariable { name: "IS_DATA_OUTPUT_SIZE", group: IsGroup::Data, description: "产出总大小" },
-    IsVariable { name: "IS_DATA_STACK_USED", group: IsGroup::Data, description: "栈使用量" },
-    IsVariable { name: "IS_DATA_HEAP_USED", group: IsGroup::Data, description: "堆使用量" },
-    IsVariable { name: "IS_DATA_RODATA_SIZE", group: IsGroup::Data, description: "只读数据大小" },
-    IsVariable { name: "IS_DATA_ALLOC_COUNT", group: IsGroup::Data, description: "分配次数" },
-    IsVariable { name: "IS_DATA_FREE_COUNT", group: IsGroup::Data, description: "释放次数" },
-    IsVariable { name: "IS_DATA_FRAG_RATIO", group: IsGroup::Data, description: "碎片率" },
-    IsVariable { name: "IS_DATA_SLOT_USAGE", group: IsGroup::Data, description: "槽位使用率" },
-    IsVariable { name: "IS_DATA_CACHE_HITS", group: IsGroup::Data, description: "缓存命中数" },
+    IsVariable {
+        name: "IS_DATA_INPUT_COUNT",
+        group: IsGroup::Data,
+        description: "输入常量数",
+    },
+    IsVariable {
+        name: "IS_DATA_OUTPUT_COUNT",
+        group: IsGroup::Data,
+        description: "产出变量数",
+    },
+    IsVariable {
+        name: "IS_DATA_INPUT_SIZE",
+        group: IsGroup::Data,
+        description: "输入总大小",
+    },
+    IsVariable {
+        name: "IS_DATA_OUTPUT_SIZE",
+        group: IsGroup::Data,
+        description: "产出总大小",
+    },
+    IsVariable {
+        name: "IS_DATA_STACK_USED",
+        group: IsGroup::Data,
+        description: "栈使用量",
+    },
+    IsVariable {
+        name: "IS_DATA_HEAP_USED",
+        group: IsGroup::Data,
+        description: "堆使用量",
+    },
+    IsVariable {
+        name: "IS_DATA_RODATA_SIZE",
+        group: IsGroup::Data,
+        description: "只读数据大小",
+    },
+    IsVariable {
+        name: "IS_DATA_ALLOC_COUNT",
+        group: IsGroup::Data,
+        description: "分配次数",
+    },
+    IsVariable {
+        name: "IS_DATA_FREE_COUNT",
+        group: IsGroup::Data,
+        description: "释放次数",
+    },
+    IsVariable {
+        name: "IS_DATA_FRAG_RATIO",
+        group: IsGroup::Data,
+        description: "碎片率",
+    },
+    IsVariable {
+        name: "IS_DATA_SLOT_USAGE",
+        group: IsGroup::Data,
+        description: "槽位使用率",
+    },
+    IsVariable {
+        name: "IS_DATA_CACHE_HITS",
+        group: IsGroup::Data,
+        description: "缓存命中数",
+    },
 ];
 
 /// 按分组获取 IS* 变量列表。
@@ -744,7 +1029,10 @@ mod tests {
         let trace = collector.finalize();
         assert_eq!(trace.step_count(), 1);
         assert_eq!(trace.steps[0].status, StepStatus::Error);
-        assert_eq!(trace.steps[0].error_summary.as_deref(), Some("division by zero"));
+        assert_eq!(
+            trace.steps[0].error_summary.as_deref(),
+            Some("division by zero")
+        );
     }
 
     #[test]
@@ -776,8 +1064,12 @@ mod tests {
     #[test]
     fn trace_find_step_by_name() {
         let mut trace = ExecutionTrace::new();
-        trace.steps.push(StepRecord::new("alpha", ExecutionPhase::Task, 1));
-        trace.steps.push(StepRecord::new("beta", ExecutionPhase::Input, 2));
+        trace
+            .steps
+            .push(StepRecord::new("alpha", ExecutionPhase::Task, 1));
+        trace
+            .steps
+            .push(StepRecord::new("beta", ExecutionPhase::Input, 2));
 
         assert!(trace.find_step_by_name("alpha").is_some());
         assert!(trace.find_step_by_name("gamma").is_none());

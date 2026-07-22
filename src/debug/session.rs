@@ -6,18 +6,16 @@
 //! - `LocalDebugSession`：本地调试（VM 进程内）
 //! - `RemoteDebugSession`：远程调试（通过 ATXP 协议，待实现）
 
+use crate::base::ir::SectionEntry;
+use crate::base::isa::{self, opcode, reg};
+use crate::debug::debug_segment::DebugMap;
 use crate::debug::disassemble;
 use crate::debug::eval;
-use crate::debug::trace::{
-    ExecutionTrace, ExecutionPhase, TraceCollector, IS_VARIABLES,
-};
-use crate::debug::debug_segment::DebugMap;
-use crate::base::isa::{self, opcode, reg};
-use crate::base::ir::SectionEntry;
-use crate::runner::decode;
-use crate::runner::execute::execute_instruction;
+use crate::debug::trace::{ExecutionPhase, ExecutionTrace, IS_VARIABLES, TraceCollector};
 use crate::runner::VmState;
 use crate::runner::VmStateKind;
+use crate::runner::decode;
+use crate::runner::execute::execute_instruction;
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -90,7 +88,9 @@ impl CommandHistory {
         if index == 0 || index > self.entries.len() {
             return None;
         }
-        self.entries.get(self.entries.len() - index).map(|s| s.as_str())
+        self.entries
+            .get(self.entries.len() - index)
+            .map(|s| s.as_str())
     }
 
     pub fn all(&self) -> &[String] {
@@ -347,24 +347,51 @@ impl IsContextSnapshot {
     }
 
     pub fn update_from_vm(&mut self, vm: &VmState) {
-        self.entries.insert("IS_SYS_PC".to_string(), format!("{:#06x}", vm.pc));
-        self.entries.insert("IS_SYS_STATE".to_string(), format!("{:?}", vm.state));
-        self.entries.insert("IS_SYS_MEM_USED".to_string(), format!("{}", vm.memory.usage));
-        self.entries.insert("IS_SYS_MEM_TOTAL".to_string(), format!("{}", vm.mem_size));
-        self.entries.insert("IS_COUNT_INSTR".to_string(), format!("{}", vm.quantum));
-        self.entries.insert("IS_CALL_STACK_SIZE".to_string(), format!("{}", vm.call_stack.len()));
-        self.entries.insert("IS_TASK_ID".to_string(), format!("{}", vm.task_id));
-        self.entries.insert("IS_CALL_DEPTH".to_string(), format!("{}", vm.call_stack.len()));
-        self.entries.insert("IS_SYS_QUANTUM".to_string(), format!("{}", vm.quantum));
+        self.entries
+            .insert("IS_SYS_PC".to_string(), format!("{:#06x}", vm.pc));
+        self.entries
+            .insert("IS_SYS_STATE".to_string(), format!("{:?}", vm.state));
+        self.entries.insert(
+            "IS_SYS_MEM_USED".to_string(),
+            format!("{}", vm.memory.usage),
+        );
+        self.entries
+            .insert("IS_SYS_MEM_TOTAL".to_string(), format!("{}", vm.mem_size));
+        self.entries
+            .insert("IS_COUNT_INSTR".to_string(), format!("{}", vm.quantum));
+        self.entries.insert(
+            "IS_CALL_STACK_SIZE".to_string(),
+            format!("{}", vm.call_stack.len()),
+        );
+        self.entries
+            .insert("IS_TASK_ID".to_string(), format!("{}", vm.task_id));
+        self.entries.insert(
+            "IS_CALL_DEPTH".to_string(),
+            format!("{}", vm.call_stack.len()),
+        );
+        self.entries
+            .insert("IS_SYS_QUANTUM".to_string(), format!("{}", vm.quantum));
 
         // 寄存器值
-        self.entries.insert("IS_FRAME_SP".to_string(), format!("{:#x}", vm.read_reg(reg::SP)));
-        self.entries.insert("IS_FRAME_FP".to_string(), format!("{:#x}", vm.read_reg(reg::FP)));
-        self.entries.insert("IS_FRAME_RA".to_string(), format!("{:#x}", vm.read_reg(reg::RA)));
+        self.entries.insert(
+            "IS_FRAME_SP".to_string(),
+            format!("{:#x}", vm.read_reg(reg::SP)),
+        );
+        self.entries.insert(
+            "IS_FRAME_FP".to_string(),
+            format!("{:#x}", vm.read_reg(reg::FP)),
+        );
+        self.entries.insert(
+            "IS_FRAME_RA".to_string(),
+            format!("{:#x}", vm.read_reg(reg::RA)),
+        );
 
         // 调用栈顶
         if let Some(top) = vm.call_stack.last() {
-            self.entries.insert("IS_CALL_STACK_TOP".to_string(), format!("return_pc={:#06x}", top.return_pc));
+            self.entries.insert(
+                "IS_CALL_STACK_TOP".to_string(),
+                format!("return_pc={:#06x}", top.return_pc),
+            );
         }
     }
 }
@@ -495,10 +522,11 @@ impl LocalDebugSession {
             // 检查断点（如果有断点且用户已设置）
             if !self.bp_list.is_empty() {
                 if let Some(bp) = self.bp_list.iter().find(|b| {
-                    b.enabled && match b.bp_type {
-                        BreakpointType::Pc(addr) => pc_before == addr,
-                        _ => false,
-                    }
+                    b.enabled
+                        && match b.bp_type {
+                            BreakpointType::Pc(addr) => pc_before == addr,
+                            _ => false,
+                        }
                 }) {
                     // 检查条件
                     if let Some(ref cond) = bp.condition {
@@ -553,7 +581,9 @@ impl LocalDebugSession {
                     } else {
                         format!("call_unknown_{:#06x}", target_pc)
                     };
-                    let source_line = self.debug_map.as_ref()
+                    let source_line = self
+                        .debug_map
+                        .as_ref()
                         .and_then(|m| m.line_for_pc(pc_before))
                         .unwrap_or(0);
 
@@ -565,11 +595,18 @@ impl LocalDebugSession {
                     let entry = &decode::dispatch_table()[op as usize];
                     let ops = decode::decode(instr, entry.enc);
                     let syscall_name = disassemble::syscall_name(ops.imm);
-                    let source_line = self.debug_map.as_ref()
+                    let source_line = self
+                        .debug_map
+                        .as_ref()
                         .and_then(|m| m.line_for_pc(pc_before))
                         .unwrap_or(0);
 
-                    collector.begin_step(syscall_name, ExecutionPhase::System, source_line, pc_before);
+                    collector.begin_step(
+                        syscall_name,
+                        ExecutionPhase::System,
+                        source_line,
+                        pc_before,
+                    );
                 }
 
                 // 检测 MOVI/LOAD/STORE 作为变量事件
@@ -586,7 +623,10 @@ impl LocalDebugSession {
                         Some(old_val),
                         ops.imm as u64,
                         pc_before,
-                            self.debug_map.as_ref().and_then(|m| m.line_for_pc(pc_before)).unwrap_or(0),
+                        self.debug_map
+                            .as_ref()
+                            .and_then(|m| m.line_for_pc(pc_before))
+                            .unwrap_or(0),
                         "exec",
                         false,
                     );
@@ -599,7 +639,9 @@ impl LocalDebugSession {
 
         // 完成收集
         let elapsed = start.elapsed();
-        self.perf.step_times.push(("total".to_string(), elapsed.as_micros() as u64));
+        self.perf
+            .step_times
+            .push(("total".to_string(), elapsed.as_micros() as u64));
 
         // 更新内存峰值
         if self.vm.memory.usage > self.perf.peak_memory {
@@ -620,11 +662,30 @@ impl LocalDebugSession {
     /// 获取段信息。
     pub fn segment_info(&self) -> Vec<(&'static str, usize, String)> {
         let mut segments = Vec::new();
-        segments.push((".text", self.vm.text.len() * 4, format!("{} 条指令", self.vm.text.len())));
-        segments.push((".rodata", self.vm.rodata.len(), format!("{} 字节", self.vm.rodata.len())));
-        segments.push((".debug", self.vm.debug_info.len(), format!("{} 字节 ADBG", self.vm.debug_info.len())));
-        segments.push((".exn", self.vm.exn_table.len(), format!("{} 字节", self.vm.exn_table.len())));
-        let total = (self.vm.text.len() * 4) + self.vm.rodata.len() + self.vm.debug_info.len() + self.vm.exn_table.len();
+        segments.push((
+            ".text",
+            self.vm.text.len() * 4,
+            format!("{} 条指令", self.vm.text.len()),
+        ));
+        segments.push((
+            ".rodata",
+            self.vm.rodata.len(),
+            format!("{} 字节", self.vm.rodata.len()),
+        ));
+        segments.push((
+            ".debug",
+            self.vm.debug_info.len(),
+            format!("{} 字节 ADBG", self.vm.debug_info.len()),
+        ));
+        segments.push((
+            ".exn",
+            self.vm.exn_table.len(),
+            format!("{} 字节", self.vm.exn_table.len()),
+        ));
+        let total = (self.vm.text.len() * 4)
+            + self.vm.rodata.len()
+            + self.vm.debug_info.len()
+            + self.vm.exn_table.len();
         segments.push(("总计", total, format!("{} 字节", total)));
         segments
     }
@@ -643,7 +704,9 @@ impl LocalDebugSession {
                 for entry in &func_entries {
                     let name = entry.func_name().unwrap_or("anonymous").to_string();
                     let pc_range = format!("{:#06x}–{:#06x}", entry.pc_start, entry.pc_end);
-                    let status = if self.vm.pc >= entry.pc_start as usize && self.vm.pc <= entry.pc_end as usize {
+                    let status = if self.vm.pc >= entry.pc_start as usize
+                        && self.vm.pc <= entry.pc_end as usize
+                    {
                         "active".to_string()
                     } else {
                         "loaded".to_string()
@@ -664,12 +727,22 @@ impl LocalDebugSession {
                 for i in 0..4 {
                     let start = i * zone_size;
                     let end = ((i + 1) * zone_size - 1).min(text_len.saturating_sub(1));
-                    if start >= text_len { break; }
+                    if start >= text_len {
+                        break;
+                    }
                     let zone_hits: u64 = (start..=end)
                         .filter_map(|pc| self.perf.pc_hits.get(&pc))
                         .sum();
-                    let pct = if total_pc_hits > 0 { zone_hits as f64 / total_pc_hits as f64 * 100.0 } else { 0.0 };
-                    let lifecycle = if i == 0 || i == 3 { "PERSISTENT" } else { "EXEC_UNLOAD" };
+                    let pct = if total_pc_hits > 0 {
+                        zone_hits as f64 / total_pc_hits as f64 * 100.0
+                    } else {
+                        0.0
+                    };
+                    let lifecycle = if i == 0 || i == 3 {
+                        "PERSISTENT"
+                    } else {
+                        "EXEC_UNLOAD"
+                    };
                     let is_active = self.vm.pc >= start && self.vm.pc <= end;
                     let status = if is_active {
                         format!("active ({:.1}%)", pct)
@@ -679,7 +752,12 @@ impl LocalDebugSession {
                         "lazy".to_string()
                     };
                     let zone_name = format!("zone_{}", i);
-                    zones.push((zone_name, lifecycle.to_string(), status, format!("{:#06x}–{:#06x}", start, end)));
+                    zones.push((
+                        zone_name,
+                        lifecycle.to_string(),
+                        status,
+                        format!("{:#06x}–{:#06x}", start, end),
+                    ));
                 }
             } else {
                 // 3. 纯静态：按 .text 段大小等分
@@ -687,11 +765,17 @@ impl LocalDebugSession {
                 for i in 0..4.min(text_len) {
                     let start = i * zone_size;
                     let end = ((i + 1) * zone_size - 1).min(text_len.saturating_sub(1));
-                    if start >= text_len { break; }
+                    if start >= text_len {
+                        break;
+                    }
                     zones.push((
                         format!("zone_{}", i),
                         "PERSISTENT".to_string(),
-                        if self.vm.pc >= start && self.vm.pc <= end { "active".to_string() } else { "loaded".to_string() },
+                        if self.vm.pc >= start && self.vm.pc <= end {
+                            "active".to_string()
+                        } else {
+                            "loaded".to_string()
+                        },
                         format!("{:#06x}–{:#06x}", start, end),
                     ));
                 }
@@ -703,7 +787,12 @@ impl LocalDebugSession {
             zones.push((
                 "main".to_string(),
                 "PERSISTENT".to_string(),
-                if self.vm.is_running() { "active" } else { "halted" }.to_string(),
+                if self.vm.is_running() {
+                    "active"
+                } else {
+                    "halted"
+                }
+                .to_string(),
                 format!("{:#06x}–{:#06x}", 0, text_len.saturating_sub(1)),
             ));
         }
@@ -739,14 +828,19 @@ impl LocalDebugSession {
 
     /// 获取 hot path（Top-N PC）。
     pub fn hot_path(&self, n: usize) -> Vec<(usize, u64, String)> {
-        let mut hits: Vec<_> = self.perf.pc_hits.iter().map(|(pc, count)| {
-            let desc = if *pc < self.vm.text.len() {
-                disassemble::format_instruction(*pc, self.vm.text[*pc])
-            } else {
-                "—".to_string()
-            };
-            (*pc, *count, desc)
-        }).collect();
+        let mut hits: Vec<_> = self
+            .perf
+            .pc_hits
+            .iter()
+            .map(|(pc, count)| {
+                let desc = if *pc < self.vm.text.len() {
+                    disassemble::format_instruction(*pc, self.vm.text[*pc])
+                } else {
+                    "—".to_string()
+                };
+                (*pc, *count, desc)
+            })
+            .collect();
         hits.sort_by(|a, b| b.1.cmp(&a.1));
         hits.truncate(n);
         hits
@@ -771,18 +865,19 @@ impl LocalDebugSession {
     /// 获取异常详情（如果 VM 处于错误状态）。
     pub fn exception_detail(&self) -> Option<ExceptionDetail> {
         match &self.vm.state {
-            VmStateKind::Error(msg) => {
-                Some(ExceptionDetail {
-                    error_type: "RuntimeError".to_string(),
-                    error_code: 1,
-                    error_message: msg.clone(),
-                    source_line: self.debug_map.as_ref().and_then(|m| m.line_for_pc(self.vm.pc)),
-                    source_pc: self.vm.pc,
-                    call_stack_depth: self.vm.call_stack.len(),
-                    is_propagated: false,
-                    is_caught: false,
-                })
-            }
+            VmStateKind::Error(msg) => Some(ExceptionDetail {
+                error_type: "RuntimeError".to_string(),
+                error_code: 1,
+                error_message: msg.clone(),
+                source_line: self
+                    .debug_map
+                    .as_ref()
+                    .and_then(|m| m.line_for_pc(self.vm.pc)),
+                source_pc: self.vm.pc,
+                call_stack_depth: self.vm.call_stack.len(),
+                is_propagated: false,
+                is_caught: false,
+            }),
             _ => None,
         }
     }
@@ -804,19 +899,35 @@ pub struct ExceptionDetail {
 // ─── DebugSession trait 实现 ──────────────────────────────
 
 impl DebugSession for LocalDebugSession {
-    fn vm(&self) -> &VmState { &self.vm }
-    fn vm_mut(&mut self) -> &mut VmState { &mut self.vm }
-    fn trace(&self) -> &ExecutionTrace { &self.trace }
-    fn trace_mut(&mut self) -> &mut ExecutionTrace { &mut self.trace }
-    fn debug_map(&self) -> Option<&DebugMap> { self.debug_map.as_ref() }
-    fn source_lines(&self) -> &[String] { &self.source_lines }
-    fn source_path(&self) -> Option<&str> { self.source_path.as_deref() }
+    fn vm(&self) -> &VmState {
+        &self.vm
+    }
+    fn vm_mut(&mut self) -> &mut VmState {
+        &mut self.vm
+    }
+    fn trace(&self) -> &ExecutionTrace {
+        &self.trace
+    }
+    fn trace_mut(&mut self) -> &mut ExecutionTrace {
+        &mut self.trace
+    }
+    fn debug_map(&self) -> Option<&DebugMap> {
+        self.debug_map.as_ref()
+    }
+    fn source_lines(&self) -> &[String] {
+        &self.source_lines
+    }
+    fn source_path(&self) -> Option<&str> {
+        self.source_path.as_deref()
+    }
 
     // ─── 执行控制 ──────────────────────────────────────
 
     fn step_instructions(&mut self, n: usize) {
         for _ in 0..n {
-            if !self.vm.is_running() { break; }
+            if !self.vm.is_running() {
+                break;
+            }
             let pc_before = self.vm.pc;
             execute_instruction(&mut self.vm);
             self.perf.total_instructions += 1;
@@ -839,15 +950,19 @@ impl DebugSession for LocalDebugSession {
 
             // 检查断点
             if let Some(bp) = self.bp_list.iter().find(|b| {
-                b.enabled && match b.bp_type {
-                    BreakpointType::Pc(addr) => pc_before == addr,
-                    _ => false,
-                }
+                b.enabled
+                    && match b.bp_type {
+                        BreakpointType::Pc(addr) => pc_before == addr,
+                        _ => false,
+                    }
             }) {
                 if let Some(ref cond) = bp.condition {
                     match eval::eval_expr(cond, &self.vm) {
                         Ok(val) if val == 0 => continue,
-                        Err(e) => { println!("⚠ 条件求值错误: {}", e); continue; }
+                        Err(e) => {
+                            println!("⚠ 条件求值错误: {}", e);
+                            continue;
+                        }
                         _ => {}
                     }
                 }
@@ -855,14 +970,20 @@ impl DebugSession for LocalDebugSession {
                 return;
             }
 
-            if !self.vm.is_running() { break; }
+            if !self.vm.is_running() {
+                break;
+            }
         }
         self.is_context.update_from_vm(&self.vm);
         match self.vm.state {
             VmStateKind::Halted => println!("⏹ VM 已停止（{} 条指令）", steps),
             VmStateKind::Error(ref e) => println!("⛔ VM 错误: {}", e),
             VmStateKind::Suspended => println!("⏸ VM 已挂起"),
-            _ => if steps >= max_steps { println!("⚠ 达到最大步数限制") },
+            _ => {
+                if steps >= max_steps {
+                    println!("⚠ 达到最大步数限制")
+                }
+            }
         }
     }
 
@@ -871,13 +992,16 @@ impl DebugSession for LocalDebugSession {
         // 简化实现：运行到下一个 CALL/ECALL/TRAP 指令
         let max_steps = 10_000;
         for _ in 0..max_steps {
-            if !self.vm.is_running() { break; }
+            if !self.vm.is_running() {
+                break;
+            }
             let pc_before = self.vm.pc;
             execute_instruction(&mut self.vm);
             self.perf.total_instructions += 1;
             if pc_before < self.vm.text.len() {
                 let op = (self.vm.text[pc_before] >> 24) as u8;
-                if op == opcode::CALL as u8 || op == opcode::ECALL as u8 || op == opcode::TRAP as u8 {
+                if op == opcode::CALL as u8 || op == opcode::ECALL as u8 || op == opcode::TRAP as u8
+                {
                     println!("→ Step 边界于 {:#06x}", self.vm.pc);
                     return;
                 }
@@ -896,7 +1020,9 @@ impl DebugSession for LocalDebugSession {
         let current_depth = self.vm.call_stack.len();
         let max_steps = 10_000;
         for _ in 0..max_steps {
-            if !self.vm.is_running() { break; }
+            if !self.vm.is_running() {
+                break;
+            }
             execute_instruction(&mut self.vm);
             self.perf.total_instructions += 1;
             if self.vm.call_stack.len() < current_depth {
@@ -941,7 +1067,9 @@ impl DebugSession for LocalDebugSession {
                 }
             }
             // 降级：找最接近的行号
-            if let Some(best) = map.line_entries().iter()
+            if let Some(best) = map
+                .line_entries()
+                .iter()
                 .min_by_key(|e| (e.source_line as i32 - line as i32).abs())
             {
                 return self.set_breakpoint_pc(best.pc_start as usize, condition);
@@ -1023,8 +1151,12 @@ impl DebugSession for LocalDebugSession {
         }
     }
 
-    fn breakpoints(&self) -> &[Breakpoint] { &self.bp_list }
-    fn breakpoints_mut(&mut self) -> &mut Vec<Breakpoint> { &mut self.bp_list }
+    fn breakpoints(&self) -> &[Breakpoint] {
+        &self.bp_list
+    }
+    fn breakpoints_mut(&mut self) -> &mut Vec<Breakpoint> {
+        &mut self.bp_list
+    }
 
     // ─── 监视点 ──────────────────────────────────────
 
@@ -1033,11 +1165,18 @@ impl DebugSession for LocalDebugSession {
             println!("监视点已存在于 {:#x}", addr);
             return;
         }
-        self.wp_list.push(Watchpoint { addr, size, label: label.to_string(), hit_count: 0 });
+        self.wp_list.push(Watchpoint {
+            addr,
+            size,
+            label: label.to_string(),
+            hit_count: 0,
+        });
         println!("监视点已设置: {:#x} ({} 字节, {})", addr, size, label);
     }
 
-    fn watchpoints(&self) -> &[Watchpoint] { &self.wp_list }
+    fn watchpoints(&self) -> &[Watchpoint] {
+        &self.wp_list
+    }
 
     fn check_watchpoint_hit(&self, accessed_addr: u64, access_size: u64) -> Option<usize> {
         for (i, wp) in self.wp_list.iter().enumerate() {
@@ -1052,8 +1191,12 @@ impl DebugSession for LocalDebugSession {
 
     // ─── 帧状态 ──────────────────────────────────────
 
-    fn frame_state(&self) -> &FrameState { &self.frame_state }
-    fn frame_state_mut(&mut self) -> &mut FrameState { &mut self.frame_state }
+    fn frame_state(&self) -> &FrameState {
+        &self.frame_state
+    }
+    fn frame_state_mut(&mut self) -> &mut FrameState {
+        &mut self.frame_state
+    }
 
     // ─── 显示 ──────────────────────────────────────
 
@@ -1078,32 +1221,58 @@ impl DebugSession for LocalDebugSession {
         println!("display 列表已清空");
     }
 
-    fn display_exprs(&self) -> &[String] { &self.display_expr_list }
+    fn display_exprs(&self) -> &[String] {
+        &self.display_expr_list
+    }
 
     // ─── 历史 ──────────────────────────────────────
 
-    fn record_history(&mut self, cmd: &str) { self.cmd_history.push(cmd.to_string()); }
-    fn history(&self) -> &CommandHistory { &self.cmd_history }
-    fn history_mut(&mut self) -> &mut CommandHistory { &mut self.cmd_history }
+    fn record_history(&mut self, cmd: &str) {
+        self.cmd_history.push(cmd.to_string());
+    }
+    fn history(&self) -> &CommandHistory {
+        &self.cmd_history
+    }
+    fn history_mut(&mut self) -> &mut CommandHistory {
+        &mut self.cmd_history
+    }
 
     // ─── 性能计数器 ──────────────────────────────────────
 
-    fn perf_counters(&self) -> &PerfCounters { &self.perf }
-    fn perf_counters_mut(&mut self) -> &mut PerfCounters { &mut self.perf }
+    fn perf_counters(&self) -> &PerfCounters {
+        &self.perf
+    }
+    fn perf_counters_mut(&mut self) -> &mut PerfCounters {
+        &mut self.perf
+    }
 
     // ─── 面板/视图 ──────────────────────────────────────
 
-    fn display_format(&self) -> DisplayFormat { self.disp_fmt }
-    fn set_display_format(&mut self, fmt: DisplayFormat) { self.disp_fmt = fmt; }
-    fn display_depth(&self) -> usize { self.disp_depth }
-    fn set_display_depth(&mut self, depth: usize) { self.disp_depth = depth; }
-    fn watch_speed(&self) -> f32 { self.watch_spd }
-    fn set_watch_speed(&mut self, speed: f32) { self.watch_spd = speed.max(0.25).min(4.0); }
+    fn display_format(&self) -> DisplayFormat {
+        self.disp_fmt
+    }
+    fn set_display_format(&mut self, fmt: DisplayFormat) {
+        self.disp_fmt = fmt;
+    }
+    fn display_depth(&self) -> usize {
+        self.disp_depth
+    }
+    fn set_display_depth(&mut self, depth: usize) {
+        self.disp_depth = depth;
+    }
+    fn watch_speed(&self) -> f32 {
+        self.watch_spd
+    }
+    fn set_watch_speed(&mut self, speed: f32) {
+        self.watch_spd = speed.max(0.25).min(4.0);
+    }
 
     // ─── 信息查询 ──────────────────────────────────────
 
     fn current_source_line(&self) -> Option<u32> {
-        self.debug_map.as_ref().and_then(|m| m.line_for_pc(self.vm.pc))
+        self.debug_map
+            .as_ref()
+            .and_then(|m| m.line_for_pc(self.vm.pc))
     }
 
     fn current_instruction(&self) -> String {
@@ -1154,8 +1323,14 @@ mod tests {
     fn make_test_session(text: Vec<u32>) -> LocalDebugSession {
         let header = Header::new(0, text.len() as u16);
         let binary = AtxeBinary {
-            header, sections: vec![], text, rodata: vec![],
-            task_table: vec![], debug_info: vec![], exn_table: vec![], zones: vec![],
+            header,
+            sections: vec![],
+            text,
+            rodata: vec![],
+            task_table: vec![],
+            debug_info: vec![],
+            exn_table: vec![],
+            zones: vec![],
         };
         let vm = VmState::from_atxe(&binary).unwrap();
         LocalDebugSession::new(vm)

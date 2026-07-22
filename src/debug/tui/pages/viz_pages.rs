@@ -39,7 +39,9 @@ impl DataTimelinePage {
 }
 
 impl Page for DataTimelinePage {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let trace = &session.trace;
@@ -48,13 +50,22 @@ impl Page for DataTimelinePage {
 
         lines.push(Line::from(Span::styled(
             " 数据流: INPUT ──▶ Step ──▶ OUT     ←→ 平移  ↑↓ 切换变量  +/- 缩放",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
 
-        let task_steps: Vec<_> = trace.steps.iter().filter(|s| s.phase == ExecutionPhase::Task).collect();
+        let task_steps: Vec<_> = trace
+            .steps
+            .iter()
+            .filter(|s| s.phase == ExecutionPhase::Task)
+            .collect();
 
         if task_steps.is_empty() && trace.variable_events.is_empty() {
-            lines.push(Line::from(Span::styled("  （无数据）", Style::default().fg(Color::Gray))));
+            lines.push(Line::from(Span::styled(
+                "  （无数据）",
+                Style::default().fg(Color::Gray),
+            )));
             frame.render_widget(Paragraph::new(lines), area);
             return;
         }
@@ -73,22 +84,32 @@ impl Page for DataTimelinePage {
             header.push_str(&label);
             header.push(' ');
         }
-        lines.push(Line::from(Span::styled(&header, Style::default().fg(Color::Cyan))));
+        lines.push(Line::from(Span::styled(
+            &header,
+            Style::default().fg(Color::Cyan),
+        )));
 
         // 时间轴横线
         let mut axis = "  ".to_string();
         for i in 0..task_steps.len().min(max_steps) {
             let width = step_width + 1;
             axis.push_str(&"─".repeat(width));
-            if i + 1 < task_steps.len().min(max_steps) { axis.push('┬'); }
+            if i + 1 < task_steps.len().min(max_steps) {
+                axis.push('┬');
+            }
         }
-        lines.push(Line::from(Span::styled(&axis, Style::default().fg(Color::DarkGray))));
+        lines.push(Line::from(Span::styled(
+            &axis,
+            Style::default().fg(Color::DarkGray),
+        )));
 
         // 变量生命周期线 — 每行一个变量，显示流经哪些 Step
         let max_vars = max_visible.saturating_sub(4).min(8);
         let mut shown = 0;
         for var_idx in self.selected_var..trace.variable_events.len() {
-            if shown >= max_vars { break; }
+            if shown >= max_vars {
+                break;
+            }
             let event = &trace.variable_events[var_idx];
 
             // ● 变量节点
@@ -97,42 +118,69 @@ impl Page for DataTimelinePage {
             // 绘制变量穿过各 Step 的路径
             for step in task_steps.iter().take(max_steps) {
                 let is_consumer = step.name == event.step_name;
-                let marker = if is_consumer { "──■──" } else { "──·──" };
+                let marker = if is_consumer {
+                    "──■──"
+                } else {
+                    "──·──"
+                };
                 line.push_str(marker);
             }
-            lines.push(Line::from(Span::styled(line, Style::default().fg(Color::White))));
+            lines.push(Line::from(Span::styled(
+                line,
+                Style::default().fg(Color::White),
+            )));
             shown += 1;
         }
 
         // 选中变量的详细数据流
         if let Some(event) = trace.variable_events.get(self.selected_var) {
             lines.push(Line::from(Span::raw("")));
-            let old_val = event.old_value.map(|v| format!("{:#x}", v)).unwrap_or_else(|| "—".to_string());
+            let old_val = event
+                .old_value
+                .map(|v| format!("{:#x}", v))
+                .unwrap_or_else(|| "—".to_string());
             lines.push(Line::from(Span::styled(
-                format!("  ▼ {}: {} → {}  @PC={:#06x}  Step:{}", event.name, old_val, event.new_value, event.pc, event.step_name),
+                format!(
+                    "  ▼ {}: {} → {}  @PC={:#06x}  Step:{}",
+                    event.name, old_val, event.new_value, event.pc, event.step_name
+                ),
                 Style::default().fg(Color::Yellow),
             )));
             // 完整流向路径
             let mut flow = "  INPUT ".to_string();
             for s in &task_steps {
-                if s.name == event.step_name || s.input_vars.iter().any(|v| v == &event.name) || s.output_vars.iter().any(|v| v == &event.name) {
+                if s.name == event.step_name
+                    || s.input_vars.iter().any(|v| v == &event.name)
+                    || s.output_vars.iter().any(|v| v == &event.name)
+                {
                     flow.push_str(&format!("─▶ {} ─▶", s.name));
                 }
             }
             flow.push_str(" OUT");
-            lines.push(Line::from(Span::styled(flow, Style::default().fg(Color::Cyan))));
+            lines.push(Line::from(Span::styled(
+                flow,
+                Style::default().fg(Color::Cyan),
+            )));
         }
 
         frame.render_widget(
             Paragraph::new(lines)
-                .block(Block::default().borders(Borders::TOP).border_style(Style::default().fg(Color::DarkGray)))
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
                 .wrap(Wrap { trim: false }),
             area,
         );
     }
 
-    fn on_zoom_in(&mut self, _session: &mut LocalDebugSession) { self.zoom_level = (self.zoom_level * 1.5).min(8.0); }
-    fn on_zoom_out(&mut self, _session: &mut LocalDebugSession) { self.zoom_level = (self.zoom_level / 1.5).max(0.25); }
+    fn on_zoom_in(&mut self, _session: &mut LocalDebugSession) {
+        self.zoom_level = (self.zoom_level * 1.5).min(8.0);
+    }
+    fn on_zoom_out(&mut self, _session: &mut LocalDebugSession) {
+        self.zoom_level = (self.zoom_level / 1.5).max(0.25);
+    }
     fn on_data_changed(&mut self, _session: &mut LocalDebugSession) {}
 }
 
@@ -157,7 +205,9 @@ impl HookTimelinePage {
 }
 
 impl Page for HookTimelinePage {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let trace = &session.trace;
@@ -166,7 +216,9 @@ impl Page for HookTimelinePage {
 
         lines.push(Line::from(Span::styled(
             " WORKS 钩子执行链     ←→ 平移  ↑↓ 切换分支  +/- 缩放",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
 
         if trace.hook_timeline.is_empty() {
@@ -176,30 +228,53 @@ impl Page for HookTimelinePage {
             )));
         } else {
             // 按 WORKS 实例分组
-            let mut works_groups: std::collections::HashMap<&str, Vec<&crate::debug::trace::HookEvent>> =
-                std::collections::HashMap::new();
+            let mut works_groups: std::collections::HashMap<
+                &str,
+                Vec<&crate::debug::trace::HookEvent>,
+            > = std::collections::HashMap::new();
             for event in &trace.hook_timeline {
-                works_groups.entry(event.works_name.as_str()).or_default().push(event);
+                works_groups
+                    .entry(event.works_name.as_str())
+                    .or_default()
+                    .push(event);
             }
 
             for (works_name, events) in works_groups.iter() {
                 let elapsed_total: u64 = events.iter().map(|e| e.elapsed_us).sum();
                 lines.push(Line::from(Span::styled(
-                    format!("\n  ┌─ {} [{}μs total] ─────────────────", works_name, elapsed_total),
-                    Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                    format!(
+                        "\n  ┌─ {} [{}μs total] ─────────────────",
+                        works_name, elapsed_total
+                    ),
+                    Style::default()
+                        .fg(Color::Magenta)
+                        .add_modifier(Modifier::BOLD),
                 )));
 
                 for (i, event) in events.iter().enumerate() {
-                    if i >= max_visible / 2 { break; }
+                    if i >= max_visible / 2 {
+                        break;
+                    }
                     let elapsed = format!("{}μs", event.elapsed_us);
                     let is_last = i == events.len() - 1;
                     let branch = if is_last { "└─" } else { "├─" };
-                    let cond = event.condition.as_ref().map(|c| format!(" [if {}]", c)).unwrap_or_default();
+                    let cond = event
+                        .condition
+                        .as_ref()
+                        .map(|c| format!(" [if {}]", c))
+                        .unwrap_or_default();
                     let fanout = if event.is_fanout { " ⚡FANOUT" } else { "" };
 
                     lines.push(Line::from(Span::styled(
-                        format!("  {}── {:>12} ──▶ {}{}  [{}]{}", branch, event.hook_name, event.action, cond, elapsed, fanout),
-                        if event.is_fanout { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::White) },
+                        format!(
+                            "  {}── {:>12} ──▶ {}{}  [{}]{}",
+                            branch, event.hook_name, event.action, cond, elapsed, fanout
+                        ),
+                        if event.is_fanout {
+                            Style::default().fg(Color::Yellow)
+                        } else {
+                            Style::default().fg(Color::White)
+                        },
                     )));
                 }
             }
@@ -207,14 +282,22 @@ impl Page for HookTimelinePage {
 
         frame.render_widget(
             Paragraph::new(lines)
-                .block(Block::default().borders(Borders::TOP).border_style(Style::default().fg(Color::DarkGray)))
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
                 .wrap(Wrap { trim: false }),
             area,
         );
     }
 
-    fn on_zoom_in(&mut self, _session: &mut LocalDebugSession) { self.zoom_level = (self.zoom_level * 1.5).min(8.0); }
-    fn on_zoom_out(&mut self, _session: &mut LocalDebugSession) { self.zoom_level = (self.zoom_level / 1.5).max(0.25); }
+    fn on_zoom_in(&mut self, _session: &mut LocalDebugSession) {
+        self.zoom_level = (self.zoom_level * 1.5).min(8.0);
+    }
+    fn on_zoom_out(&mut self, _session: &mut LocalDebugSession) {
+        self.zoom_level = (self.zoom_level / 1.5).max(0.25);
+    }
     fn on_data_changed(&mut self, _session: &mut LocalDebugSession) {}
 }
 
@@ -239,7 +322,9 @@ impl TaskDependencyPage {
 }
 
 impl Page for TaskDependencyPage {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let trace = &session.trace;
@@ -248,13 +333,22 @@ impl Page for TaskDependencyPage {
 
         lines.push(Line::from(Span::styled(
             " 任务依赖 DAG    FORK ──▶ (橙色)    JOIN ◀── (青色)",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
 
-        let task_steps: Vec<_> = trace.steps.iter().filter(|s| s.phase == ExecutionPhase::Task).collect();
+        let task_steps: Vec<_> = trace
+            .steps
+            .iter()
+            .filter(|s| s.phase == ExecutionPhase::Task)
+            .collect();
 
         if task_steps.is_empty() {
-            lines.push(Line::from(Span::styled("  （无任务 Step）", Style::default().fg(Color::Gray))));
+            lines.push(Line::from(Span::styled(
+                "  （无任务 Step）",
+                Style::default().fg(Color::Gray),
+            )));
         } else {
             // 按层次分组建树
             let depth = 3;
@@ -265,13 +359,19 @@ impl Page for TaskDependencyPage {
 
             lines.push(Line::from(Span::styled(
                 "  [ROOT] Task Pool",
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             )));
 
             for level in 0..depth {
                 if level < levels.len() && !levels[level].is_empty() {
                     let is_last_level = level == depth - 1;
-                    let branch = if is_last_level { "  └─" } else { "  ├─" };
+                    let branch = if is_last_level {
+                        "  └─"
+                    } else {
+                        "  ├─"
+                    };
 
                     lines.push(Line::from(Span::styled(
                         format!("{}── FORK ──▶ Batch {}", branch, level),
@@ -279,17 +379,39 @@ impl Page for TaskDependencyPage {
                     )));
 
                     for (j, &idx) in levels[level].iter().enumerate() {
-                        if j >= max_visible / 3 { break; }
+                        if j >= max_visible / 3 {
+                            break;
+                        }
                         let step = &task_steps[idx];
                         let is_last_in_level = j == levels[level].len() - 1;
-                        let leaf_branch = if is_last_in_level { "      └─" } else { "      ├─" };
-                        let sel_mark = if idx == self.selected_task { " ▶" } else { "  " };
+                        let leaf_branch = if is_last_in_level {
+                            "      └─"
+                        } else {
+                            "      ├─"
+                        };
+                        let sel_mark = if idx == self.selected_task {
+                            " ▶"
+                        } else {
+                            "  "
+                        };
 
                         lines.push(Line::from(vec![
-                            Span::styled(format!("{}── ", leaf_branch), Style::default().fg(Color::DarkGray)),
-                            Span::styled(format!("{}", step.status.symbol()), Style::default().fg(Color::Green)),
-                            Span::styled(format!(" {}{}", step.name, sel_mark), Style::default().fg(Color::White)),
-                            Span::styled(format!("  [line {}]", step.source_line), Style::default().fg(Color::DarkGray)),
+                            Span::styled(
+                                format!("{}── ", leaf_branch),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                format!("{}", step.status.symbol()),
+                                Style::default().fg(Color::Green),
+                            ),
+                            Span::styled(
+                                format!(" {}{}", step.name, sel_mark),
+                                Style::default().fg(Color::White),
+                            ),
+                            Span::styled(
+                                format!("  [line {}]", step.source_line),
+                                Style::default().fg(Color::DarkGray),
+                            ),
                         ]));
 
                         if j > 0 {
@@ -304,14 +426,21 @@ impl Page for TaskDependencyPage {
 
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                format!("  共 {} 任务 | 橙色=FORK 边 | 青色=JOIN 边", task_steps.len()),
+                format!(
+                    "  共 {} 任务 | 橙色=FORK 边 | 青色=JOIN 边",
+                    task_steps.len()
+                ),
                 Style::default().fg(Color::DarkGray),
             )));
         }
 
         frame.render_widget(
             Paragraph::new(lines)
-                .block(Block::default().borders(Borders::TOP).border_style(Style::default().fg(Color::DarkGray)))
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
                 .wrap(Wrap { trim: false }),
             area,
         );
@@ -343,38 +472,71 @@ impl WatchReplayPage {
 }
 
 impl Page for WatchReplayPage {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn render(&mut self, frame: &mut Frame, area: Rect, session: &mut LocalDebugSession) {
         let trace = &session.trace;
         self.speed = session.watch_spd;
         let mut lines: Vec<Line> = Vec::new();
 
-        lines.push(Line::from(Span::styled(" Step 回放", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
-        lines.push(Line::from(Span::styled("  Space 暂停/继续  ←→ 调速 0.25x–4x", Style::default().fg(Color::DarkGray))));
+        lines.push(Line::from(Span::styled(
+            " Step 回放",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::styled(
+            "  Space 暂停/继续  ←→ 调速 0.25x–4x",
+            Style::default().fg(Color::DarkGray),
+        )));
 
         // 进度条
         let bar_width = 40usize;
         let progress_filled = (self.progress * bar_width as f32).round() as usize;
-        let bar: String = (0..bar_width).map(|i| if i < progress_filled { '█' } else { '░' }).collect();
+        let bar: String = (0..bar_width)
+            .map(|i| if i < progress_filled { '█' } else { '░' })
+            .collect();
         let play_symbol = if self.is_playing { "⏸" } else { "▶" };
 
         lines.push(Line::from(Span::styled(
-            format!("  {}  |{}|  {:.0}%  Speed: {:.1}x", play_symbol, bar, self.progress * 100.0, self.speed),
+            format!(
+                "  {}  |{}|  {:.0}%  Speed: {:.1}x",
+                play_symbol,
+                bar,
+                self.progress * 100.0,
+                self.speed
+            ),
             Style::default().fg(Color::Yellow),
         )));
         lines.push(Line::from(Span::raw("")));
 
         // 子操作清单
-        let task_steps: Vec<_> = trace.steps.iter().filter(|s| s.phase == ExecutionPhase::Task).collect();
+        let task_steps: Vec<_> = trace
+            .steps
+            .iter()
+            .filter(|s| s.phase == ExecutionPhase::Task)
+            .collect();
         let completed_count = (task_steps.len() as f32 * self.progress).round() as usize;
 
-        lines.push(Line::from(Span::styled("  Sub-operations:", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))));
+        lines.push(Line::from(Span::styled(
+            "  Sub-operations:",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
         for (i, step) in task_steps.iter().enumerate() {
-            if i >= (area.height as usize).saturating_sub(8) { break; }
-            let (marker, color) = if i < completed_count { ("✓", Color::Green) }
-                else if i == completed_count { ("▶", Color::Yellow) }
-                else { ("·", Color::Gray) };
+            if i >= (area.height as usize).saturating_sub(8) {
+                break;
+            }
+            let (marker, color) = if i < completed_count {
+                ("✓", Color::Green)
+            } else if i == completed_count {
+                ("▶", Color::Yellow)
+            } else {
+                ("·", Color::Gray)
+            };
             lines.push(Line::from(Span::styled(
                 format!("    {}  {}  [line {}]", marker, step.name, step.source_line),
                 Style::default().fg(color),
@@ -383,22 +545,38 @@ impl Page for WatchReplayPage {
 
         lines.push(Line::from(Span::raw("")));
         lines.push(Line::from(Span::styled(
-            format!("  PC={:#06x}  Instr={}  State={:?}", session.vm.pc, session.perf.total_instructions, session.vm.state),
+            format!(
+                "  PC={:#06x}  Instr={}  State={:?}",
+                session.vm.pc, session.perf.total_instructions, session.vm.state
+            ),
             Style::default().fg(Color::DarkGray),
         )));
 
         frame.render_widget(
             Paragraph::new(lines)
-                .block(Block::default().borders(Borders::TOP).border_style(Style::default().fg(Color::DarkGray)))
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                )
                 .wrap(Wrap { trim: false }),
             area,
         );
     }
 
-    fn on_key_shortcut(&mut self, _session: &mut LocalDebugSession, key: char, status: &mut String) {
+    fn on_key_shortcut(
+        &mut self,
+        _session: &mut LocalDebugSession,
+        key: char,
+        status: &mut String,
+    ) {
         if key == ' ' {
             self.is_playing = !self.is_playing;
-            *status = if self.is_playing { "回放已暂停".to_string() } else { "回放中".to_string() };
+            *status = if self.is_playing {
+                "回放已暂停".to_string()
+            } else {
+                "回放中".to_string()
+            };
         }
     }
 
