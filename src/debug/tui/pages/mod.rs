@@ -59,6 +59,8 @@ pub enum PageId {
 
 // ─── Page trait ───────────────────────────────────────────
 
+use crate::debug::tui::remote::RemoteSession;
+
 /// 所有 TUI 页面必须实现的接口。
 pub trait Page {
     /// 页面显示标题。
@@ -81,6 +83,8 @@ pub trait Page {
     }
     /// 数据变化时更新。
     fn on_data_changed(&mut self, _session: &mut LocalDebugSession) {}
+    /// 从远程会话刷新数据（默认无操作）。
+    fn refresh_remote(&mut self, _session: &RemoteSession) {}
 }
 
 // ─── 页面注册表 ──────────────────────────────────────────

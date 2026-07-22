@@ -646,7 +646,14 @@ fn cmd_task(
     let path = Path::new(name);
 
     if let Some(origin_alias) = origin {
-        cmd_task_remote(name, origin_alias);
+        // 启动远程 TUI（设计文档 §5.4）
+        match atomix::debug::tui::remote_app::run_remote_tui(origin_alias) {
+            Ok(()) => {},
+            Err(e) => {
+                eprintln!("远程 TUI 错误: {}", e);
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
