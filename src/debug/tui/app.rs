@@ -9,6 +9,7 @@ use crate::debug::tui::pages::{PageId, PageRegistry};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 
+use std::io::Write;
 use std::time::Duration;
 
 /// TUI 应用主状态。
@@ -36,6 +37,10 @@ pub struct TuiApp {
     /// 鼠标/键盘事件。
     pub scroll_offset: usize,
     pub selected_index: usize,
+    /// 日志文件写入器（`log:start` 时打开）。
+    log_writer: Option<std::fs::File>,
+    /// 日志文件路径。
+    log_path: Option<String>,
 }
 
 impl TuiApp {
@@ -57,6 +62,8 @@ impl TuiApp {
             running: true,
             scroll_offset: 0,
             selected_index: 0,
+            log_writer: None,
+            log_path: None,
         }
     }
 
@@ -842,13 +849,32 @@ impl TuiApp {
                 match sub {
                     "start" => {
                         let file = parts.get(1).map(|s| *s).unwrap_or("debug.log");
-                        self.status_message = format!("日志记录已开始 -> {}", file);
+                        match std::fs::OpenOptions::new().create(true).append(true).open(file) {
+                            Ok(f) => {
+                                self.log_writer = Some(f);
+                                self.log_path = Some(file.to_string());
+                                self.status_message = format!("日志记录已开始 -> {}", file);
+                            }
+                            Err(e) => {
+                                self.status_message = format!("无法打开日志文件 {}: {}", file, e);
+                            }
+                        }
                     }
                     "stop" => {
-                        self.status_message = "日志记录已停止".to_string();
+                        if self.log_writer.is_some() {
+                            let path = self.log_path.take().unwrap_or_else(|| "?".to_string());
+                            self.log_writer = None;
+                            self.status_message = format!("日志记录已停止 (文件: {})", path);
+                        } else {
+                            self.status_message = "日志记录未开始".to_string();
+                        }
                     }
                     "status" => {
-                        self.status_message = "日志记录状态: 未启动".to_string();
+                        if let Some(ref path) = self.log_path {
+                            self.status_message = format!("日志记录中 -> {}", path);
+                        } else {
+                            self.status_message = "日志记录未启动".to_string();
+                        }
                     }
                     _ => {}
                 }
@@ -1002,6 +1028,10 @@ impl TuiApp {
                 self.status_message = format!("未知命令: {}（输入 help 查看帮助）", command);
             }
         }
+        // 记录所有执行的命令到日志文件
+        if !matches!(command.as_str(), "quit" | "q") {
+            self.log_write(&format!("> {}  # {}", cmd, self.status_message));
+        }
     }
 
     fn notify_page_data_changed(&mut self) {
@@ -1009,6 +1039,14 @@ impl TuiApp {
         let session = &mut self.session;
         if let Some(page) = pages.get_page_mut(&self.active_page) {
             page.on_data_changed(session);
+        }
+    }
+
+    /// 写入日志文件（如果 log:start 已打开）。
+    fn log_write(&mut self, msg: &str) {
+        if let Some(ref mut file) = self.log_writer {
+            let line = format!("{}\n", msg);
+            let _ = std::io::Write::write_all(file, line.as_bytes());
         }
     }
 
